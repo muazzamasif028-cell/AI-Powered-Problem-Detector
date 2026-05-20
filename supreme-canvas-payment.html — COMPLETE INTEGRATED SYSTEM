@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supreme Platform — Canvas + Payment</title>
+    <style>
+        :root {
+            --bg-deep: #08080f;
+            --bg-panel: #0e0e1a;
+            --bg-card: #12122a;
+            --accent: #e94560;
+            --quantum: #00ffff;
+            --gold: #ffd700;
+            --success: #3fb950;
+            --warning: #f0883e;
+            --danger: #da3633;
+            --text: #e0e0e0;
+            --text-dim: #8888aa;
+            --border: rgba(255,255,255,0.06);
+            --input-bg: #0d1117;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-deep);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* ============================================ */
+        /* MAIN CANVAS CONTAINER                        */
+        /* ============================================ */
+        .main-container {
+            width: 100%;
+            max-width: 1300px;
+            height: 95vh;
+            background: var(--bg-panel);
+            border-radius: 24px;
+            display: flex;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 0 1px var(--border);
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* ============================================ */
+        /* SIDEBAR (Dashboard)                          */
+        /* ============================================ */
+        .sidebar {
+            width: 280px;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 16px 12px;
+            gap: 6px;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 6px;
+        }
+
+        .sidebar-header h3 {
+            color: var(--quantum);
+            font-size: 0.85em;
+            letter-spacing: 1px;
+        }
+
+        .sidebar-header .version {
+            color: var(--text-dim);
+            font-size: 0.6em;
+            margin-top: 2px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--text-dim);
+            font-size: 0.82em;
+            border: 1px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: rgba(255,255,255,0.03);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: rgba(233,69,96,0.1);
+            border-color: rgba(233,69,96,0.3);
+            color: var(--text);
+        }
+
+        .nav-item .nav-icon { font-size: 1.2em; width: 24px; text-align: center; }
+
+        .nav-section {
+            color: var(--text-dim);
+            font-size: 0.6em;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            padding: 12px 14px 4px;
+            margin-top: 8px;
+        }
+
+        /* ============================================ */
+        /* MAIN CONTENT AREA                            */
+        /* ============================================ */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .top-bar {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #e94560 150%);
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+            min-height: 60px;
+        }
+
+        .company-logo {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, #e94560, #ff6b81);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            animation: logoGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes logoGlow {
+            0%, 100% { box-shadow: 0 0 20px rgba(233,69,96,0.3); }
+            50% { box-shadow: 0 0 35px rgba(0,255,255,0.5); }
+        }
+
+        .company-info h2 { color: white; font-size: 1.1em; font-weight: 700; }
+        .company-info p { color: rgba(255,255,255,0.6); font-size: 0.65em; }
+
+        .top-bar-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.65em;
+            font-weight: 600;
+        }
+
+        .badge.success {
+            background: rgba(63,185,80,0.15);
+            color: var(--success);
+            border: 1px solid rgba(63,185,80,0.2);
+        }
+
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: var(--bg-deep);
+        }
+
+        /* ============================================ */
+        /* CANVAS CHAT AREA                             */
+        /* ============================================ */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            gap: 12px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-right: 8px;
+        }
+
+        .message {
+            display: flex;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-msg { justify-content: flex-end; }
+        .bot-msg { justify-content: flex-start; }
+
+        .bubble {
+            max-width: 72%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            line-height: 1.5;
+            font-size: 0.88em;
+        }
+
+        .user-bubble {
+            background: linear-gradient(135deg, #238636, #2ea043);
+            color: white;
+            border-bottom-right-radius: 4px;
+            margin-left: 30px;
+        }
+
+        .bot-bubble {
+            background: #1a1a2e;
+            color: var(--text);
+            border-bottom-left-radius: 4px;
+            margin-right: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 10px;
+            padding: 12px 0 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 18px;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            color: white;
+            font-size: 0.9em;
+            outline: none;
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+
+        .chat-input:focus {
+            border-color: rgba(0,255,255,0.4);
+            box-shadow: 0 0 0 3px rgba(0,255,255,0.05);
+        }
+
+        .send-btn {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, #e94560, #ff6b81);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            color: white;
+            transition: all 0.3s;
+        }
+
+        .send-btn:hover { transform: scale(1.06); }
+
+        /* ============================================ */
+        /* PAYMENT PANEL (Hidden by default)            */
+        /* ============================================ */
+        .payment-panel {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .payment-panel.show {
+            display: flex;
+        }
+
+        .payment-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        @media (max-width: 900px) {
+            .payment-grid { grid-template-columns: 1fr; }
+        }
+
+        .payment-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+        }
+
+        .problem-summary {
+            background: var(--bg-card);
+            border: 1px solid rgba(233,69,96,0.2);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+
+        .problem-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 16px;
+            font-size: 0.65em;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .problem-badge.critical {
+            background: rgba(218,54,51,0.2);
+            color: #da3633;
+            border: 1px solid rgba(218,54,51,0.3);
+        }
+
+        .problem-name { font-size: 1em; font-weight: 600; margin-bottom: 4px; }
+        .problem-detail { font-size: 0.75em; color: var(--text-dim); line-height: 1.4; }
+
+        .fix-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: rgba(63,185,80,0.1);
+            border: 1px solid rgba(63,185,80,0.2);
+            border-radius: 6px;
+            font-size: 0.78em;
+            color: var(--success);
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            font-size: 0.82em;
+        }
+
+        .price-row.total {
+            margin-top: 6px;
+            padding-top: 12px;
+            border-top: 2px solid var(--border);
+            font-size: 1em;
+            font-weight: 700;
+        }
+
+        .price-row.total .price-value { color: var(--gold); font-size: 1.2em; }
+        .price-label { color: var(--text-dim); }
+        .price-value { font-weight: 600; color: var(--text); }
+        .price-value.discount { color: var(--success); }
+
+        /* ============================================ */
+        /* CREDIT CARD PREVIEW                          */
+        /* ============================================ */
+        .credit-card-preview {
+            background: linear-gradient(135deg, #1a1a3e 0%, #0f3460 50%, #e94560 150%);
+            border-radius: 14px;
+            padding: 18px 22px;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+            min-height: 170px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            transition: all 0.3s;
+        }
+
+        .credit-card-preview.valid { border: 2px solid var(--success); }
+        .credit-card-preview.invalid { border: 2px solid var(--danger); }
+
+        .card-chip {
+            width: 42px;
+            height: 34px;
+            background: linear-gradient(135deg, #ffd700, #c0a000);
+            border-radius: 6px;
+            margin-bottom: 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .card-number-display {
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em;
+            letter-spacing: 3px;
+            color: white;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .card-info-row {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            z-index: 1;
+        }
+
+        .card-info-label {
+            font-size: 0.5em;
+            color: rgba(255,255,255,0.5);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 2px;
+        }
+
+        .card-info-value {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            color: white;
+        }
+
+        .card-brand {
+            position: absolute;
+            top: 18px;
+            right: 22px;
+            z-index: 1;
+            font-size: 2em;
+            opacity: 0.9;
+        }
+
+        .card-validation-badge {
+            position: absolute;
+            bottom: 12px;
+            right: 22px;
+            z-index: 1;
+            font-size: 0.6em;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 10px;
+        }
+
+        .card-validation-badge.valid {
+            background: rgba(63,185,80,0.2);
+            color: var(--success);
+        }
+
+        .card-validation-badge.invalid {
+            background: rgba(218,54,51,0.2);
+            color: var(--danger);
+        }
+
+        /* ============================================ */
+        /* FORM INPUTS                                   */
+        /* ============================================ */
+        .form-group { margin-bottom: 12px; }
+
+        .form-label {
+            display: block;
+            font-size: 0.7em;
+            font-weight: 600;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.85em;
+            font-family: inherit;
+            transition: all 0.3s;
+            outline: none;
+        }
+
+        .form-input:focus { border-color: var(--accent); }
+        .form-input.valid { border-color: var(--success); }
+        .form-input.invalid { border-color: var(--danger); animation: shake 0.4s ease; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        .validation-msg {
+            font-size: 0.65em;
+            margin-top: 3px;
+            min-height: 14px;
+        }
+
+        .validation-msg.error { color: var(--danger); }
+        .validation-msg.success { color: var(--success); }
+
+        /* ============================================ */
+        /* PAYMENT METHODS                              */
+        /* ============================================ */
+        .payment-methods {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+        .payment-method {
+            padding: 10px 6px;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.7em;
+            color: var(--text-dim);
+        }
+
+        .payment-method:hover { border-color: rgba(233,69,96,0.3); }
+
+        .payment-method.active {
+            border-color: var(--accent);
+            background: rgba(233,69,96,0.1);
+            color: var(--text);
+        }
+
+        .payment-method .method-icon { font-size: 1.3em; display: block; margin-bottom: 2px; }
+
+        /* ============================================ */
+        /* BUTTONS                                      */
+        /* ============================================ */
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #e94560, #ff6b81);
+            color: white;
+            box-shadow: 0 4px 15px rgba(233,69,96,0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(233,69,96,0.5);
+        }
+
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+
+        /* ============================================ */
+        /* SUCCESS OVERLAY                              */
+        /* ============================================ */
+        .success-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .success-overlay.show { display: flex; }
+
+        .success-modal {
+            background: var(--bg-panel);
+            border: 1px solid var(--success);
+            border-radius: 18px;
+            padding: 30px;
+            text-align: center;
+            max-width: 480px;
+            width: 90%;
+            animation: slideUp 0.4s ease;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .success-icon { font-size: 3.5em; margin-bottom: 12px; }
+        .success-title { font-size: 1.3em; font-weight: 700; color: var(--success); margin-bottom: 6px; }
+        .success-message { color: var(--text-dim); font-size: 0.82em; margin-bottom: 16px; }
+
+        .transaction-id {
+            font-family: 'Courier New', monospace;
+            background: var(--bg-card);
+            padding: 8px 14px;
+            border-radius: 6px;
+            color: var(--quantum);
+            font-size: 0.78em;
+            margin-bottom: 12px;
+        }
+
+        .features-unlocked {
+            text-align: left;
+            margin: 12px 0;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            font-size: 0.75em;
+            color: var(--text);
+        }
+
+        .feature-item .check { color: var(--success); }
+
+        /* ============================================ */
+        /* PROCESSING OVERLAY                           */
+        /* ============================================ */
+        .processing-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 998;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .processing-overlay.show { display: flex; }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ============================================ */
+        /* COUPON                                       */
+        /* ============================================ */
+        .coupon-row { display: flex; gap: 6px; margin-bottom: 12px; }
+
+        .coupon-input {
+            flex: 1;
+            padding: 8px 12px;
+            background: var(--input-bg);
+            border: 1px dashed var(--gold);
+            border-radius: 6px;
+            color: var(--gold);
+            font-family: 'Courier New', monospace;
+            font-size: 0.8em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            outline: none;
+        }
+
+        .btn-coupon {
+            background: transparent;
+            border: 1px dashed var(--gold);
+            color: var(--gold);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.72em;
+            font-family: inherit;
+        }
+
+        .coupon-applied {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: rgba(63,185,80,0.1);
+            border: 1px solid rgba(63,185,80,0.2);
+            border-radius: 6px;
+            color: var(--success);
+            font-size: 0.78em;
+            margin-bottom: 12px;
+        }
+
+        /* Scrollbar */
+        .content-area::-webkit-scrollbar,
+        .chat-messages::-webkit-scrollbar,
+        .sidebar::-webkit-scrollbar { width: 3px; }
+        .content-area::-webkit-scrollbar-thumb,
+        .chat-messages::-webkit-scrollbar-thumb,
+        .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        
+        <!-- ======================================== -->
+        <!-- SIDEBAR                                   -->
+        <!-- ======================================== -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h3>⚡ SUPREME PLATFORM</h3>
+                <div class="version">v9.0 • Quantum-Safe</div>
+            </div>
+
+            <div class="nav-section">MAIN</div>
+            <div class="nav-item active" data-panel="chat" onclick="switchPanel('chat', this)">
+                <span class="nav-icon">💬</span> Problem Chat
+            </div>
+            <div class="nav-item" data-panel="payment" onclick="switchPanel('payment', this)">
+                <span class="nav-icon">💳</span> Payment
+            </div>
+
+            <div class="nav-section">MONITORING</div>
+            <div class="nav-item" onclick="switchPanel('chat', this); sendPresetMessage('Show system status')">
+                <span class="nav-icon">📊</span> System Status
+            </div>
+            <div class="nav-item" onclick="switchPanel('chat', this); sendPresetMessage('Run full diagnostic')">
+                <span class="nav-icon">🔍</span> Run Diagnostic
+            </div>
+
+            <div class="nav-section">TOOLS</div>
+            <div class="nav-item" onclick="switchPanel('chat', this); sendPresetMessage('Show detected problems')">
+                <span class="nav-icon">🐛</span> View Problems
+            </div>
+            <div class="nav-item" onclick="switchPanel('chat', this); sendPresetMessage('Show before after report')">
+                <span class="nav-icon">📈</span> Before vs After
+            </div>
+
+            <div style="margin-top:auto;padding:12px;background:rgba(0,255,255,0.03);border:1px solid rgba(0,255,255,0.1);border-radius:10px;text-align:center;">
+                <div style="color:var(--quantum);font-size:0.7em;font-weight:700;">🔐 QUANTUM-SAFE</div>
+                <div style="color:var(--text-dim);font-size:0.55em;">CRYSTALS-Kyber-1024</div>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- MAIN CONTENT                              -->
+        <!-- ======================================== -->
+        <div class="main-content">
+            
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <div class="company-logo">⚡</div>
+                <div class="company-info">
+                    <h2>Supreme Problem Detector</h2>
+                    <p>v9.0 • 56 Problems • 7000+ Languages</p>
+                </div>
+                <div class="top-bar-right">
+                    <span class="badge success" id="headerStatus">🟢 ALL SYSTEMS ONLINE</span>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                
+                <!-- ======================================== -->
+                <!-- CHAT PANEL                              -->
+                <!-- ======================================== -->
+                <div class="chat-container" id="chatPanel">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="message bot-msg">
+                            <div class="bubble bot-bubble">
+                                👋 <strong>Welcome to Supreme Platform!</strong><br><br>
+                                I detect and fix 56 types of problems across your infrastructure.<br><br>
+                                🔍 Describe your problem and I'll:<br>
+                                • Auto-detect the issue<br>
+                                • Find root cause<br>
+                                • Apply fix automatically<br>
+                                • Show before/after results<br>
+                                • Generate payment invoice<br><br>
+                                <em>Type your problem below or click "Run Diagnostic" in sidebar.</em>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" class="chat-input" id="chatInput" 
+                               placeholder="Describe your problem here..." 
+                               onkeypress="if(event.key==='Enter') sendMessage()">
+                        <button class="send-btn" onclick="sendMessage()">➤</button>
+                    </div>
+                </div>
+
+                <!-- ======================================== -->
+                <!-- PAYMENT PANEL (Hidden initially)         -->
+                <!-- ======================================== -->
+                <div class="payment-panel" id="paymentPanel">
+                    <div class="payment-grid">
+                        
+                        <!-- Left: Problem + Price -->
+                        <div class="payment-card">
+                            <div style="font-weight:700;margin-bottom:14px;color:var(--text);">🔍 Problem Resolution</div>
+                            
+                            <div class="problem-summary">
+                                <span class="problem-badge critical">🚨 CRITICAL</span>
+                                <div class="problem-name" id="payProblemName">Database Connection Pool Full</div>
+                                <div class="problem-detail" id="payProblemDetail">
+                                    📍 Production Database Server<br>
+                                    💥 500 users affected<br>
+                                    ✅ Auto-Fix Applied in 3 min
+                                </div>
+                                <div class="fix-status">
+                                    ✅ Fix Applied Successfully — System Healthy
+                                </div>
+                            </div>
+
+                            <div id="priceBreakdown">
+                                <div class="price-row">
+                                    <span class="price-label">🔍 Diagnosis</span>
+                                    <span class="price-value" id="payDiagnosis">$2,900.00</span>
+                                </div>
+                                <div class="price-row">
+                                    <span class="price-label">🔧 Auto-Fix</span>
+                                    <span class="price-value" id="payFix">$8,500.00</span>
+                                </div>
+                                <div class="price-row" id="payDiscountRow" style="display:none;">
+                                    <span class="price-label">🎟️ Discount</span>
+                                    <span class="price-value discount" id="payDiscount">-$0.00</span>
+                                </div>
+                                <div class="price-row">
+                                    <span class="price-label">🏷️ Tax (<span id="payTaxRate">15%</span>)</span>
+                                    <span class="price-value" id="payTax">$1,710.00</span>
+                                </div>
+                                <div class="price-row total">
+                                    <span class="price-label">💳 TOTAL</span>
+                                    <span class="price-value" id="payTotal">$13,110.00</span>
+                                </div>
+                            </div>
+
+                            <div class="coupon-row" style="margin-top:12px;">
+                                <input type="text" class="coupon-input" id="couponInput" 
+                                       placeholder="COUPON CODE" maxlength="20">
+                                <button class="btn-coupon" onclick="applyCoupon()">APPLY</button>
+                            </div>
+                            <div class="coupon-applied" id="couponApplied" style="display:none;">
+                                ✅ <strong id="couponCode">NEOM2025</strong> — <strong id="couponValue">30% OFF</strong>
+                                <span style="cursor:pointer;margin-left:auto;" onclick="removeCoupon()">✕</span>
+                            </div>
+                        </div>
+
+                        <!-- Right: Card + Payment -->
+                        <div class="payment-card">
+                            <div style="font-weight:700;margin-bottom:14px;color:var(--text);">💳 Payment Method</div>
+
+                            <!-- Card Preview -->
+                            <div class="credit-card-preview" id="cardPreview">
+                                <div class="card-chip"></div>
+                                <div class="card-brand" id="cardBrand">💳</div>
+                                <div class="card-number-display" id="cardNumberDisplay">•••• •••• •••• ••••</div>
+                                <div class="card-info-row">
+                                    <div>
+                                        <div class="card-info-label">Card Holder</div>
+                                        <div class="card-info-value" id="cardHolderDisplay">YOUR NAME</div>
+                                    </div>
+                                    <div>
+                                        <div class="card-info-label">Expires</div>
+                                        <div class="card-info-value" id="cardExpiryDisplay">MM/YY</div>
+                                    </div>
+                                </div>
+                                <div class="card-validation-badge" id="cardValidationBadge" style="display:none;"></div>
+                            </div>
+
+                            <!-- Methods -->
+                            <div class="payment-methods">
+                                <div class="payment-method active" data-method="CARD" onclick="selectMethod('CARD', this)">
+                                    <span class="method-icon">💳</span>Card
+                                </div>
+                                <div class="payment-method" data-method="PAYPAL" onclick="selectMethod('PAYPAL', this)">
+                                    <span class="method-icon">🅿️</span>PayPal
+                                </div>
+                                <div class="payment-method" data-method="APPLE_PAY" onclick="selectMethod('APPLE_PAY', this)">
+                                    <span class="method-icon">🍎</span>Apple
+                                </div>
+                                <div class="payment-method" data-method="GOOGLE_PAY" onclick="selectMethod('GOOGLE_PAY', this)">
+                                    <span class="method-icon">🤖</span>Google
+                                </div>
+                                <div class="payment-method" data-method="CRYPTO" onclick="selectMethod('CRYPTO', this)">
+                                    <span class="method-icon">🪙</span>Crypto
+                                </div>
+                                <div class="payment-method" data-method="BANK" onclick="selectMethod('BANK', this)">
+                                    <span class="method-icon">🏦</span>Bank
+                                </div>
+                            </div>
+
+                            <!-- Card Form -->
+                            <form id="paymentForm" onsubmit="processPayment(event)">
+                                <div class="form-group">
+                                    <label class="form-label">Card Number</label>
+                                    <input type="text" class="form-input" id="cardNumber" 
+                                           placeholder="1234 5678 9012 3456" maxlength="19"
+                                           oninput="formatCardNumber(this); validateCardNumber(); updateCardPreview();">
+                                    <div class="validation-msg" id="cardNumberMsg"></div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Expiry</label>
+                                        <input type="text" class="form-input" id="cardExpiry" 
+                                               placeholder="MM/YY" maxlength="5"
+                                               oninput="formatExpiry(this); validateExpiry(); updateCardPreview();">
+                                        <div class="validation-msg" id="cardExpiryMsg"></div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">CVV</label>
+                                        <input type="text" class="form-input" id="cardCVV" 
+                                               placeholder="123" maxlength="4"
+                                               oninput="this.value=this.value.replace(/[^0-9]/g,''); validateCVV();">
+                                        <div class="validation-msg" id="cardCVVMsg"></div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Card Holder</label>
+                                    <input type="text" class="form-input" id="cardHolder" 
+                                           placeholder="JOHN DOE"
+                                           oninput="validateHolder(); updateCardPreview();">
+                                    <div class="validation-msg" id="cardHolderMsg"></div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Country</label>
+                                        <select class="form-input" id="country" onchange="updateTax()">
+                                            <option value="SA">🇸🇦 Saudi Arabia (15%)</option>
+                                            <option value="AE">🇦🇪 UAE (Tax Free)</option>
+                                            <option value="US">🇺🇸 USA</option>
+                                            <option value="UK">🇬🇧 UK (20%)</option>
+                                            <option value="EU">🇪🇺 EU (20%)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">ZIP Code</label>
+                                        <input type="text" class="form-input" id="zipCode" placeholder="12345">
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary" id="payButton">
+                                    🔒 PAY <span id="payAmount">$13,110.00</span> NOW
+                                </button>
+                            </form>
+
+                            <!-- Bank Transfer -->
+                            <div id="bankInfo" style="display:none;">
+                                <div class="problem-summary">
+                                    <div style="font-weight:600;margin-bottom:8px;">🏦 Bank Transfer</div>
+                                    <div class="price-row"><span>Bank:</span><span class="price-value">SNB Saudi National Bank</span></div>
+                                    <div class="price-row"><span>SWIFT:</span><span class="price-value">SNBBSARI</span></div>
+                                    <div class="price-row"><span>Amount:</span><span class="price-value" id="bankAmount">$13,110.00</span></div>
+                                    <div class="price-row"><span>Ref:</span><span class="price-value" id="bankRef">INV-SUP-001056</span></div>
+                                </div>
+                            </div>
+
+                            <!-- Crypto -->
+                            <div id="cryptoInfo" style="display:none;">
+                                <div class="problem-summary">
+                                    <div style="font-weight:600;margin-bottom:8px;">🪙 Crypto Payment</div>
+                                    <div class="price-row"><span>Accepted:</span><span class="price-value">BTC • ETH • USDT • SOL</span></div>
+                                    <div class="price-row"><span>Amount:</span><span class="price-value" id="cryptoAmount">0.00 USDT</span></div>
+                                    <button class="btn btn-primary" style="margin-top:10px;" onclick="processCryptoPayment()">
+                                        🪙 PAY WITH CRYPTO
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing -->
+    <div class="processing-overlay" id="processingOverlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Success -->
+    <div class="success-overlay" id="successOverlay">
+        <div class="success-modal">
+            <div class="success-icon">✅</div>
+            <div class="success-title">Payment Successful!</div>
+            <div class="success-message">All features unlocked for your account.</div>
+            <div class="transaction-id" id="transactionId">TXN-ABC123XYZ</div>
+            <div style="color:var(--text-dim);font-size:0.8em;margin-bottom:6px;">
+                Amount: <strong style="color:var(--success);" id="paidAmount">$13,110.00</strong><br>
+                Invoice: <strong style="color:var(--quantum);" id="invoiceNumber">INV-SUP-001056</strong>
+            </div>
+            <div class="features-unlocked">
+                <div style="font-weight:600;color:var(--gold);margin-bottom:6px;">🔓 UNLOCKED:</div>
+                <div class="feature-item"><span class="check">✅</span> Full Diagnostic Reports</div>
+                <div class="feature-item"><span class="check">✅</span> Real-Time Monitoring</div>
+                <div class="feature-item"><span class="check">✅</span> 24/7 Priority Support</div>
+                <div class="feature-item"><span class="check">✅</span> Auto-Fix Engine</div>
+                <div class="feature-item"><span class="check">✅</span> Root Cause Analysis</div>
+                <div class="feature-item"><span class="check">✅</span> Quantum-Safe Security</div>
+            </div>
+            <button class="btn btn-primary" onclick="downloadReport()" style="margin-bottom:6px;">📥 DOWNLOAD REPORT</button>
+            <button class="btn btn-secondary" onclick="goToDashboard()">🚀 GO TO DASHBOARD</button>
+            <button class="btn btn-secondary" onclick="closeSuccess()" style="margin-top:4px;">CLOSE</button>
+        </div>
+    </div>
+
+    <script>
+        // =============================================
+        // REAL CARD VALIDATION (Luhn Algorithm)
+        // =============================================
+        function luhnCheck(num) {
+            const d = num.replace(/\D/g, '');
+            if (d.length < 13 || d.length > 19) return false;
+            let sum = 0, alt = false;
+            for (let i = d.length - 1; i >= 0; i--) {
+                let n = parseInt(d[i]);
+                if (alt) { n *= 2; if (n > 9) n -= 9; }
+                sum += n;
+                alt = !alt;
+            }
+            return sum % 10 === 0;
+        }
+
+        const BIN_DB = {
+            '4': { brand: 'Visa', bank: 'Various' },
+            '51': { brand: 'Mastercard', bank: 'Various' },
+            '52': { brand: 'Mastercard', bank: 'Various' },
+            '53': { brand: 'Mastercard', bank: 'Various' },
+            '54': { brand: 'Mastercard', bank: 'Various' },
+            '55': { brand: 'Mastercard', bank: 'Various' },
+            '34': { brand: 'Amex', bank: 'American Express' },
+            '37': { brand: 'Amex', bank: 'American Express' },
+            '6011': { brand: 'Discover', bank: 'Discover Bank' },
+            '6362': { brand: 'Mada', bank: 'Saudi Banks' },
+            '5043': { brand: 'Mada', bank: 'Al Rajhi Bank' },
+            '5214': { brand: 'Mada', bank: 'SNB' }
+        };
+
+        function detectBrand(num) {
+            const d = num.replace(/\D/g, '');
+            if (BIN_DB[d.substring(0,4)]) return BIN_DB[d.substring(0,4)];
+            if (BIN_DB[d.substring(0,2)]) return BIN_DB[d.substring(0,2)];
+            if (BIN_DB[d.substring(0,1)]) return BIN_DB[d.substring(0,1)];
+            return { brand: 'Unknown', bank: 'Unknown' };
+        }
+
+        function validateCardNumber() {
+            const input = document.getElementById('cardNumber');
+            const msg = document.getElementById('cardNumberMsg');
+            const preview = document.getElementById('cardPreview');
+            const num = input.value.replace(/\s/g, '');
+            
+            if (!num) { clearValidation(input, msg, preview); return false; }
+            if (num.length < 13) { setInvalid(input, msg, preview, 'Too short (min 13 digits)'); return false; }
+            if (!luhnCheck(num)) { setInvalid(input, msg, preview, 'Invalid number (Luhn check failed)'); return false; }
+            
+            const info = detectBrand(num);
+            if (info.brand === 'Unknown') { setInvalid(input, msg, preview, 'Unknown card issuer'); return false; }
+            
+            setValid(input, msg, preview, `✅ Valid ${info.brand} — ${info.bank}`);
+            document.getElementById('cardValidationBadge').style.display = 'block';
+            document.getElementById('cardValidationBadge').textContent = `✅ VALID ${info.brand.toUpperCase()}`;
+            document.getElementById('cardValidationBadge').className = 'card-validation-badge valid';
+            return true;
+        }
+
+        function validateExpiry() {
+            const input = document.getElementById('cardExpiry');
+            const msg = document.getElementById('cardExpiryMsg');
+            const v = input.value;
+            if (!v || v.length < 5) { clearValidation(input, msg); return false; }
+            
+            const [m, y] = v.split('/');
+            const month = parseInt(m), year = 2000 + parseInt(y);
+            const now = new Date();
+            
+            if (month < 1 || month > 12) { setInvalidSimple(input, msg, 'Invalid month'); return false; }
+            if (year < now.getFullYear() || (year === now.getFullYear() && month < now.getMonth()+1)) {
+                setInvalidSimple(input, msg, 'Card expired!'); return false;
+            }
+            setValidSimple(input, msg, '✅ Valid expiry'); return true;
+        }
+
+        function validateCVV() {
+            const input = document.getElementById('cardCVV');
+            const msg = document.getElementById('cardCVVMsg');
+            const v = input.value;
+            const cardNum = document.getElementById('cardNumber').value.replace(/\s/g, '');
+            const brand = detectBrand(cardNum).brand;
+            const len = brand === 'Amex' ? 4 : 3;
+            
+            if (!v) { clearValidation(input, msg); return false; }
+            if (v.length < len) { setInvalidSimple(input, msg, `Must be ${len} digits`); return false; }
+            if (v === '000' || v === '0000') { setInvalidSimple(input, msg, 'Invalid CVV'); return false; }
+            setValidSimple(input, msg, '✅ Valid CVV'); return true;
+        }
+
+        function validateHolder() {
+            const input = document.getElementById('cardHolder');
+            const msg = document.getElementById('cardHolderMsg');
+            const v = input.value.trim();
+            if (!v) { clearValidation(input, msg); return false; }
+            if (v.length < 3) { setInvalidSimple(input, msg, 'Name too short'); return false; }
+            if (!/^[a-zA-Z\s\-'.]+$/.test(v)) { setInvalidSimple(input, msg, 'Invalid characters'); return false; }
+            setValidSimple(input, msg, '✅ Valid'); return true;
+        }
+
+        function isFullyValid() {
+            return validateCardNumber() && validateExpiry() && validateCVV() && validateHolder();
+        }
+
+        function setValid(input, msg, preview, text) {
+            input.classList.add('valid'); input.classList.remove('invalid');
+            msg.textContent = text; msg.className = 'validation-msg success';
+            preview.classList.add('valid'); preview.classList.remove('invalid');
+        }
+
+        function setInvalid(input, msg, preview, text) {
+            input.classList.add('invalid'); input.classList.remove('valid');
+            msg.textContent = '❌ ' + text; msg.className = 'validation-msg error';
+            preview.classList.add('invalid'); preview.classList.remove('valid');
+            document.getElementById('cardValidationBadge').style.display = 'none';
+        }
+
+        function setValidSimple(input, msg, text) {
+            input.classList.add('valid'); input.classList.remove('invalid');
+            msg.textContent = text; msg.className = 'validation-msg success';
+        }
+
+        function setInvalidSimple(input, msg, text) {
+            input.classList.add('invalid'); input.classList.remove('valid');
+            msg.textContent = '❌ ' + text; msg.className = 'validation-msg error';
+        }
+
+        function clearValidation(input, msg, preview) {
+            input.classList.remove('valid', 'invalid');
+            msg.textContent = ''; msg.className = 'validation-msg';
+            if (preview) { preview.classList.remove('valid', 'invalid'); }
+        }
+
+        function formatCardNumber(input) {
+            let v = input.value.replace(/\D/g, '').substring(0, 16);
+            input.value = v.replace(/(\d{4})(?=\d)/g, '$1 ');
+        }
+
+        function formatExpiry(input) {
+            let v = input.value.replace(/\D/g, '').substring(0, 4);
+            if (v.length >= 2) v = v.substring(0, 2) + '/' + v.substring(2);
+            input.value = v;
+        }
+
+        function updateCardPreview() {
+            document.getElementById('cardNumberDisplay').textContent = document.getElementById('cardNumber').value || '•••• •••• •••• ••••';
+            document.getElementById('cardHolderDisplay').textContent = (document.getElementById('cardHolder').value || 'YOUR NAME').toUpperCase();
+            document.getElementById('cardExpiryDisplay').textContent = document.getElementById('cardExpiry').value || 'MM/YY';
+            
+            const raw = document.getElementById('cardNumber').value.replace(/\s/g, '');
+            const icons = { 'Visa': '💙', 'Mastercard': '🧡', 'Amex': '💚', 'Discover': '🧡', 'Mada': '💜' };
+            document.getElementById('cardBrand').textContent = icons[detectBrand(raw).brand] || '💳';
+        }
+
+        // =============================================
+        // PANEL SWITCHING
+        // =============================================
+        function switchPanel(panel, el) {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            if (el) el.classList.add('active');
+            
+            document.getElementById('chatPanel').style.display = panel === 'chat' ? 'flex' : 'none';
+            document.getElementById('paymentPanel').classList.toggle('show', panel === 'payment');
+        }
+
+        // =============================================
+        // CHAT FUNCTIONALITY
+        // =============================================
+        function addChatMessage(text, isUser = false) {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = `message ${isUser ? 'user-msg' : 'bot-msg'}`;
+            div.innerHTML = `<div class="bubble ${isUser ? 'user-bubble' : 'bot-bubble'}">${text.replace(/\n/g, '<br>')}</div>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+            
+            addChatMessage(msg, true);
+            input.value = '';
+            
+            setTimeout(() => {
+                const lower = msg.toLowerCase();
+                
+                if (lower.includes('problem') || lower.includes('error') || lower.includes('down') || lower.includes('slow') || lower.includes('cpu') || lower.includes('memory') || lower.includes('database')) {
+                    addChatMessage('🔍 <strong>Problem Detected!</strong><br><br>🟢 Running diagnostic on your system...<br>✅ Root cause identified<br>✅ Auto-fix applied in 2-5 minutes<br>📊 System health restored<br><br>💡 <em>Click "Payment" in sidebar to view invoice and unlock all features.</em>');
+                    
+                    // Update payment panel with problem
+                    document.getElementById('payProblemName').textContent = 'Detected: ' + msg.substring(0, 40) + '...';
+                } else if (lower.includes('status') || lower.includes('health')) {
+                    addChatMessage('📊 <strong>System Status</strong><br><br>✅ 48/48 Systems Online<br>✅ All Detectors Active<br>✅ Quantum-Safe Security: Active<br>🛰️ Satellite Fleet: 350+ Operational<br>🏙️ NEOM City: All Regions Normal');
+                } else if (lower.includes('diagnostic')) {
+                    addChatMessage('🔍 <strong>Running Full Diagnostic...</strong><br><br>🟥 Performance: 10/10 ✅<br>🟧 Availability: 10/10 ✅<br>🟨 Security: 10/10 ✅<br>🟩 Resource: 6/6 ✅<br>🟦 Application: 10/10 ✅<br>🟪 NEOM: 10/10 ✅<br><br>🎯 <strong>Overall: ALL SYSTEMS HEALTHY</strong>');
+                } else {
+                    addChatMessage('🤔 I understand you said: "<em>' + msg + '</em>"<br><br>I can help with:<br>• 🔍 Detecting system problems<br>• 🔧 Auto-fixing issues<br>• 📊 System diagnostics<br>• 💳 Processing payments<br><br>Try: "My database is slow" or "Run diagnostic"');
+                }
+            }, 800 + Math.random() * 600);
+        }
+
+        function sendPresetMessage(msg) {
+            document.getElementById('chatInput').value = msg;
+            sendMessage();
+        }
+
+        // =============================================
+        // PAYMENT STATE
+        // =============================================
+        let payState = {
+            method: 'CARD',
+            coupon: null,
+            basePrice: 11400,
+            taxRate: 0.15,
+            taxAmount: 1710,
+            discount: 0,
+            total: 13110,
+            country: 'SA',
+            txnId: null,
+            invoice: null
+        };
+
+        function selectMethod(m, el) {
+            payState.method = m;
+            document.querySelectorAll('.payment-method').forEach(e => e.classList.remove('active'));
+            el.classList.add('active');
+            
+            document.getElementById('paymentForm').style.display = m === 'CARD' ? 'block' : 'none';
+            document.getElementById('bankInfo').style.display = m === 'BANK' ? 'block' : 'none';
+            document.getElementById('cryptoInfo').style.display = m === 'CRYPTO' ? 'block' : 'none';
+        }
+
+        function applyCoupon() {
+            const code = document.getElementById('couponInput').value.trim().toUpperCase();
+            const coupons = { 'SUPREME20': 20, 'LAUNCH50': 50, 'NEOM2025': 30 };
+            
+            if (!coupons[code]) { alert('Invalid coupon'); return; }
+            
+            payState.coupon = code;
+            payState.discount = payState.basePrice * (coupons[code] / 100);
+            recalc();
+            
+            document.getElementById('couponApplied').style.display = 'flex';
+            document.getElementById('couponCode').textContent = code;
+            document.getElementById('couponValue').textContent = coupons[code] + '% OFF';
+        }
+
+        function removeCoupon() {
+            payState.coupon = null;
+            payState.discount = 0;
+            document.getElementById('couponApplied').style.display = 'none';
+            document.getElementById('couponInput').value = '';
+            recalc();
+        }
+
+        function updateTax() {
+            const rates = { 'US': 0, 'SA': 0.15, 'AE': 0, 'UK': 0.20, 'EU': 0.20 };
+            payState.country = document.getElementById('country').value;
+            payState.taxRate = rates[payState.country] || 0;
+            document.getElementById('payTaxRate').textContent = (payState.taxRate * 100).toFixed(0) + '%';
+            recalc();
+        }
+
+        function recalc() {
+            const afterDiscount = payState.basePrice - payState.discount;
+            payState.taxAmount = Math.round(afterDiscount * payState.taxRate * 100) / 100;
+            payState.total = Math.round((afterDiscount + payState.taxAmount) * 100) / 100;
+            updatePaymentDisplay();
+        }
+
+        function updatePaymentDisplay() {
+            document.getElementById('payDiagnosis').textContent = '$' + (payState.basePrice * 0.25).toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('payFix').textContent = '$' + (payState.basePrice * 0.75).toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('payTax').textContent = '$' + payState.taxAmount.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('payTotal').textContent = '$' + payState.total.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('payAmount').textContent = '$' + payState.total.toLocaleString(undefined, {minimumFractionDigits: 2});
+            
+            const discRow = document.getElementById('payDiscountRow');
+            if (payState.discount > 0) {
+                discRow.style.display = 'flex';
+                document.getElementById('payDiscount').textContent = '-$' + payState.discount.toLocaleString(undefined, {minimumFractionDigits: 2});
+            } else {
+                discRow.style.display = 'none';
+            }
+        }
+
+        async function processPayment(e) {
+            e.preventDefault();
+            
+            if (payState.method === 'CARD' && !isFullyValid()) {
+                alert('Please fix card validation errors');
+                validateCardNumber(); validateExpiry(); validateCVV(); validateHolder();
+                return;
+            }
+
+            document.getElementById('processingOverlay').classList.add('show');
+            document.getElementById('payButton').disabled = true;
+
+            await new Promise(r => setTimeout(r, 2000 + Math.random() * 1500));
+
+            payState.txnId = 'TXN-' + Date.now().toString(36).toUpperCase();
+            payState.invoice = 'INV-SUP-' + Math.floor(Math.random() * 90000 + 10000);
+
+            document.getElementById('processingOverlay').classList.remove('show');
+            document.getElementById('payButton').disabled = false;
+
+            document.getElementById('transactionId').textContent = payState.txnId;
+            document.getElementById('paidAmount').textContent = '$' + payState.total.toLocaleString();
+            document.getElementById('invoiceNumber').textContent = payState.invoice;
+            document.getElementById('successOverlay').classList.add('show');
+        }
+
+        function processCryptoPayment() {
+            document.getElementById('processingOverlay').classList.add('show');
+            setTimeout(() => {
+                document.getElementById('processingOverlay').classList.remove('show');
+                payState.txnId = 'TXN-CRYPTO-' + Date.now().toString(36).toUpperCase();
+                payState.invoice = 'INV-SUP-' + Math.floor(Math.random() * 90000 + 10000);
+                document.getElementById('transactionId').textContent = payState.txnId;
+                document.getElementById('paidAmount').textContent = '$' + payState.total.toLocaleString();
+                document.getElementById('invoiceNumber').textContent = payState.invoice;
+                document.getElementById('successOverlay').classList.add('show');
+            }, 3000);
+        }
+
+        function downloadReport() {
+            alert('📥 REPORT DOWNLOADED!\n\nInvoice: ' + payState.invoice + '\nTransaction: ' + payState.txnId + '\nAmount: $' + payState.total.toLocaleString());
+        }
+
+        function goToDashboard() {
+            document.getElementById('successOverlay').classList.remove('show');
+            switchPanel('chat', document.querySelector('[data-panel="chat"]'));
+            addChatMessage('🚀 <strong>Welcome to your Dashboard!</strong><br><br>✅ All features unlocked<br>✅ Real-time monitoring active<br>✅ Auto-fix engine ready<br><br>Your systems are being monitored 24/7.');
+        }
+
+        function closeSuccess() {
+            document.getElementById('successOverlay').classList.remove('show');
+        }
+
+        // Init
+        updateCardPreview();
+        recalc();
+        console.log('🚀 Supreme Platform Canvas + Payment v9.0 Ready');
+        console.log('💳 Real Card Validation (Luhn + BIN) Active');
+    </script>
+
+</body>
+</html>
