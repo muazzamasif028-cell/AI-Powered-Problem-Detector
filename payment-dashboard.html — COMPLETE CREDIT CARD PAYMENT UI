@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supreme Platform — Payment Dashboard</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a14;
+            --bg-secondary: #12122a;
+            --bg-card: #1a1a3e;
+            --accent: #e94560;
+            --accent-hover: #ff6b81;
+            --gold: #ffd700;
+            --success: #3fb950;
+            --warning: #f0883e;
+            --danger: #da3633;
+            --quantum: #00ffff;
+            --text: #e0e0e0;
+            --text-dim: #8888aa;
+            --border: rgba(255,255,255,0.08);
+            --input-bg: #0d1117;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* ============================================ */
+        /* MAIN PAYMENT DASHBOARD                       */
+        /* ============================================ */
+        .payment-dashboard {
+            width: 100%;
+            max-width: 1100px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .payment-dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ============================================ */
+        /* CARD STYLES                                  */
+        /* ============================================ */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-header .icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .card-header .icon.problem { background: rgba(233,69,96,0.15); }
+        .card-header .icon.payment { background: rgba(63,185,80,0.15); }
+
+        .card-title {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .card-subtitle {
+            font-size: 0.75em;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+
+        /* ============================================ */
+        /* PROBLEM SUMMARY                              */
+        /* ============================================ */
+        .problem-summary {
+            background: var(--bg-card);
+            border: 1px solid rgba(233,69,96,0.2);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .problem-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7em;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .problem-badge.critical {
+            background: rgba(218,54,51,0.2);
+            color: #da3633;
+            border: 1px solid rgba(218,54,51,0.3);
+        }
+
+        .problem-name {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        .problem-detail {
+            font-size: 0.8em;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+
+        .fix-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            padding: 10px 14px;
+            background: rgba(63,185,80,0.1);
+            border: 1px solid rgba(63,185,80,0.2);
+            border-radius: 8px;
+            font-size: 0.85em;
+            color: var(--success);
+        }
+
+        .fix-status .check {
+            font-size: 1.2em;
+        }
+
+        /* ============================================ */
+        /* PRICE BREAKDOWN                              */
+        /* ============================================ */
+        .price-breakdown {
+            margin-bottom: 16px;
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-size: 0.9em;
+        }
+
+        .price-row:last-child {
+            border-bottom: none;
+        }
+
+        .price-label {
+            color: var(--text-dim);
+        }
+
+        .price-value {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .price-value.discount {
+            color: var(--success);
+        }
+
+        .price-row.total {
+            margin-top: 8px;
+            padding-top: 14px;
+            border-top: 2px solid var(--border);
+            font-size: 1.1em;
+            font-weight: 700;
+        }
+
+        .price-row.total .price-value {
+            color: var(--gold);
+            font-size: 1.3em;
+        }
+
+        .savings-badge {
+            display: inline-block;
+            background: rgba(63,185,80,0.15);
+            color: var(--success);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            font-weight: 600;
+        }
+
+        /* ============================================ */
+        /* CREDIT CARD FORM                             */
+        /* ============================================ */
+        .credit-card-preview {
+            background: linear-gradient(135deg, #1a1a3e 0%, #0f3460 50%, #e94560 150%);
+            border-radius: 16px;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            min-height: 200px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+
+        .credit-card-preview::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+
+        .card-chip {
+            width: 50px;
+            height: 40px;
+            background: linear-gradient(135deg, #ffd700, #c0a000);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .card-number-display {
+            font-family: 'Courier New', monospace;
+            font-size: 1.3em;
+            letter-spacing: 4px;
+            color: white;
+            margin-bottom: 16px;
+            position: relative;
+            z-index: 1;
+            word-spacing: 10px;
+        }
+
+        .card-info-row {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            z-index: 1;
+        }
+
+        .card-info-block {
+            text-align: left;
+        }
+
+        .card-info-label {
+            font-size: 0.55em;
+            color: rgba(255,255,255,0.5);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .card-info-value {
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+            color: white;
+            letter-spacing: 1px;
+        }
+
+        .card-brand {
+            position: absolute;
+            top: 20px;
+            right: 24px;
+            z-index: 1;
+            font-size: 2em;
+            opacity: 0.9;
+        }
+
+        /* ============================================ */
+        /* FORM INPUTS                                  */
+        /* ============================================ */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.78em;
+            font-weight: 600;
+            color: var(--text-dim);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-size: 0.9em;
+            font-family: inherit;
+            transition: all 0.3s;
+            outline: none;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(233,69,96,0.1);
+        }
+
+        .form-input::placeholder {
+            color: rgba(255,255,255,0.2);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* ============================================ */
+        /* PAYMENT METHODS                              */
+        /* ============================================ */
+        .payment-methods {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .payment-method {
+            padding: 12px 8px;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.78em;
+            color: var(--text-dim);
+        }
+
+        .payment-method:hover {
+            border-color: rgba(233,69,96,0.3);
+        }
+
+        .payment-method.active {
+            border-color: var(--accent);
+            background: rgba(233,69,96,0.1);
+            color: var(--text);
+        }
+
+        .payment-method .method-icon {
+            font-size: 1.5em;
+            margin-bottom: 4px;
+        }
+
+        /* ============================================ */
+        /* BUTTONS                                      */
+        /* ============================================ */
+        .btn {
+            width: 100%;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            letter-spacing: 0.5px;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #e94560, #ff6b81);
+            color: white;
+            box-shadow: 0 6px 20px rgba(233,69,96,0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(233,69,96,0.5);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--text-dim);
+            color: var(--text);
+        }
+
+        .btn-coupon {
+            background: transparent;
+            border: 1px dashed var(--gold);
+            color: var(--gold);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.78em;
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+
+        .btn-coupon:hover {
+            background: rgba(255,215,0,0.1);
+        }
+
+        /* ============================================ */
+        /* SUCCESS OVERLAY                              */
+        /* ============================================ */
+        .success-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .success-overlay.show {
+            display: flex;
+        }
+
+        .success-modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--success);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .success-icon {
+            font-size: 4em;
+            margin-bottom: 16px;
+            animation: bounce 0.6s ease;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+        }
+
+        .success-title {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: var(--success);
+            margin-bottom: 8px;
+        }
+
+        .success-message {
+            color: var(--text-dim);
+            font-size: 0.9em;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .transaction-id {
+            font-family: 'Courier New', monospace;
+            background: var(--bg-card);
+            padding: 10px 16px;
+            border-radius: 8px;
+            color: var(--quantum);
+            font-size: 0.85em;
+            margin-bottom: 16px;
+        }
+
+        /* ============================================ */
+        /* TOAST NOTIFICATION                           */
+        /* ============================================ */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            z-index: 999;
+            animation: slideIn 0.3s ease;
+            display: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(100px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .toast.success { border-color: var(--success); }
+        .toast.error { border-color: var(--danger); }
+
+        /* ============================================ */
+        /* COUPON INPUT                                 */
+        /* ============================================ */
+        .coupon-section {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .coupon-input {
+            flex: 1;
+            padding: 10px 14px;
+            background: var(--input-bg);
+            border: 1px dashed var(--gold);
+            border-radius: 8px;
+            color: var(--gold);
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            outline: none;
+        }
+
+        .coupon-applied {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            background: rgba(63,185,80,0.1);
+            border: 1px solid rgba(63,185,80,0.3);
+            border-radius: 8px;
+            color: var(--success);
+            font-size: 0.85em;
+            margin-bottom: 16px;
+        }
+
+        /* ============================================ */
+        /* PROCESSING ANIMATION                         */
+        /* ============================================ */
+        .processing-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 998;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .processing-overlay.show {
+            display: flex;
+        }
+
+        .processing-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ============================================ */
+        /* RESPONSIVE                                   */
+        /* ============================================ */
+        @media (max-width: 768px) {
+            .payment-dashboard {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            
+            .payment-methods {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .card-number-display {
+                font-size: 1em;
+                letter-spacing: 2px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================ -->
+    <!-- MAIN PAYMENT DASHBOARD                                       -->
+    <!-- ============================================================ -->
+    <div class="payment-dashboard" id="paymentDashboard">
+        
+        <!-- ======================================== -->
+        <!-- LEFT COLUMN — PROBLEM + PRICE            -->
+        <!-- ======================================== -->
+        <div class="card" id="problemCard">
+            <div class="card-header">
+                <div class="icon problem">🔍</div>
+                <div>
+                    <div class="card-title">Problem Resolution</div>
+                    <div class="card-subtitle">Supreme Platform v9.0</div>
+                </div>
+            </div>
+
+            <!-- Problem Summary -->
+            <div class="problem-summary" id="problemSummary">
+                <span class="problem-badge critical" id="problemBadge">🚨 CRITICAL</span>
+                <div class="problem-name" id="problemName">Database Connection Pool Full</div>
+                <div class="problem-detail" id="problemDetail">
+                    📍 Location: Production Database Server<br>
+                    💥 Impact: 500 users affected<br>
+                    🎯 Root Cause: Connection leak in UserModule.java:247<br>
+                    ⏱️ Detected: Just now
+                </div>
+                <div class="fix-status">
+                    <span class="check">✅</span>
+                    <span>Auto-Fix Applied Successfully — Connections restored</span>
+                </div>
+            </div>
+
+            <!-- Price Breakdown -->
+            <div class="price-breakdown" id="priceBreakdown">
+                <div style="font-weight:600;margin-bottom:12px;color:var(--text);">💰 Price Breakdown</div>
+                
+                <div class="price-row">
+                    <span class="price-label">🔍 Diagnosis Fee</span>
+                    <span class="price-value" id="diagnosisFee">$2,900.00</span>
+                </div>
+                <div class="price-row">
+                    <span class="price-label">🔧 Auto-Fix Service</span>
+                    <span class="price-value" id="fixFee">$8,500.00</span>
+                </div>
+                <div class="price-row">
+                    <span class="price-label">📊 Complete Report</span>
+                    <span class="price-value" style="color:var(--success);">INCLUDED</span>
+                </div>
+                <div class="price-row" id="discountRow" style="display:none;">
+                    <span class="price-label">🎟️ Coupon Discount</span>
+                    <span class="price-value discount" id="discountAmount">-$0.00</span>
+                </div>
+                <div class="price-row">
+                    <span class="price-label">🏷️ Tax (15% VAT)</span>
+                    <span class="price-value" id="taxAmount">$1,710.00</span>
+                </div>
+                <div class="price-row total">
+                    <span class="price-label">💳 TOTAL DUE</span>
+                    <span class="price-value" id="totalAmount">$13,110.00</span>
+                </div>
+                <div style="text-align:right;margin-top:6px;" id="savingsBadge">
+                    <span class="savings-badge" id="savingsText" style="display:none;">💡 You save: $0</span>
+                </div>
+            </div>
+
+            <!-- Coupon Section -->
+            <div class="coupon-section">
+                <input type="text" class="coupon-input" id="couponInput" 
+                       placeholder="ENTER COUPON CODE" maxlength="20">
+                <button class="btn-coupon" onclick="applyCoupon()">APPLY</button>
+            </div>
+            <div class="coupon-applied" id="couponApplied" style="display:none;">
+                ✅ Coupon <strong id="couponCode">NEOM2025</strong> applied — 
+                <strong id="couponValue">30% OFF</strong>
+                <span style="cursor:pointer;margin-left:auto;" onclick="removeCoupon()">✕</span>
+            </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- RIGHT COLUMN — CREDIT CARD + PAYMENT     -->
+        <!-- ======================================== -->
+        <div class="card" id="paymentCard">
+            <div class="card-header">
+                <div class="icon payment">💳</div>
+                <div>
+                    <div class="card-title">Payment Method</div>
+                    <div class="card-subtitle">Secure • Encrypted • Quantum-Safe</div>
+                </div>
+            </div>
+
+            <!-- Credit Card Preview -->
+            <div class="credit-card-preview" id="cardPreview">
+                <div class="card-chip"></div>
+                <div class="card-brand" id="cardBrand">💳</div>
+                <div class="card-number-display" id="cardNumberDisplay">•••• •••• •••• ••••</div>
+                <div class="card-info-row">
+                    <div class="card-info-block">
+                        <div class="card-info-label">Card Holder</div>
+                        <div class="card-info-value" id="cardHolderDisplay">YOUR NAME</div>
+                    </div>
+                    <div class="card-info-block">
+                        <div class="card-info-label">Expires</div>
+                        <div class="card-info-value" id="cardExpiryDisplay">MM/YY</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Methods -->
+            <div class="payment-methods" id="paymentMethods">
+                <div class="payment-method active" data-method="CARD" onclick="selectMethod('CARD', this)">
+                    <div class="method-icon">💳</div>
+                    Credit Card
+                </div>
+                <div class="payment-method" data-method="PAYPAL" onclick="selectMethod('PAYPAL', this)">
+                    <div class="method-icon">🅿️</div>
+                    PayPal
+                </div>
+                <div class="payment-method" data-method="APPLE_PAY" onclick="selectMethod('APPLE_PAY', this)">
+                    <div class="method-icon">🍎</div>
+                    Apple Pay
+                </div>
+                <div class="payment-method" data-method="GOOGLE_PAY" onclick="selectMethod('GOOGLE_PAY', this)">
+                    <div class="method-icon">🤖</div>
+                    Google Pay
+                </div>
+                <div class="payment-method" data-method="CRYPTO" onclick="selectMethod('CRYPTO', this)">
+                    <div class="method-icon">🪙</div>
+                    Crypto
+                </div>
+                <div class="payment-method" data-method="BANK" onclick="selectMethod('BANK', this)">
+                    <div class="method-icon">🏦</div>
+                    Bank Transfer
+                </div>
+            </div>
+
+            <!-- Credit Card Form -->
+            <form id="paymentForm" onsubmit="processPayment(event)">
+                <div class="form-group">
+                    <label class="form-label">Card Number</label>
+                    <input type="text" class="form-input" id="cardNumber" 
+                           placeholder="1234 5678 9012 3456" maxlength="19"
+                           oninput="formatCardNumber(this); updateCardPreview();">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Expiry Date</label>
+                        <input type="text" class="form-input" id="cardExpiry" 
+                               placeholder="MM/YY" maxlength="5"
+                               oninput="formatExpiry(this); updateCardPreview();">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">CVV</label>
+                        <input type="text" class="form-input" id="cardCVV" 
+                               placeholder="123" maxlength="4"
+                               oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Card Holder Name</label>
+                    <input type="text" class="form-input" id="cardHolder" 
+                           placeholder="JOHN DOE"
+                           oninput="updateCardPreview();">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Country</label>
+                        <select class="form-input" id="country" onchange="updateTax()">
+                            <option value="US">🇺🇸 United States</option>
+                            <option value="SA" selected>🇸🇦 Saudi Arabia</option>
+                            <option value="AE">🇦🇪 UAE (Tax Free)</option>
+                            <option value="UK">🇬🇧 United Kingdom</option>
+                            <option value="EU">🇪🇺 European Union</option>
+                            <option value="IN">🇮🇳 India</option>
+                            <option value="SG">🇸🇬 Singapore</option>
+                            <option value="JP">🇯🇵 Japan</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">ZIP / Postal Code</label>
+                        <input type="text" class="form-input" id="zipCode" 
+                               placeholder="12345" maxlength="10">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="payButton">
+                    🔒 PAY <span id="payAmount">$13,110.00</span> NOW
+                </button>
+
+                <div style="text-align:center;margin-top:12px;font-size:0.7em;color:var(--text-dim);">
+                    🔐 Secured by Quantum-Safe Encryption (CRYSTALS-Kyber-1024)<br>
+                    💳 We accept: Visa • Mastercard • Amex • Discover • Mada
+                </div>
+            </form>
+
+            <!-- Bank Transfer Info (Hidden by default) -->
+            <div id="bankTransferInfo" style="display:none;">
+                <div class="problem-summary">
+                    <div style="font-weight:600;margin-bottom:10px;">🏦 Bank Transfer Details</div>
+                    <div class="price-row"><span>Bank:</span><span class="price-value">SNB Saudi National Bank</span></div>
+                    <div class="price-row"><span>Account:</span><span class="price-value">****2345</span></div>
+                    <div class="price-row"><span>SWIFT:</span><span class="price-value">SNBBSARI</span></div>
+                    <div class="price-row"><span>Reference:</span><span class="price-value" id="bankRef">INV-SUP-001056</span></div>
+                    <div style="margin-top:10px;font-size:0.8em;color:var(--warning);">
+                        ⚠️ Bank transfers take 1-5 business days to process
+                    </div>
+                </div>
+            </div>
+
+            <!-- Crypto Info (Hidden by default) -->
+            <div id="cryptoInfo" style="display:none;">
+                <div class="problem-summary">
+                    <div style="font-weight:600;margin-bottom:10px;">🪙 Crypto Payment</div>
+                    <div class="price-row"><span>Accepted:</span><span class="price-value">BTC • ETH • USDT • USDC • SOL</span></div>
+                    <div class="price-row"><span>Network:</span><span class="price-value">Ethereum / Solana / Polygon</span></div>
+                    <div class="price-row"><span>Fee:</span><span class="price-value" style="color:var(--success);">0.5% only</span></div>
+                    <div class="price-row"><span>Amount:</span><span class="price-value" id="cryptoAmount">0.00 USDT</span></div>
+                    <button class="btn btn-primary" style="margin-top:12px;" onclick="processCryptoPayment()">
+                        🪙 PAY WITH CRYPTO
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PROCESSING OVERLAY                                            -->
+    <!-- ============================================================ -->
+    <div class="processing-overlay" id="processingOverlay">
+        <div class="processing-spinner"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SUCCESS OVERLAY                                               -->
+    <!-- ============================================================ -->
+    <div class="success-overlay" id="successOverlay">
+        <div class="success-modal">
+            <div class="success-icon">✅</div>
+            <div class="success-title">Payment Successful!</div>
+            <div class="success-message">
+                Your payment has been processed successfully.<br>
+                A complete diagnostic report and invoice have been generated.
+            </div>
+            <div class="transaction-id" id="transactionId">TXN-ABC123XYZ789</div>
+            <div style="color:var(--text-dim);font-size:0.85em;margin-bottom:16px;">
+                Amount Paid: <strong style="color:var(--success);" id="paidAmount">$13,110.00</strong>
+            </div>
+            <button class="btn btn-primary" onclick="downloadReport()" style="margin-bottom:8px;">
+                📥 DOWNLOAD FULL REPORT (PDF)
+            </button>
+            <button class="btn btn-secondary" onclick="closeSuccess()">
+                RETURN TO DASHBOARD
+            </button>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TOAST NOTIFICATION                                            -->
+    <!-- ============================================================ -->
+    <div class="toast" id="toast"></div>
+
+    <!-- ============================================================ -->
+    <!-- SCRIPTS                                                        -->
+    <!-- ============================================================ -->
+    <script>
+        // =============================================
+        // STATE
+        // =============================================
+        let state = {
+            selectedMethod: 'CARD',
+            couponApplied: null,
+            basePrice: 11400,     // Diagnosis + Fix
+            taxRate: 0.15,        // 15% VAT (Saudi)
+            taxAmount: 1710,
+            discountPercent: 0,
+            discountAmount: 0,
+            totalAmount: 13110,
+            country: 'SA',
+            tier: 'BUSINESS',
+            problemId: 'PRB-DB-CONN-001',
+            transactionId: null
+        };
+
+        // =============================================
+        // INITIALIZE
+        // =============================================
+        function init() {
+            updateAllDisplays();
+            
+            // Simulate problem data from backend
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('tier')) {
+                state.tier = urlParams.get('tier');
+                updatePricingByTier();
+            }
+        }
+
+        // =============================================
+        // UPDATE PRICING BY TIER
+        // =============================================
+        function updatePricingByTier() {
+            const pricing = {
+                SMALL: { diagnosis: 65, fix: 140, total: 205 },
+                MEDIUM: { diagnosis: 260, fix: 775, total: 1035 },
+                BUSINESS: { diagnosis: 2900, fix: 8500, total: 11400 },
+                ENTERPRISE: { diagnosis: 20000, fix: 77500, total: 97500 },
+                GLOBAL: { diagnosis: 175000, fix: 490000, total: 665000 }
+            };
+
+            const p = pricing[state.tier] || pricing.BUSINESS;
+            state.basePrice = p.total;
+            state.diagnosisFee = p.diagnosis;
+            state.fixFee = p.fix;
+            recalculateTotal();
+        }
+
+        // =============================================
+        // FORMAT CARD NUMBER
+        // =============================================
+        function formatCardNumber(input) {
+            let value = input.value.replace(/\D/g, '');
+            value = value.substring(0, 16);
+            value = value.replace(/(\d{4})(?=\d)/g, '$1 ');
+            input.value = value;
+        }
+
+        // =============================================
+        // FORMAT EXPIRY
+        // =============================================
+        function formatExpiry(input) {
+            let value = input.value.replace(/\D/g, '');
+            value = value.substring(0, 4);
+            if (value.length >= 2) {
+                value = value.substring(0, 2) + '/' + value.substring(2);
+            }
+            input.value = value;
+        }
+
+        // =============================================
+        // UPDATE CARD PREVIEW
+        // =============================================
+        function updateCardPreview() {
+            const cardNumber = document.getElementById('cardNumber').value || '•••• •••• •••• ••••';
+            const cardHolder = document.getElementById('cardHolder').value || 'YOUR NAME';
+            const cardExpiry = document.getElementById('cardExpiry').value || 'MM/YY';
+            
+            document.getElementById('cardNumberDisplay').textContent = cardNumber || '•••• •••• •••• ••••';
+            document.getElementById('cardHolderDisplay').textContent = cardHolder.toUpperCase() || 'YOUR NAME';
+            document.getElementById('cardExpiryDisplay').textContent = cardExpiry || 'MM/YY';
+
+            // Detect card brand
+            const rawNumber = cardNumber.replace(/\s/g, '');
+            let brand = '💳';
+            if (rawNumber.startsWith('4')) brand = '💳 Visa';
+            else if (rawNumber.startsWith('5')) brand = '💳 Mastercard';
+            else if (rawNumber.startsWith('3')) brand = '💳 Amex';
+            else if (rawNumber.startsWith('6')) brand = '💳 Discover';
+            document.getElementById('cardBrand').textContent = brand;
+        }
+
+        // =============================================
+        // SELECT PAYMENT METHOD
+        // =============================================
+        function selectMethod(method, element) {
+            state.selectedMethod = method;
+            
+            // Update active state
+            document.querySelectorAll('.payment-method').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            
+            // Show/hide relevant forms
+            const form = document.getElementById('paymentForm');
+            const bankInfo = document.getElementById('bankTransferInfo');
+            const cryptoInfo = document.getElementById('cryptoInfo');
+            
+            form.style.display = 'block';
+            bankInfo.style.display = 'none';
+            cryptoInfo.style.display = 'none';
+            
+            if (method === 'BANK') {
+                form.style.display = 'none';
+                bankInfo.style.display = 'block';
+                document.getElementById('bankRef').textContent = 'INV-SUP-' + Math.floor(Math.random() * 9000 + 1000);
+            }
+            
+            if (method === 'CRYPTO') {
+                form.style.display = 'none';
+                cryptoInfo.style.display = 'block';
+                const cryptoPrice = (state.totalAmount / 3.75).toFixed(2); // SAR to USDT
+                document.getElementById('cryptoAmount').textContent = cryptoPrice + ' USDT';
+            }
+        }
+
+        // =============================================
+        // APPLY COUPON
+        // =============================================
+        function applyCoupon() {
+            const code = document.getElementById('couponInput').value.trim().toUpperCase();
+            
+            const coupons = {
+                'SUPREME20': { discount: 20, type: 'PERCENT' },
+                'LAUNCH50': { discount: 50, type: 'PERCENT' },
+                'NEOM2025': { discount: 30, type: 'PERCENT' },
+                'STARTUP100': { discount: 100, type: 'FIXED' },
+                'ENTERPRISE500': { discount: 500, type: 'FIXED' }
+            };
+
+            if (!coupons[code]) {
+                showToast('Invalid coupon code', 'error');
+                return;
+            }
+
+            const coupon = coupons[code];
+            state.couponApplied = code;
+            state.discountPercent = coupon.type === 'PERCENT' ? coupon.discount : 0;
+            
+            if (coupon.type === 'FIXED') {
+                state.discountAmount = coupon.discount;
+                state.discountPercent = 0;
+            }
+
+            document.getElementById('couponApplied').style.display = 'flex';
+            document.getElementById('couponCode').textContent = code;
+            document.getElementById('couponValue').textContent = coupon.type === 'PERCENT' ? 
+                coupon.discount + '% OFF' : '$' + coupon.discount + ' OFF';
+
+            recalculateTotal();
+            showToast('Coupon applied! 🎟️', 'success');
+        }
+
+        // =============================================
+        // REMOVE COUPON
+        // =============================================
+        function removeCoupon() {
+            state.couponApplied = null;
+            state.discountPercent = 0;
+            state.discountAmount = 0;
+            
+            document.getElementById('couponApplied').style.display = 'none';
+            document.getElementById('couponInput').value = '';
+            
+            recalculateTotal();
+            showToast('Coupon removed', 'error');
+        }
+
+        // =============================================
+        // UPDATE TAX
+        // =============================================
+        function updateTax() {
+            const country = document.getElementById('country').value;
+            state.country = country;
+            
+            const taxRates = {
+                'US': 0, 'SA': 0.15, 'AE': 0, 'UK': 0.20,
+                'EU': 0.20, 'IN': 0.18, 'SG': 0.09, 'JP': 0.10
+            };
+            
+            state.taxRate = taxRates[country] || 0;
+            recalculateTotal();
+        }
+
+        // =============================================
+        // RECALCULATE TOTAL
+        // =============================================
+        function recalculateTotal() {
+            let subtotal = state.basePrice;
+            let discount = 0;
+            
+            if (state.discountPercent > 0) {
+                discount = subtotal * (state.discountPercent / 100);
+            } else if (state.discountAmount > 0) {
+                discount = state.discountAmount;
+            }
+            
+            const afterDiscount = subtotal - discount;
+            const tax = afterDiscount * state.taxRate;
+            const total = afterDiscount + tax;
+            
+            state.discountAmount = discount;
+            state.taxAmount = Math.round(tax * 100) / 100;
+            state.totalAmount = Math.round(total * 100) / 100;
+            
+            updateAllDisplays();
+        }
+
+        // =============================================
+        // UPDATE ALL DISPLAYS
+        // =============================================
+        function updateAllDisplays() {
+            document.getElementById('diagnosisFee').textContent = '$' + (state.basePrice * 0.25).toLocaleString();
+            document.getElementById('fixFee').textContent = '$' + (state.basePrice * 0.75).toLocaleString();
+            document.getElementById('taxAmount').textContent = '$' + state.taxAmount.toLocaleString();
+            document.getElementById('totalAmount').textContent = '$' + state.totalAmount.toLocaleString();
+            document.getElementById('payAmount').textContent = '$' + state.totalAmount.toLocaleString();
+            
+            // Discount row
+            const discountRow = document.getElementById('discountRow');
+            const discountAmount = document.getElementById('discountAmount');
+            const savingsText = document.getElementById('savingsText');
+            
+            if (state.discountAmount > 0) {
+                discountRow.style.display = 'flex';
+                discountAmount.textContent = '-$' + state.discountAmount.toLocaleString();
+                savingsText.style.display = 'inline-block';
+                savingsText.textContent = '💡 You save: $' + state.discountAmount.toLocaleString();
+            } else {
+                discountRow.style.display = 'none';
+                savingsText.style.display = 'none';
+            }
+        }
+
+        // =============================================
+        // PROCESS PAYMENT
+        // =============================================
+        async function processPayment(event) {
+            event.preventDefault();
+            
+            // Validate
+            if (state.selectedMethod === 'CARD') {
+                const cardNumber = document.getElementById('cardNumber').value.replace(/\s/g, '');
+                const cardExpiry = document.getElementById('cardExpiry').value;
+                const cardCVV = document.getElementById('cardCVV').value;
+                const cardHolder = document.getElementById('cardHolder').value;
+                
+                if (!cardNumber || cardNumber.length < 16) {
+                    showToast('Please enter a valid card number', 'error');
+                    return;
+                }
+                if (!cardExpiry || cardExpiry.length < 5) {
+                    showToast('Please enter a valid expiry date', 'error');
+                    return;
+                }
+                if (!cardCVV || cardCVV.length < 3) {
+                    showToast('Please enter a valid CVV', 'error');
+                    return;
+                }
+                if (!cardHolder) {
+                    showToast('Please enter card holder name', 'error');
+                    return;
+                }
+            }
+
+            // Show processing
+            document.getElementById('processingOverlay').classList.add('show');
+            document.getElementById('payButton').disabled = true;
+            document.getElementById('payButton').textContent = '⏳ PROCESSING...';
+
+            // Simulate payment processing
+            await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000));
+
+            // Generate transaction ID
+            const txnId = 'TXN-' + Date.now().toString(36).toUpperCase() + '-' + 
+                         Math.random().toString(36).substr(2, 6).toUpperCase();
+            state.transactionId = txnId;
+
+            // Hide processing
+            document.getElementById('processingOverlay').classList.remove('show');
+            document.getElementById('payButton').disabled = false;
+            document.getElementById('payButton').textContent = '🔒 PAY $' + state.totalAmount.toLocaleString() + ' NOW';
+
+            // Generate invoice
+            const invoiceNumber = 'INV-SUP-' + Math.floor(Math.random() * 90000 + 10000);
+
+            // Show success
+            document.getElementById('transactionId').textContent = txnId;
+            document.getElementById('paidAmount').textContent = '$' + state.totalAmount.toLocaleString();
+            document.getElementById('successOverlay').classList.add('show');
+
+            // Store transaction in local storage (simulating backend)
+            const transaction = {
+                transactionId: txnId,
+                invoiceNumber,
+                amount: state.totalAmount,
+                currency: 'USD',
+                method: state.selectedMethod,
+                tier: state.tier,
+                coupon: state.couponApplied,
+                discount: state.discountAmount,
+                tax: state.taxAmount,
+                country: state.country,
+                timestamp: new Date().toISOString(),
+                status: 'COMPLETED',
+                problemId: state.problemId
+            };
+
+            const transactions = JSON.parse(localStorage.getItem('supreme_transactions') || '[]');
+            transactions.push(transaction);
+            localStorage.setItem('supreme_transactions', JSON.stringify(transactions));
+
+            console.log('💳 Payment Successful:', transaction);
+            showToast('Payment of $' + state.totalAmount.toLocaleString() + ' completed!', 'success');
+        }
+
+        // =============================================
+        // PROCESS CRYPTO PAYMENT
+        // =============================================
+        async function processCryptoPayment() {
+            document.getElementById('processingOverlay').classList.add('show');
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            document.getElementById('processingOverlay').classList.remove('show');
+            
+            state.transactionId = 'TXN-CRYPTO-' + Date.now().toString(36).toUpperCase();
+            document.getElementById('transactionId').textContent = state.transactionId;
+            document.getElementById('paidAmount').textContent = '$' + state.totalAmount.toLocaleString();
+            document.getElementById('successOverlay').classList.add('show');
+            
+            showToast('Crypto payment received! 🪙', 'success');
+        }
+
+        // =============================================
+        // DOWNLOAD REPORT
+        // =============================================
+        function downloadReport() {
+            const invoiceNumber = 'INV-SUP-' + Math.floor(Math.random() * 90000 + 10000);
+            
+            // Simulate PDF download
+            const reportData = {
+                invoice: invoiceNumber,
+                transaction: state.transactionId,
+                amount: state.totalAmount,
+                date: new Date().toISOString(),
+                problem: document.getElementById('problemName').textContent,
+                tier: state.tier
+            };
+
+            console.log('📥 Downloading report:', reportData);
+            showToast('Report downloaded! 📥', 'success');
+            
+            // In production, this would trigger an actual PDF download
+            alert('📥 REPORT DOWNLOADED!\n\n' +
+                  'Invoice: ' + invoiceNumber + '\n' +
+                  'Transaction: ' + state.transactionId + '\n' +
+                  'Amount: $' + state.totalAmount.toLocaleString() + '\n' +
+                  'Problem: ' + document.getElementById('problemName').textContent + '\n\n' +
+                  'Full diagnostic report sent to your email.');
+        }
+
+        // =============================================
+        // CLOSE SUCCESS OVERLAY
+        // =============================================
+        function closeSuccess() {
+            document.getElementById('successOverlay').classList.remove('show');
+        }
+
+        // =============================================
+        // SHOW TOAST
+        // =============================================
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast ' + type + ' show';
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // =============================================
+        // INIT
+        // =============================================
+        init();
+        updateCardPreview();
+
+        // Live card preview update
+        document.getElementById('cardNumber').addEventListener('input', updateCardPreview);
+        document.getElementById('cardHolder').addEventListener('input', updateCardPreview);
+        document.getElementById('cardExpiry').addEventListener('input', updateCardPreview);
+    </script>
+
+</body>
+</html>
