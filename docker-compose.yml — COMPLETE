@@ -1,0 +1,82 @@
+# ============================================================
+# 🤫 SUPREME PLATFORM v7.0 — DOCKER COMPOSE
+# ============================================================
+
+version: '3.8'
+
+services:
+  supreme-platform:
+    build: .
+    container_name: supreme-platform-v7
+    restart: always
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - mongodb
+      - redis
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    networks:
+      - supreme-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mongodb:
+    image: mongo:7.0
+    container_name: supreme-mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: supreme_admin
+      MONGO_INITDB_ROOT_PASSWORD: supreme-db-password-2024
+      MONGO_INITDB_DATABASE: supreme-platform
+    volumes:
+      - mongodb-data:/data/db
+      - ./scripts/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    ports:
+      - "27017:27017"
+    networks:
+      - supreme-network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: supreme-redis
+    restart: always
+    command: redis-server --requirepass supreme-redis-password-2024
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - supreme-network
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: supreme-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - supreme-platform
+    networks:
+      - supreme-network
+
+volumes:
+  mongodb-data:
+  redis-data:
+
+networks:
+  supreme-network:
+    driver: bridge
