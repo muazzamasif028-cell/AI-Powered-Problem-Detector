@@ -1,0 +1,109 @@
+# ============================================================
+# 🤫 SUPREME PLATFORM — NGINX PRODUCTION CONFIG
+# ============================================================
+
+upstream supreme_backend {
+    least_conn;
+    server 127.0.0.1:5000 weight=1 max_fails=3 fail_timeout=30s;
+    server 127.0.0.1:5001 weight=1 max_fails=3 fail_timeout=30s;
+    server 127.0.0.1:5002 weight=1 max_fails=3 fail_timeout=30s;
+    server 127.0.0.1:5003 weight=1 max_fails=3 fail_timeout=30s;
+    keepalive 64;
+}
+
+server {
+    listen 80;
+    server_name supreme-platform.com www.supreme-platform.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name supreme-platform.com www.supreme-platform.com;
+
+    # SSL (Production — Replace with real certs)
+    ssl_certificate /etc/nginx/ssl/supreme-platform.crt;
+    ssl_certificate_key /etc/nginx/ssl/supreme-platform.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:50m;
+    ssl_session_timeout 1d;
+    ssl_stapling on;
+    ssl_stapling_verify on;
+
+    # Security Headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Gzip
+    gzip on;
+    gzip_vary on;
+    gzip_types text/plain text/css application/json application/javascript text/xml text/javascript image/svg+xml;
+
+    # Rate Limiting
+    limit_req_zone $binary_remote_addr zone=api:10m rate=100r/s;
+    limit_req_zone $binary_remote_addr zone=auth:10m rate=10r/m;
+    limit_conn_zone $binary_remote_addr zone=conn:10m;
+
+    # Static Files (Cache for 30 days)
+    location /static/ {
+        alias /var/www/supreme-platform/public/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # API Routes — Proxy to Node.js
+    location /api/ {
+        limit_req zone=api burst=200 nodelay;
+        limit_conn conn 50;
+        
+        proxy_pass http://supreme_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+
+    # Auth Routes — Stricter Rate Limit
+    location /api/auth/ {
+        limit_req zone=auth burst=5 nodelay;
+        proxy_pass http://supreme_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # WebSocket
+    location /socket.io/ {
+        proxy_pass http://supreme_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 86400s;
+    }
+
+    # SPA Fallback
+    location / {
+        root /var/www/supreme-platform/public;
+        try_files $uri $uri/ /index.html;
+        expires -1;
+    }
+
+    # Health Check (internal)
+    location /health {
+        access_log off;
+        return 200 "OK";
+    }
+}
