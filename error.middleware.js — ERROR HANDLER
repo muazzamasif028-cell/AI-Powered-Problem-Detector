@@ -1,0 +1,225 @@
+// ============================================================
+// 🛡️ SUPREME ERROR MIDDLEWARE v10.0
+// ============================================================
+
+const logger = require('../utils/logger');
+
+class ErrorMiddleware {
+    constructor() {
+        // Custom Error Classes
+        this.AppError = class AppError extends Error {
+            constructor(message, statusCode, code) {
+                super(message);
+                this.statusCode = statusCode;
+                this.code = code;
+                this.isOperational = true;
+                Error.captureStackTrace(this, this.constructor);
+            }
+        };
+
+        this.NotFoundError = class NotFoundError extends this.AppError {
+            constructor(message = 'Resource not found') {
+                super(message, 404, 'NOT_FOUND');
+            }
+        };
+
+        this.UnauthorizedError = class UnauthorizedError extends this.AppError {
+            constructor(message = 'Unauthorized') {
+                super(message, 401, 'UNAUTHORIZED');
+            }
+        };
+
+        this.ForbiddenError = class ForbiddenError extends this.AppError {
+            constructor(message = 'Forbidden') {
+                super(message, 403, 'FORBIDDEN');
+            }
+        };
+
+        this.ValidationError = class ValidationError extends this.AppError {
+            constructor(message = 'Validation failed') {
+                super(message, 400, 'VALIDATION_ERROR');
+            }
+        };
+
+        this.RateLimitError = class RateLimitError extends this.AppError {
+            constructor(message = 'Rate limit exceeded') {
+                super(message, 429, 'RATE_LIMITED');
+            }
+        };
+    }
+
+    // =============================================
+    // 404 Handler — Catch undefined routes
+    // =============================================
+    notFoundHandler() {
+        return (req, res, next) => {
+            const error = new this.NotFoundError(
+                `Route not found: ${req.method} ${req.originalUrl}`
+            );
+            next(error);
+        };
+    }
+
+    // =============================================
+    // Global Error Handler
+    // =============================================
+    globalErrorHandler() {
+        return (err, req, res, next) => {
+            // Set defaults
+            err.statusCode = err.statusCode || 500;
+            err.code = err.code || 'INTERNAL_ERROR';
+            err.message = err.message || 'Internal server error';
+
+            // Log error
+            this.logError(err, req);
+
+            // Handle specific errors
+            if (err.name === 'ValidationError') {
+                err.statusCode = 400;
+                err.code = 'VALIDATION_ERROR';
+                err.message = Object.values(err.errors).map(e => e.message).join(', ');
+            }
+
+            if (err.name === 'CastError') {
+                err.statusCode = 400;
+                err.code = 'INVALID_ID';
+                err.message = 'Invalid ID format';
+            }
+
+            if (err.code === 11000) {
+                err.statusCode = 409;
+                err.code = 'DUPLICATE_KEY';
+                err.message = 'Duplicate entry — already exists';
+            }
+
+            if (err.name === 'JsonWebTokenError') {
+                err.statusCode = 401;
+                err.code = 'INVALID_TOKEN';
+                err.message = 'Invalid or expired token';
+            }
+
+            if (err.name === 'TokenExpiredError') {
+                err.statusCode = 401;
+                err.code = 'TOKEN_EXPIRED';
+                err.message = 'Token has expired';
+            }
+
+            // Build response
+            const response = {
+                success: false,
+                error: {
+                    code: err.code,
+                    message: err.message,
+                    requestId: req.requestId || 'N/A'
+                }
+            };
+
+            // Add stack in development
+            if (process.env.NODE_ENV === 'development') {
+                response.error.stack = err.stack;
+                response.error.details = err.details || null;
+            }
+
+            // Send response
+            res.status(err.statusCode).json(response);
+        };
+    }
+
+    // =============================================
+    // Async Handler Wrapper (Catch async errors)
+    // =============================================
+    asyncHandler(fn) {
+        return (req, res, next) => {
+            Promise.resolve(fn(req, res, next)).catch(next);
+        };
+    }
+
+    // =============================================
+    // Log Error
+    // =============================================
+    logError(err, req) {
+        const logData = {
+            timestamp: new Date().toISOString(),
+            error: {
+                name: err.name,
+                message: err.message,
+                code: err.code,
+                statusCode: err.statusCode,
+                stack: err.stack
+            },
+            request: {
+                id: req.requestId || 'N/A',
+                method: req.method,
+                url: req.originalUrl,
+                ip: req.ip,
+                userId: req.user?.userId || 'anonymous',
+                body: this.sanitizeBody(req.body)
+            }
+        };
+
+        if (err.statusCode >= 500) {
+            logger.error('Server Error', logData);
+        } else if (err.statusCode >= 400) {
+            logger.warn('Client Error', logData);
+        } else {
+            logger.info('Error', logData);
+        }
+    }
+
+    // =============================================
+    // Sanitize Body (Remove sensitive data)
+    // =============================================
+    sanitizeBody(body) {
+        if (!body) return {};
+        const sanitized = { ...body };
+        const sensitiveFields = ['password', 'token', 'secret', 'cardNumber', 'cvv', 'ssn'];
+        
+        sensitiveFields.forEach(field => {
+            if (sanitized[field]) {
+                sanitized[field] = '[REDACTED]';
+            }
+        });
+
+        return sanitized;
+    }
+
+    // =============================================
+    // Unhandled Rejection Handler
+    // =============================================
+    handleUnhandledRejection() {
+        process.on('unhandledRejection', (reason, promise) => {
+            logger.error('Unhandled Rejection', {
+                reason: reason?.message || reason,
+                stack: reason?.stack
+            });
+        });
+    }
+
+    // =============================================
+    // Uncaught Exception Handler
+    // =============================================
+    handleUncaughtException() {
+        process.on('uncaughtException', (err) => {
+            logger.error('Uncaught Exception', {
+                message: err.message,
+                stack: err.stack
+            });
+            
+            // Graceful shutdown
+            setTimeout(() => {
+                process.exit(1);
+            }, 1000);
+        });
+    }
+
+    // =============================================
+    // Initialize all handlers
+    // =============================================
+    initialize() {
+        this.handleUnhandledRejection();
+        this.handleUncaughtException();
+        console.log('🛡️ [ERROR HANDLER] Initialized');
+    }
+}
+
+module.exports = new ErrorMiddleware();
