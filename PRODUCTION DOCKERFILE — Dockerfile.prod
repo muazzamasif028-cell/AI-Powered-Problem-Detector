@@ -1,0 +1,35 @@
+# ============================================================
+# 🤫 SUPREME PLATFORM — PRODUCTION DOCKERFILE
+# ============================================================
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production --ignore-scripts
+RUN npm cache clean --force
+
+FROM node:20-alpine
+
+RUN apk add --no-cache curl tini
+
+RUN addgroup -g 1001 supreme && \
+    adduser -S supreme -u 1001 -G supreme
+
+WORKDIR /app
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY . .
+
+RUN mkdir -p /app/logs /app/uploads && \
+    chown -R supreme:supreme /app
+
+USER supreme
+
+EXPOSE 5000
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:5000/api/health || exit 1
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "src/server.production.js"]
