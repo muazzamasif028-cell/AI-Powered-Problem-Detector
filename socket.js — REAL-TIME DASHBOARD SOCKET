@@ -1,0 +1,350 @@
+// ============================================================
+// 📊 SUPREME REAL-TIME DASHBOARD SOCKET v10.0
+// ============================================================
+
+const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
+const os = require('os');
+
+class DashboardSocket {
+    constructor() {
+        this.io = null;
+        this.connectedClients = new Map();
+        this.rooms = new Map();
+        this.metricsInterval = null;
+        this.JWT_SECRET = process.env.JWT_SECRET || 'supreme-quantum-jwt-secret-v10';
+    }
+
+    // =============================================
+    // 📊 INITIALIZE SOCKET SERVER
+    // =============================================
+    initialize(httpServer) {
+        this.io = new Server(httpServer, {
+            cors: {
+                origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+                methods: ['GET', 'POST'],
+                credentials: true
+            },
+            pingTimeout: 60000,
+            pingInterval: 25000,
+            connectTimeout: 10000,
+            maxHttpBufferSize: 1e6
+        });
+
+        // Authentication middleware
+        this.io.use((socket, next) => {
+            const token = socket.handshake.auth.token || socket.handshake.query.token;
+            
+            if (!token) {
+                return next(new Error('Authentication required'));
+            }
+
+            try {
+                const decoded = jwt.verify(token, this.JWT_SECRET);
+                socket.userId = decoded.userId;
+                socket.userRole = decoded.role;
+                socket.companyId = decoded.companyId;
+                socket.tenantId = decoded.tenantId;
+                next();
+            } catch (err) {
+                next(new Error('Invalid token'));
+            }
+        });
+
+        // Connection handler
+        this.io.on('connection', (socket) => {
+            this.handleConnection(socket);
+        });
+
+        // Start broadcasting metrics
+        this.startMetricsBroadcast();
+
+        console.log('📊 [DASHBOARD SOCKET] Initialized');
+        return this.io;
+    }
+
+    // =============================================
+    // 📊 HANDLE CONNECTION
+    // =============================================
+    handleConnection(socket) {
+        const clientId = socket.id;
+        const tenantId = socket.tenantId;
+
+        console.log(`📊 [SOCKET] Client connected: ${clientId} (${socket.userRole})`);
+
+        // Store client
+        this.connectedClients.set(clientId, {
+            id: clientId,
+            userId: socket.userId,
+            role: socket.userRole,
+            companyId: socket.companyId,
+            tenantId: socket.tenantId,
+            connectedAt: Date.now(),
+            ip: socket.handshake.address
+        });
+
+        // Join tenant room
+        const roomName = `tenant:${tenantId}`;
+        socket.join(roomName);
+        this.addToRoom(roomName, clientId);
+
+        // Join role room
+        const roleRoom = `role:${socket.userRole}`;
+        socket.join(roleRoom);
+        this.addToRoom(roleRoom, clientId);
+
+        // Send welcome
+        socket.emit('dashboard:welcome', {
+            message: 'Connected to Supreme Real-Time Dashboard',
+            clientId,
+            tenantId,
+            role: socket.userRole,
+            timestamp: new Date().toISOString()
+        });
+
+        // Event handlers
+        socket.on('dashboard:subscribe', (data) => this.handleSubscribe(socket, data));
+        socket.on('dashboard:unsubscribe', (data) => this.handleUnsubscribe(socket, data));
+        socket.on('dashboard:request-metrics', (data) => this.handleMetricsRequest(socket, data));
+        socket.on('disconnect', () => this.handleDisconnect(socket));
+    }
+
+    // =============================================
+    // 📊 SUBSCRIBE TO METRICS
+    // =============================================
+    handleSubscribe(socket, data) {
+        const { metrics, interval } = data;
+        
+        if (metrics && Array.isArray(metrics)) {
+            metrics.forEach(metric => {
+                const roomName = `metric:${metric}`;
+                socket.join(roomName);
+                this.addToRoom(roomName, socket.id);
+            });
+        }
+
+        socket.emit('dashboard:subscribed', {
+            metrics: metrics || ['all'],
+            interval: interval || 5000,
+            timestamp: new Date().toISOString()
+        });
+
+        console.log(`📊 [SUBSCRIBE] ${socket.id} → ${(metrics || ['all']).join(', ')}`);
+    }
+
+    // =============================================
+    // 📊 UNSUBSCRIBE
+    // =============================================
+    handleUnsubscribe(socket, data) {
+        const { metrics } = data;
+        
+        if (metrics && Array.isArray(metrics)) {
+            metrics.forEach(metric => {
+                const roomName = `metric:${metric}`;
+                socket.leave(roomName);
+                this.removeFromRoom(roomName, socket.id);
+            });
+        }
+
+        socket.emit('dashboard:unsubscribed', {
+            metrics: metrics || ['all'],
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // =============================================
+    // 📊 METRICS REQUEST
+    // =============================================
+    handleMetricsRequest(socket, data) {
+        const currentMetrics = this.collectSystemMetrics();
+        socket.emit('dashboard:metrics', currentMetrics);
+    }
+
+    // =============================================
+    // 📊 HANDLE DISCONNECT
+    // =============================================
+    handleDisconnect(socket) {
+        console.log(`📊 [SOCKET] Client disconnected: ${socket.id}`);
+        
+        this.connectedClients.delete(socket.id);
+        
+        // Remove from all rooms
+        this.rooms.forEach((clients, room) => {
+            this.removeFromRoom(room, socket.id);
+        });
+    }
+
+    // =============================================
+    // 📊 START METRICS BROADCAST
+    // =============================================
+    startMetricsBroadcast() {
+        // Broadcast every 5 seconds
+        this.metricsInterval = setInterval(() => {
+            if (this.io) {
+                const metrics = this.collectSystemMetrics();
+                
+                // Broadcast system metrics to all
+                this.io.emit('metrics:system', metrics.system);
+                
+                // Broadcast to specific metric rooms
+                this.io.to('metric:cpu').emit('metrics:cpu', metrics.cpu);
+                this.io.to('metric:memory').emit('metrics:memory', metrics.memory);
+                this.io.to('metric:network').emit('metrics:network', metrics.network);
+                this.io.to('metric:alerts').emit('metrics:alerts', metrics.alerts);
+                this.io.to('metric:satellite').emit('metrics:satellite', metrics.satellite);
+                this.io.to('metric:neom').emit('metrics:neom', metrics.neom);
+                
+                // Broadcast to tenant rooms
+                this.connectedClients.forEach((client, id) => {
+                    this.io.to(`tenant:${client.tenantId}`).emit('metrics:tenant', {
+                        tenantId: client.tenantId,
+                        ...metrics.system
+                    });
+                });
+            }
+        }, 5000);
+    }
+
+    // =============================================
+    // 📊 COLLECT SYSTEM METRICS
+    // =============================================
+    collectSystemMetrics() {
+        return {
+            system: {
+                cpu: (os.loadavg()[0] / os.cpus().length * 100).toFixed(1) + '%',
+                memory: ((1 - os.freemem() / os.totalmem()) * 100).toFixed(1) + '%',
+                uptime: Math.floor(os.uptime()) + 's',
+                platform: os.platform(),
+                hostname: os.hostname(),
+                connectedClients: this.connectedClients.size,
+                activeRooms: this.rooms.size
+            },
+            cpu: {
+                usage: (Math.random() * 30 + 20).toFixed(1) + '%',
+                temperature: (Math.random() * 20 + 45).toFixed(1) + '°C',
+                cores: os.cpus().length,
+                loadAverage: os.loadavg().map(l => l.toFixed(2))
+            },
+            memory: {
+                total: (os.totalmem() / 1024 / 1024 / 1024).toFixed(1) + ' GB',
+                free: (os.freemem() / 1024 / 1024 / 1024).toFixed(1) + ' GB',
+                usage: ((1 - os.freemem() / os.totalmem()) * 100).toFixed(1) + '%',
+                heapUsed: (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) + ' MB'
+            },
+            network: {
+                latency: (Math.random() * 20 + 5).toFixed(1) + 'ms',
+                packetLoss: (Math.random() * 2).toFixed(2) + '%',
+                bandwidth: (Math.random() * 500 + 500).toFixed(0) + ' Mbps',
+                connections: Math.floor(Math.random() * 1000) + 500
+            },
+            alerts: {
+                active: Math.floor(Math.random() * 5),
+                critical: Math.floor(Math.random() * 2),
+                warning: Math.floor(Math.random() * 3),
+                resolvedToday: Math.floor(Math.random() * 20)
+            },
+            satellite: {
+                totalOnline: 342 + Math.floor(Math.random() * 8),
+                totalFleet: 350,
+                activeOrbits: 6,
+                commandsToday: Math.floor(Math.random() * 50)
+            },
+            neom: {
+                status: 'OPERATIONAL',
+                activeSystems: 48,
+                regions: 5,
+                alerts: Math.floor(Math.random() * 3)
+            }
+        };
+    }
+
+    // =============================================
+    // 📊 ROOM MANAGEMENT
+    // =============================================
+    addToRoom(room, clientId) {
+        if (!this.rooms.has(room)) {
+            this.rooms.set(room, new Set());
+        }
+        this.rooms.get(room).add(clientId);
+    }
+
+    removeFromRoom(room, clientId) {
+        if (this.rooms.has(room)) {
+            this.rooms.get(room).delete(clientId);
+            if (this.rooms.get(room).size === 0) {
+                this.rooms.delete(room);
+            }
+        }
+    }
+
+    // =============================================
+    // 📊 BROADCAST ALERT
+    // =============================================
+    broadcastAlert(alert) {
+        if (this.io) {
+            // Broadcast to all
+            this.io.emit('alert:new', alert);
+            
+            // Critical alerts to specific role
+            if (alert.severity === 'CRITICAL') {
+                this.io.to('role:SUPER_ADMIN').emit('alert:critical', alert);
+                this.io.to('role:COMPANY_ADMIN').emit('alert:critical', alert);
+            }
+            
+            // Tenant-specific alert
+            if (alert.tenantId) {
+                this.io.to(`tenant:${alert.tenantId}`).emit('alert:tenant', alert);
+            }
+        }
+    }
+
+    // =============================================
+    // 📊 BROADCAST EVENT
+    // =============================================
+    broadcastEvent(event, data) {
+        if (this.io) {
+            this.io.emit(event, {
+                ...data,
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+
+    // =============================================
+    // 📊 GET STATUS
+    // =============================================
+    getStatus() {
+        return {
+            active: this.io !== null,
+            connectedClients: this.connectedClients.size,
+            activeRooms: this.rooms.size,
+            metricsBroadcasting: this.metricsInterval !== null,
+            uptime: process.uptime()
+        };
+    }
+
+    // =============================================
+    // 📊 SHUTDOWN
+    // =============================================
+    async shutdown() {
+        if (this.metricsInterval) {
+            clearInterval(this.metricsInterval);
+        }
+        
+        if (this.io) {
+            this.io.emit('server:shutdown', {
+                message: 'Server is shutting down',
+                timestamp: new Date().toISOString()
+            });
+            
+            await this.io.close();
+        }
+        
+        console.log('📊 [DASHBOARD SOCKET] Shutdown complete');
+    }
+}
+
+// ============================================================
+// 🤫 EXPORT
+// ============================================================
+module.exports = new DashboardSocket();
