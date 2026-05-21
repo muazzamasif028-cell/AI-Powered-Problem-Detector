@@ -1,0 +1,218 @@
+// ============================================================
+// ✅ SUPREME VALIDATION MIDDLEWARE v10.0
+// ============================================================
+
+class ValidationMiddleware {
+    constructor() {
+        this.validators = {};
+        this.initializeValidators();
+    }
+
+    // =============================================
+    // Initialize Validators
+    // =============================================
+    initializeValidators() {
+        // Auth validators
+        this.validators.signin = {
+            email: { required: true, type: 'email', min: 5, max: 255 },
+            password: { required: true, type: 'string', min: 8, max: 128 }
+        };
+
+        this.validators.signup = {
+            company: {
+                name: { required: true, type: 'string', min: 2, max: 100 },
+                tier: { type: 'enum', values: ['STARTER', 'GROWING', 'BUSINESS', 'ENTERPRISE', 'GLOBAL'] }
+            },
+            admin: {
+                email: { required: true, type: 'email' },
+                password: { required: true, type: 'string', min: 8, max: 128 },
+                name: { required: true, type: 'string', min: 2, max: 100 }
+            }
+        };
+
+        // Payment validators
+        this.validators.payment = {
+            amount: { required: true, type: 'number', min: 1, max: 10000000 },
+            currency: { type: 'enum', values: ['USD', 'EUR', 'GBP', 'SAR', 'AED'] },
+            method: { required: true, type: 'enum', values: ['CARD', 'PAYPAL', 'CRYPTO', 'BANK'] }
+        };
+
+        // Problem validators
+        this.validators.problem = {
+            problem: { required: true, type: 'string', min: 10, max: 5000 },
+            category: { type: 'enum', values: ['PERFORMANCE', 'AVAILABILITY', 'SECURITY', 'RESOURCE', 'APPLICATION'] },
+            severity: { type: 'enum', values: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] }
+        };
+
+        // Satellite validators
+        this.validators.satelliteCommand = {
+            satelliteId: { required: true, type: 'string', pattern: /^SAT-[A-Z0-9-]+$/ },
+            command: { required: true, type: 'enum', values: ['ORBIT_ADJUST', 'FIRE_THRUSTER', 'ATTITUDE_CONTROL'] },
+            parameters: { type: 'object' }
+        };
+    }
+
+    // =============================================
+    // Main Validation Middleware
+    // =============================================
+    validate(schemaName) {
+        return (req, res, next) => {
+            const schema = this.validators[schemaName];
+            
+            if (!schema) {
+                return res.status(500).json({
+                    error: 'Validation schema not found',
+                    code: 'VALIDATION_SCHEMA_MISSING'
+                });
+            }
+
+            const errors = this.validateObject(req.body, schema);
+            
+            if (errors.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: {
+                        code: 'VALIDATION_ERROR',
+                        message: 'Validation failed',
+                        errors: errors
+                    }
+                });
+            }
+
+            next();
+        };
+    }
+
+    // =============================================
+    // Validate Object Against Schema
+    // =============================================
+    validateObject(obj, schema, path = '') {
+        const errors = [];
+
+        for (let [field, rules] of Object.entries(schema)) {
+            const fieldPath = path ? `${path}.${field}` : field;
+            const value = obj?.[field];
+
+            // Nested object
+            if (rules.type === undefined && typeof rules === 'object' && !Array.isArray(rules)) {
+                if (value !== undefined) {
+                    errors.push(...this.validateObject(value, rules, fieldPath));
+                } else if (rules.required) {
+                    errors.push({ field: fieldPath, message: 'Field is required' });
+                }
+                continue;
+            }
+
+            // Required check
+            if (rules.required && (value === undefined || value === null || value === '')) {
+                errors.push({ field: fieldPath, message: 'Field is required' });
+                continue;
+            }
+
+            // Skip if optional and not provided
+            if (value === undefined || value === null) {
+                continue;
+            }
+
+            // Type check
+            if (rules.type === 'email') {
+                if (!this.isEmail(value)) {
+                    errors.push({ field: fieldPath, message: 'Must be a valid email address' });
+                }
+            }
+
+            if (rules.type === 'string') {
+                if (typeof value !== 'string') {
+                    errors.push({ field: fieldPath, message: 'Must be a string' });
+                }
+                if (rules.min && value.length < rules.min) {
+                    errors.push({ field: fieldPath, message: `Must be at least ${rules.min} characters` });
+                }
+                if (rules.max && value.length > rules.max) {
+                    errors.push({ field: fieldPath, message: `Must be at most ${rules.max} characters` });
+                }
+                if (rules.pattern && !rules.pattern.test(value)) {
+                    errors.push({ field: fieldPath, message: 'Invalid format' });
+                }
+            }
+
+            if (rules.type === 'number') {
+                if (typeof value !== 'number' || isNaN(value)) {
+                    errors.push({ field: fieldPath, message: 'Must be a number' });
+                }
+                if (rules.min !== undefined && value < rules.min) {
+                    errors.push({ field: fieldPath, message: `Must be at least ${rules.min}` });
+                }
+                if (rules.max !== undefined && value > rules.max) {
+                    errors.push({ field: fieldPath, message: `Must be at most ${rules.max}` });
+                }
+            }
+
+            if (rules.type === 'enum') {
+                if (!rules.values.includes(value)) {
+                    errors.push({ field: fieldPath, message: `Must be one of: ${rules.values.join(', ')}` });
+                }
+            }
+
+            if (rules.type === 'boolean') {
+                if (typeof value !== 'boolean') {
+                    errors.push({ field: fieldPath, message: 'Must be true or false' });
+                }
+            }
+
+            if (rules.type === 'array') {
+                if (!Array.isArray(value)) {
+                    errors.push({ field: fieldPath, message: 'Must be an array' });
+                }
+            }
+
+            if (rules.type === 'object') {
+                if (typeof value !== 'object' || Array.isArray(value)) {
+                    errors.push({ field: fieldPath, message: 'Must be an object' });
+                }
+            }
+        }
+
+        return errors;
+    }
+
+    // =============================================
+    // Quick Validators
+    // =============================================
+    isEmail(value) {
+        return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value);
+    }
+
+    isURL(value) {
+        try {
+            new URL(value);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    isStrongPassword(value) {
+        const checks = {
+            length: value.length >= 8,
+            uppercase: /[A-Z]/.test(value),
+            lowercase: /[a-z]/.test(value),
+            number: /[0-9]/.test(value),
+            special: /[!@#$%^&*(),.?":{}|<>]/.test(value)
+        };
+        
+        const passedCount = Object.values(checks).filter(Boolean).length;
+        return passedCount >= 4;
+    }
+
+    sanitizeInput(value) {
+        if (typeof value !== 'string') return value;
+        return value
+            .replace(/<[^>]*>/g, '') // Remove HTML tags
+            .replace(/[<>]/g, '') // Remove angle brackets
+            .trim()
+            .substring(0, 10000);
+    }
+}
+
+module.exports = new ValidationMiddleware();
