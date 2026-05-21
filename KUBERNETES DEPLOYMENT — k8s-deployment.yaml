@@ -1,0 +1,144 @@
+# ============================================================
+# 🤫 SUPREME PLATFORM — KUBERNETES PRODUCTION DEPLOYMENT
+# ============================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supreme-platform
+  namespace: supreme-prod
+  labels:
+    app: supreme-platform
+    version: v10
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: supreme-platform
+  template:
+    metadata:
+      labels:
+        app: supreme-platform
+        version: v10
+    spec:
+      containers:
+      - name: supreme-platform
+        image: ghcr.io/supreme-technologies/supreme-platform:v10.0.0
+        ports:
+        - containerPort: 5000
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "5000"
+        - name: MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: supreme-secrets
+              key: mongodb-uri
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: supreme-secrets
+              key: redis-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: supreme-secrets
+              key: jwt-secret
+        - name: STRIPE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: supreme-secrets
+              key: stripe-key
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: uploads
+          mountPath: /app/uploads
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: supreme-logs-pvc
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: supreme-uploads-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supreme-platform-svc
+  namespace: supreme-prod
+spec:
+  type: ClusterIP
+  selector:
+    app: supreme-platform
+  ports:
+  - port: 80
+    targetPort: 5000
+    protocol: TCP
+    name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: supreme-platform-ingress
+  namespace: supreme-prod
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+  - hosts:
+    - supreme-platform.com
+    - api.supreme-platform.com
+    secretName: supreme-tls
+  rules:
+  - host: supreme-platform.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: supreme-platform-svc
+            port:
+              number: 80
+  - host: api.supreme-platform.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: supreme-platform-svc
+            port:
+              number: 80
