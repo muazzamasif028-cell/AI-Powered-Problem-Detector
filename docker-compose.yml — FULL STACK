@@ -1,0 +1,186 @@
+# ============================================================
+# 🤫 SUPREME PLATFORM v10.0 — DOCKER COMPOSE
+# ============================================================
+
+version: '3.8'
+
+services:
+  # =============================================
+  # NGINX Reverse Proxy
+  # =============================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: supreme-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/supreme.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./public:/var/www/supreme-platform/public:ro
+    depends_on:
+      - app
+    networks:
+      - supreme-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # =============================================
+  # Node.js Application
+  # =============================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: supreme-app
+    restart: always
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://supreme_admin:supreme-db-password@mongodb:27017/supreme-platform
+      - REDIS_URL=redis://:supreme-redis-password@redis:6379
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    networks:
+      - supreme-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # =============================================
+  # MongoDB
+  # =============================================
+  mongodb:
+    image: mongo:7.0
+    container_name: supreme-mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: supreme_admin
+      MONGO_INITDB_ROOT_PASSWORD: supreme-db-password
+      MONGO_INITDB_DATABASE: supreme-platform
+    volumes:
+      - mongodb-data:/data/db
+      - ./config/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    ports:
+      - "27017:27017"
+    networks:
+      - supreme-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # =============================================
+  # Redis
+  # =============================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: supreme-redis
+    restart: always
+    command: >
+      redis-server
+      --requirepass supreme-redis-password
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - supreme-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # =============================================
+  # Prometheus Monitoring
+  # =============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: supreme-prometheus
+    restart: always
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    networks:
+      - supreme-network
+
+  # =============================================
+  # Grafana Dashboards
+  # =============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: supreme-grafana
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASS:-admin}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel,grafana-worldmap-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/grafana-datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - supreme-network
+    depends_on:
+      - prometheus
+
+volumes:
+  mongodb-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  supreme-network:
+    driver: bridge
