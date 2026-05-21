@@ -1,0 +1,254 @@
+// ============================================================
+// 🤫 SUPREME PLATFORM — config/index.js
+// ============================================================
+// Central Configuration — All settings in one place
+// ============================================================
+
+require('dotenv').config();
+
+const config = {
+    // =============================================
+    // 🖥️ SERVER
+    // =============================================
+    server: {
+        port: parseInt(process.env.PORT) || 5000,
+        host: process.env.HOST || '0.0.0.0',
+        env: process.env.NODE_ENV || 'development',
+        name: 'Supreme Platform',
+        version: '10.0.0',
+        codename: 'Supreme Cortex'
+    },
+
+    // =============================================
+    // 🔐 SECURITY
+    // =============================================
+    security: {
+        jwt: {
+            secret: process.env.JWT_SECRET || 'supreme-jwt-secret-change-me',
+            expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+            refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+            issuer: 'supreme-platform',
+            algorithm: 'HS512'
+        },
+        session: {
+            secret: process.env.SESSION_SECRET || 'supreme-session-secret-change-me',
+            maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            secure: process.env.NODE_ENV === 'production',
+            httpOnly: true,
+            sameSite: 'strict'
+        },
+        cors: {
+            origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+            methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+            allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID', 'X-Tenant-DNA'],
+            credentials: true,
+            maxAge: 86400
+        },
+        helmet: {
+            contentSecurityPolicy: {
+                directives: {
+                    defaultSrc: ["'self'"],
+                    scriptSrc: ["'self'", "'unsafe-inline'"],
+                    styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+                    imgSrc: ["'self'", 'data:', 'https:'],
+                    connectSrc: ["'self'", 'wss:', 'https:']
+                }
+            },
+            hsts: {
+                maxAge: 31536000,
+                includeSubDomains: true,
+                preload: true
+            }
+        },
+        encryption: {
+            algorithm: 'aes-256-gcm',
+            keyLength: 32,
+            ivLength: 16,
+            tagLength: 16
+        },
+        quantumSafe: {
+            enabled: true,
+            algorithm: 'CRYSTALS-Kyber-1024',
+            keyRotationInterval: 3600000 // 1 hour
+        }
+    },
+
+    // =============================================
+    // 🗄️ DATABASE
+    // =============================================
+    database: {
+        mongodb: {
+            uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/supreme-platform',
+            options: {
+                maxPoolSize: 50,
+                minPoolSize: 10,
+                serverSelectionTimeoutMS: 5000,
+                socketTimeoutMS: 45000,
+                retryWrites: true,
+                w: 'majority'
+            },
+            collections: {
+                users: 'users',
+                companies: 'companies',
+                problems: 'problems',
+                transactions: 'transactions',
+                auditLogs: 'audit_logs',
+                metrics: 'metrics'
+            }
+        },
+        redis: {
+            url: process.env.REDIS_URL || 'redis://localhost:6379',
+            options: {
+                socket: {
+                    reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
+                }
+            },
+            ttl: {
+                session: 86400,
+                cache: 3600,
+                rateLimit: 900,
+                metrics: 300
+            }
+        }
+    },
+
+    // =============================================
+    // 📡 RATE LIMITING
+    // =============================================
+    rateLimit: {
+        global: {
+            windowMs: 15 * 60 * 1000, // 15 minutes
+            max: 10000,
+            message: 'Too many requests, please try again later'
+        },
+        auth: {
+            windowMs: 15 * 60 * 1000,
+            max: 20,
+            message: 'Too many auth attempts, please try again in 15 minutes'
+        },
+        api: {
+            windowMs: 1 * 60 * 1000, // 1 minute
+            max: 100,
+            message: 'API rate limit exceeded'
+        },
+        critical: {
+            windowMs: 1 * 60 * 1000,
+            max: 10,
+            message: 'Critical operation rate limited'
+        }
+    },
+
+    // =============================================
+    // 📊 MONITORING
+    // =============================================
+    monitoring: {
+        enabled: true,
+        metricsInterval: 5000,
+        healthCheckInterval: 30000,
+        alertThresholds: {
+            cpu: 85,
+            memory: 90,
+            disk: 85,
+            responseTime: 1000
+        }
+    },
+
+    // =============================================
+    // 💳 PAYMENT
+    // =============================================
+    payment: {
+        stripe: {
+            secretKey: process.env.STRIPE_SECRET_KEY,
+            webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+            apiVersion: '2024-12-01'
+        },
+        paypal: {
+            clientId: process.env.PAYPAL_CLIENT_ID,
+            clientSecret: process.env.PAYPAL_CLIENT_SECRET,
+            mode: process.env.NODE_ENV === 'production' ? 'live' : 'sandbox'
+        },
+        crypto: {
+            supported: ['BTC', 'ETH', 'USDT', 'USDC', 'SOL'],
+            processingFee: 0.5
+        }
+    },
+
+    // =============================================
+    // 🛰️ SATELLITE
+    // =============================================
+    satellite: {
+        apiKey: process.env.SATELLITE_API_KEY,
+        fleetSize: 350,
+        orbits: ['LEO', 'MEO', 'GEO', 'HEO', 'POLAR', 'SSO'],
+        groundStations: 8,
+        commandTimeout: 5000
+    },
+
+    // =============================================
+    // 🏙️ NEOM
+    // =============================================
+    neom: {
+        enabled: true,
+        regions: ['THE_LINE', 'OXAGON', 'TROJENA', 'SINDALAH', 'INDUSTRIAL_ZONE'],
+        totalSystems: 48
+    },
+
+    // =============================================
+    // 📧 NOTIFICATIONS
+    // =============================================
+    notifications: {
+        email: {
+            host: process.env.SMTP_HOST || 'smtp.supreme-platform.com',
+            port: parseInt(process.env.SMTP_PORT) || 587,
+            user: process.env.SMTP_USER || 'noreply@supreme-platform.com',
+            pass: process.env.SMTP_PASS,
+            from: 'Supreme Platform <noreply@supreme-platform.com>'
+        },
+        sms: {
+            provider: 'twilio',
+            accountSid: process.env.TWILIO_ACCOUNT_SID,
+            authToken: process.env.TWILIO_AUTH_TOKEN,
+            from: process.env.TWILIO_PHONE_NUMBER
+        },
+        slack: {
+            webhookUrl: process.env.SLACK_WEBHOOK_URL,
+            channels: {
+                critical: '#incidents-critical',
+                high: '#incidents-high',
+                general: '#alerts'
+            }
+        }
+    },
+
+    // =============================================
+    // 📝 LOGGING
+    // =============================================
+    logging: {
+        level: process.env.LOG_LEVEL || 'info',
+        format: 'json',
+        file: '/var/log/supreme-platform/app.log',
+        maxSize: '100m',
+        maxFiles: '10',
+        sentry: {
+            dsn: process.env.SENTRY_DSN,
+            environment: process.env.NODE_ENV
+        }
+    },
+
+    // =============================================
+    // 🚀 FEATURES
+    // =============================================
+    features: {
+        ghostEngine: process.env.FEATURE_GHOST_ENGINE !== 'false',
+        privacyShield: process.env.FEATURE_PRIVACY_SHIELD !== 'false',
+        shapeShifter: process.env.FEATURE_SHAPE_SHIFTER !== 'false',
+        cognitiveAudit: process.env.FEATURE_COGNITIVE_AUDIT !== 'false',
+        zeroCode: process.env.FEATURE_ZERO_CODE !== 'false',
+        preCognition: process.env.FEATURE_PRE_COGNITION !== 'false',
+        chipDiagnostic: process.env.FEATURE_CHIP_DIAGNOSTIC !== 'false',
+        satelliteControl: process.env.FEATURE_SATELLITE_CONTROL !== 'false',
+        neomCity: process.env.FEATURE_NEOM_CITY !== 'false'
+    }
+};
+
+module.exports = config;
