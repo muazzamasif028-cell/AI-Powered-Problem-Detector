@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supreme Platform — LIVE</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #08080f;
+            color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+        .container { max-width: 700px; padding: 40px; }
+        .logo { font-size: 4em; margin-bottom: 20px; animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        h1 { font-size: 2em; color: #00ffff; margin-bottom: 10px; }
+        .status { color: #3fb950; font-size: 1.2em; margin-bottom: 20px; }
+        .status-dot {
+            display: inline-block;
+            width: 12px; height: 12px;
+            background: #3fb950;
+            border-radius: 50%;
+            animation: glow 1.5s infinite;
+            margin-right: 8px;
+        }
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 5px #3fb950; }
+            50% { box-shadow: 0 0 20px #3fb950; }
+        }
+        .info {
+            background: #12122a;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            line-height: 1.8;
+        }
+        .endpoints { margin-top: 20px; }
+        .endpoint {
+            display: inline-block;
+            background: rgba(0,255,255,0.1);
+            border: 1px solid rgba(0,255,255,0.2);
+            padding: 6px 14px;
+            border-radius: 20px;
+            margin: 4px;
+            font-size: 0.8em;
+            color: #00ffff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">⚡</div>
+        <h1>Supreme Problem Detector</h1>
+        <div class="status"><span class="status-dot"></span>LIVE — Production v10.0</div>
+        
+        <div class="info">
+            🏛️ <strong>Enterprise Features:</strong><br>
+            ✅ Ghost Diagnostic Engine — Autonomous Repair<br>
+            ✅ Multi-Tenant Privacy Shield — Dynamic Isolation<br>
+            ✅ UI Shape-Shifter — Adaptive Canvas<br>
+            ✅ Cognitive Audit Trails — Fraud Detection<br>
+            ✅ Zero-Code Integration — English → Code<br>
+            ✅ Pre-Cognition Layer — Anticipatory Healing<br>
+            ✅ Chip Diagnostic Engine — Hardware Detection<br><br>
+            
+            📊 <strong>Scale:</strong><br>
+            🔍 56 Auto-Detected Problems<br>
+            💾 2500+ Chips Supported<br>
+            🌐 7,128 Programming Languages<br>
+            🛰️ 350+ Satellite Fleet<br>
+            🏙️ NEOM Smart City Ready<br>
+            💰 5 Pricing Tiers ($50 — $1.5M+)<br>
+        </div>
+
+        <div class="endpoints">
+            <span class="endpoint">GET /api/health</span>
+            <span class="endpoint">GET /api/info</span>
+            <span class="endpoint">POST /api/auth/signin</span>
+            <span class="endpoint">POST /api/detect/run</span>
+            <span class="endpoint">POST /api/chip/scan</span>
+            <span class="endpoint">POST /api/payment/process</span>
+            <span class="endpoint">GET /api/satellite/fleet</span>
+            <span class="endpoint">GET /api/neom/status</span>
+        </div>
+    </div>
+
+    <script>
+        // Live WebSocket connection
+        const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${wsProtocol}//${location.host}/socket.io/`);
+        
+        socket.onopen = () => console.log('🔌 Live connection established');
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'metrics') {
+                console.log('📡 Real-time metrics:', data);
+            }
+        };
+        
+        // Health check every 30 seconds
+        setInterval(async () => {
+            try {
+                const res = await fetch('/api/health');
+                const health = await res.json();
+                console.log('💚 Health:', health.status);
+            } catch (err) {
+                console.error('Health check failed');
+            }
+        }, 30000);
+    </script>
+</body>
+</html>
