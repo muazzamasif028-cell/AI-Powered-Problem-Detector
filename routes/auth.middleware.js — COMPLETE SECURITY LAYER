@@ -1,0 +1,332 @@
+// ============================================================
+// 🔐 SUPREME AUTH MIDDLEWARE v10.0 — COMPLETE SECURITY LAYER
+// ============================================================
+
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
+
+class AuthMiddleware {
+    constructor() {
+        this.JWT_SECRET = process.env.JWT_SECRET || 'supreme-quantum-jwt-secret-v10';
+        this.JWT_EXPIRY = '24h';
+        this.JWT_REFRESH_EXPIRY = '7d';
+        
+        // Role Hierarchy
+        this.roles = {
+            SUPER_ADMIN: 100,
+            COMPANY_ADMIN: 80,
+            COMPANY_ENGINEER: 60,
+            COMPANY_VIEWER: 40,
+            EXTERNAL_USER: 20
+        };
+
+        // Permission Matrix
+        this.permissions = {
+            ALL_ACCESS: ['SUPER_ADMIN'],
+            MANAGE_COMPANIES: ['SUPER_ADMIN'],
+            MANAGE_USERS: ['SUPER_ADMIN', 'COMPANY_ADMIN'],
+            VIEW_SYSTEM: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_ENGINEER'],
+            RUN_DIAGNOSTICS: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_ENGINEER'],
+            APPLY_FIXES: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_ENGINEER'],
+            SATELLITE_CONTROL: ['SUPER_ADMIN'],
+            QUANTUM_ACCESS: ['SUPER_ADMIN'],
+            NEOM_ACCESS: ['SUPER_ADMIN', 'COMPANY_ADMIN'],
+            VIEW_BILLING: ['SUPER_ADMIN', 'COMPANY_ADMIN'],
+            VIEW_DASHBOARD: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_ENGINEER', 'COMPANY_VIEWER'],
+            BASIC_ACCESS: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_ENGINEER', 'COMPANY_VIEWER', 'EXTERNAL_USER']
+        };
+    }
+
+    // =============================================
+    // 🔐 JWT TOKEN GENERATION
+    // =============================================
+    generateToken(user) {
+        const payload = {
+            userId: user.id,
+            email: user.email,
+            role: user.role,
+            companyId: user.companyId,
+            tenantId: user.tenantId,
+            permissions: this.getRolePermissions(user.role)
+        };
+
+        const token = jwt.sign(payload, this.JWT_SECRET, { expiresIn: this.JWT_EXPIRY });
+        const refreshToken = jwt.sign(
+            { userId: user.id, type: 'refresh' },
+            this.JWT_SECRET,
+            { expiresIn: this.JWT_REFRESH_EXPIRY }
+        );
+
+        return {
+            token,
+            refreshToken,
+            expiresIn: this.JWT_EXPIRY,
+            tokenType: 'Bearer'
+        };
+    }
+
+    // =============================================
+    // 🔐 TOKEN VERIFICATION
+    // =============================================
+    verifyToken(token) {
+        try {
+            const decoded = jwt.verify(token, this.JWT_SECRET);
+            return { valid: true, decoded, error: null };
+        } catch (err) {
+            return { valid: false, decoded: null, error: err.message };
+        }
+    }
+
+    // =============================================
+    // 🔐 MAIN AUTHENTICATION MIDDLEWARE
+    // =============================================
+    authenticate() {
+        return (req, res, next) => {
+            const authHeader = req.headers.authorization;
+            
+            if (!authHeader) {
+                return res.status(401).json({
+                    error: 'Authentication required',
+                    code: 'AUTH_REQUIRED',
+                    message: 'Please provide a valid Bearer token'
+                });
+            }
+
+            const token = authHeader.replace('Bearer ', '');
+            const verification = this.verifyToken(token);
+
+            if (!verification.valid) {
+                return res.status(401).json({
+                    error: 'Invalid or expired token',
+                    code: 'INVALID_TOKEN',
+                    message: verification.error
+                });
+            }
+
+            // Attach user to request
+            req.user = verification.decoded;
+            req.userId = verification.decoded.userId;
+            req.userRole = verification.decoded.role;
+            req.companyId = verification.decoded.companyId;
+            req.tenantId = verification.decoded.tenantId;
+            req.requestId = 'REQ-' + Date.now().toString(36) + '-' + crypto.randomBytes(3).toString('hex');
+            
+            // Log access
+            console.log(`🔐 [AUTH] ${req.userId} (${req.userRole}) → ${req.method} ${req.path}`);
+            
+            next();
+        };
+    }
+
+    // =============================================
+    // 🔐 OPTIONAL AUTH (Doesn't fail if no token)
+    // =============================================
+    optionalAuth() {
+        return (req, res, next) => {
+            const authHeader = req.headers.authorization;
+            
+            if (authHeader) {
+                const token = authHeader.replace('Bearer ', '');
+                const verification = this.verifyToken(token);
+                
+                if (verification.valid) {
+                    req.user = verification.decoded;
+                    req.userId = verification.decoded.userId;
+                    req.userRole = verification.decoded.role;
+                    req.companyId = verification.decoded.companyId;
+                }
+            }
+            
+            next();
+        };
+    }
+
+    // =============================================
+    // 🔐 ROLE-BASED ACCESS CONTROL
+    // =============================================
+    requireRole(...allowedRoles) {
+        return (req, res, next) => {
+            if (!req.user) {
+                return res.status(401).json({
+                    error: 'Authentication required',
+                    code: 'AUTH_REQUIRED'
+                });
+            }
+
+            if (!allowedRoles.includes(req.userRole)) {
+                return res.status(403).json({
+                    error: 'Insufficient permissions',
+                    code: 'FORBIDDEN',
+                    required: allowedRoles,
+                    current: req.userRole
+                });
+            }
+
+            next();
+        };
+    }
+
+    // =============================================
+    // 🔐 PERMISSION-BASED ACCESS CONTROL
+    // =============================================
+    requirePermission(permission) {
+        return (req, res, next) => {
+            if (!req.user) {
+                return res.status(401).json({
+                    error: 'Authentication required',
+                    code: 'AUTH_REQUIRED'
+                });
+            }
+
+            const allowedRoles = this.permissions[permission] || [];
+            
+            if (!allowedRoles.includes(req.userRole)) {
+                return res.status(403).json({
+                    error: 'Insufficient permissions',
+                    code: 'PERMISSION_DENIED',
+                    requiredPermission: permission,
+                    currentRole: req.userRole
+                });
+            }
+
+            next();
+        };
+    }
+
+    // =============================================
+    // 🔐 TENANT ISOLATION MIDDLEWARE
+    // =============================================
+    tenantIsolation() {
+        return (req, res, next) => {
+            if (!req.user) {
+                return res.status(401).json({
+                    error: 'Authentication required',
+                    code: 'AUTH_REQUIRED'
+                });
+            }
+
+            const requestedTenantId = req.headers['x-tenant-id'] || req.params.tenantId || req.body.tenantId;
+            
+            // SUPER_ADMIN can access any tenant
+            if (req.userRole === 'SUPER_ADMIN') {
+                req.tenantId = requestedTenantId || req.user.tenantId;
+                return next();
+            }
+
+            // Other roles can only access their own tenant
+            if (requestedTenantId && requestedTenantId !== req.user.tenantId) {
+                return res.status(403).json({
+                    error: 'Cross-tenant access denied',
+                    code: 'TENANT_ISOLATION',
+                    message: 'You can only access your own company data'
+                });
+            }
+
+            req.tenantId = req.user.tenantId;
+            next();
+        };
+    }
+
+    // =============================================
+    // 🔐 RATE LIMITERS
+    // =============================================
+    getAuthLimiter() {
+        return rateLimit({
+            windowMs: 15 * 60 * 1000,
+            max: 20,
+            message: {
+                error: 'Too many auth attempts',
+                code: 'AUTH_RATE_LIMITED',
+                retryAfter: '15 minutes'
+            }
+        });
+    }
+
+    getAPILimiter() {
+        return rateLimit({
+            windowMs: 1 * 60 * 1000,
+            max: 100,
+            message: {
+                error: 'API rate limit exceeded',
+                code: 'API_RATE_LIMITED',
+                retryAfter: '1 minute'
+            }
+        });
+    }
+
+    getCriticalLimiter() {
+        return rateLimit({
+            windowMs: 1 * 60 * 1000,
+            max: 10,
+            message: {
+                error: 'Critical operation rate limited',
+                code: 'CRITICAL_RATE_LIMITED'
+            }
+        });
+    }
+
+    // =============================================
+    // 🔐 UTILITY FUNCTIONS
+    // =============================================
+    getRolePermissions(role) {
+        const rolePermissions = {};
+        for (let [permission, roles] of Object.entries(this.permissions)) {
+            rolePermissions[permission] = roles.includes(role);
+        }
+        return rolePermissions;
+    }
+
+    hashPassword(password) {
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+        return { salt, hash };
+    }
+
+    verifyPassword(password, salt, hash) {
+        const verifyHash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+        return hash === verifyHash;
+    }
+
+    generateSessionId() {
+        return 'SESS-' + Date.now().toString(36) + '-' + crypto.randomBytes(16).toString('hex');
+    }
+
+    generateTenantDNA(tenantId) {
+        return 'DNA-' + crypto.createHash('sha512')
+            .update(tenantId + Date.now().toString())
+            .digest('hex')
+            .substring(0, 64)
+            .toUpperCase();
+    }
+
+    // =============================================
+    // 🔐 AUDIT LOGGER
+    // =============================================
+    auditLog(action, req, details = {}) {
+        const log = {
+            timestamp: new Date().toISOString(),
+            action,
+            userId: req.user?.userId || 'anonymous',
+            userRole: req.user?.userRole || 'unknown',
+            companyId: req.user?.companyId || 'unknown',
+            tenantId: req.tenantId || 'unknown',
+            ip: req.ip || req.connection?.remoteAddress,
+            userAgent: req.headers?.['user-agent'],
+            method: req.method,
+            path: req.path,
+            requestId: req.requestId,
+            details
+        };
+
+        console.log(`📝 [AUDIT] ${log.action} — ${log.userId} — ${log.path}`);
+        
+        // In production: Save to MongoDB
+        return log;
+    }
+}
+
+// ============================================================
+// 🤫 EXPORT
+// ============================================================
+module.exports = new AuthMiddleware();
