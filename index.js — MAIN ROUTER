@@ -1,0 +1,49 @@
+// ============================================================
+// 📁 routes/index.js — MAIN ROUTER
+// ============================================================
+const express = require('express');
+const router = express.Router();
+
+// Import all route modules
+const executeRoutes = require('./execute.routes');
+const authController = require('../controllers/auth.controller');
+const solveController = require('../controllers/solve.controller');
+
+// Import middleware
+const authMiddleware = require('../middleware/auth.middleware');
+
+// =============================================
+// 🌐 PUBLIC ROUTES
+// =============================================
+router.get('/health', (req, res) => {
+    res.json({ status: 'HEALTHY', platform: 'Supreme Platform', version: '10.0.0' });
+});
+
+router.get('/info', (req, res) => {
+    res.json({ platform: 'Supreme Platform', pillars: 30, agents: 22, detectors: 56 });
+});
+
+// =============================================
+// 🔐 AUTH ROUTES
+// =============================================
+router.post('/auth/signin', authController.signin);
+router.post('/auth/signup', authController.signup);
+router.post('/auth/signout', authMiddleware.authenticate(), authController.signout);
+router.get('/auth/verify', authMiddleware.authenticate(), authController.verify);
+
+// =============================================
+// ⚡ EXECUTION ROUTES (Protected)
+// =============================================
+router.use('/execute', authMiddleware.authenticate(), executeRoutes);
+
+// =============================================
+// 🔧 SOLVE ROUTES (Protected)
+// =============================================
+router.post('/solve', authMiddleware.authenticate(), solveController.solve);
+router.get('/solve/status/:id', authMiddleware.authenticate(), solveController.status);
+router.get('/solve/history', authMiddleware.authenticate(), solveController.history);
+
+// =============================================
+// 🤫 EXPORT
+// =============================================
+module.exports = router;
