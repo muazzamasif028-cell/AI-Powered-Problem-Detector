@@ -1,0 +1,135 @@
+// ============================================================
+// 📁 plugins/detector-loader.js — DETECTOR LOADER
+// ============================================================
+const pluginSystem = require('./index');
+
+class DetectorLoaderPlugin {
+    constructor() {
+        this.name = 'detector-loader';
+        this.version = '1.0.0';
+        this.description = 'Dynamically loads 56+ problem detectors';
+        this.detectors = new Map();
+        this.activeDetectors = [];
+    }
+
+    // =============================================
+    // 🔍 INIT
+    // =============================================
+    init() {
+        this.loadDetectors();
+        console.log(`🔍 [DETECTOR LOADER] ${this.detectors.size} detectors loaded`);
+    }
+
+    // =============================================
+    // 🔍 LOAD DETECTORS
+    // =============================================
+    loadDetectors() {
+        const detectorConfigs = {
+            PERFORMANCE: {
+                count: 10,
+                detectors: [
+                    'cpu-usage', 'memory-leak', 'disk-full', 'high-latency',
+                    'slow-database', 'network-bottleneck', 'io-wait', 'swap-usage',
+                    'connection-pool', 'thread-starvation'
+                ]
+            },
+            AVAILABILITY: {
+                count: 10,
+                detectors: [
+                    'service-down', 'node-offline', 'database-down', 'api-timeout',
+                    'dns-fail', 'ssl-expired', 'load-balancer-down', 'storage-unavailable',
+                    'cache-miss', 'rate-limit-exceeded'
+                ]
+            },
+            SECURITY: {
+                count: 10,
+                detectors: [
+                    'failed-login', 'unauthorized-access', 'sql-injection', 'xss-attempt',
+                    'ddos-attack', 'port-scanning', 'known-vulnerability', 'weak-password',
+                    'api-key-exposed', 'unencrypted-traffic'
+                ]
+            },
+            RESOURCE: {
+                count: 6,
+                detectors: [
+                    'disk-iops', 'file-descriptor', 'process-limit',
+                    'thread-limit', 'inode-usage', 'quota-exceeded'
+                ]
+            },
+            APPLICATION: {
+                count: 10,
+                detectors: [
+                    'app-crash', 'unhandled-exception', 'memory-leak-app', 'deadlock',
+                    'stack-overflow', 'dependency-fail', 'config-error', 'version-mismatch',
+                    'migration-fail', 'cache-inconsistency'
+                ]
+            },
+            NEOM: {
+                count: 10,
+                detectors: [
+                    'power-outage', 'crane-failure', 'drone-fleet-lost', 'chip-failure',
+                    'hydrogen-leak', 'security-breach', 'traffic-congestion', 'air-quality',
+                    'water-shortage', 'fire-detection'
+                ]
+            }
+        };
+
+        for (let [category, config] of Object.entries(detectorConfigs)) {
+            this.detectors.set(category, config);
+            for (let detector of config.detectors) {
+                this.activeDetectors.push({
+                    name: detector,
+                    category,
+                    status: 'ACTIVE',
+                    loadedAt: new Date().toISOString()
+                });
+            }
+        }
+    }
+
+    // =============================================
+    // 🔍 GET DETECTOR
+    // =============================================
+    getDetector(name) {
+        return this.activeDetectors.find(d => d.name === name);
+    }
+
+    // =============================================
+    // 🔍 GET CATEGORY DETECTORS
+    // =============================================
+    getCategoryDetectors(category) {
+        return this.activeDetectors.filter(d => d.category === category);
+    }
+
+    // =============================================
+    // 🔍 GET ALL
+    // =============================================
+    getAll() {
+        return {
+            totalDetectors: this.activeDetectors.length,
+            categories: Array.from(this.detectors.entries()).map(([name, config]) => ({
+                category: name,
+                count: config.count
+            })),
+            detectors: this.activeDetectors
+        };
+    }
+
+    // =============================================
+    // 🔍 HOOKS
+    // =============================================
+    get hooks() {
+        return [
+            {
+                name: 'detection:list',
+                handler: () => this.getAll()
+            },
+            {
+                name: 'detection:get',
+                handler: (name) => this.getDetector(name)
+            }
+        ];
+    }
+}
+
+module.exports = new DetectorLoaderPlugin();
