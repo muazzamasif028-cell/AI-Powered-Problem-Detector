@@ -1,0 +1,72 @@
+// ============================================================
+// 📁 tests/api.test.js — API TESTS
+// ============================================================
+const http = require('http');
+
+const BASE_URL = 'http://localhost:5000';
+
+function fetch(url, options = {}) {
+    return new Promise((resolve, reject) => {
+        const req = http.request(url, { method: options.method || 'GET', headers: options.headers || {} }, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    resolve({ status: res.statusCode, data: JSON.parse(data) });
+                } catch {
+                    resolve({ status: res.statusCode, data });
+                }
+            });
+        });
+        req.on('error', reject);
+        if (options.body) req.write(JSON.stringify(options.body));
+        req.end();
+    });
+}
+
+describe('API Endpoints', () => {
+    test('GET /api/health returns OK', async () => {
+        const res = await fetch(`${BASE_URL}/api/health`);
+        expect(res.status).toBe(200);
+        expect(res.data.status).toBe('HEALTHY');
+    });
+
+    test('GET /api/info returns platform info', async () => {
+        const res = await fetch(`${BASE_URL}/api/info`);
+        expect(res.status).toBe(200);
+        expect(res.data.platform).toBeDefined();
+    });
+
+    test('POST /api/auth/signin with valid credentials', async () => {
+        const res = await fetch(`${BASE_URL}/api/auth/signin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { email: 'admin@supreme.com', password: 'Admin@123' }
+        });
+        expect(res.status).toBe(200);
+        expect(res.data.token).toBeDefined();
+    });
+
+    test('POST /api/auth/signin with invalid credentials', async () => {
+        const res = await fetch(`${BASE_URL}/api/auth/signin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { email: 'wrong@email.com', password: 'wrong' }
+        });
+        expect(res.status).toBe(401);
+    });
+
+    test('GET unknown route returns 404', async () => {
+        const res = await fetch(`${BASE_URL}/api/unknown`);
+        expect(res.status).toBe(404);
+    });
+
+    test('POST /api/execute/detect returns results', async () => {
+        const res = await fetch(`${BASE_URL}/api/execute/detect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { input: 'CPU high' }
+        });
+        expect(res.status).toBe(200);
+    });
+});
