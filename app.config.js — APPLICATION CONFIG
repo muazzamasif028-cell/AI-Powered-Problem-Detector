@@ -1,0 +1,62 @@
+// ============================================================
+// 📁 config/app.config.js — APPLICATION CONFIGURATION
+// ============================================================
+module.exports = {
+    app: {
+        name: 'Supreme Platform',
+        version: '10.0.0',
+        codename: 'Supreme Cortex',
+        port: parseInt(process.env.PORT) || 5000,
+        env: process.env.NODE_ENV || 'development',
+        debug: process.env.DEBUG === 'true'
+    },
+    
+    features: {
+        mutationWatch: true,
+        autonomousLoad: true,
+        realityShift: true,
+        polymorpicMutation: true,
+        chronoRollback: true,
+        subatomicHardware: true,
+        ghostEngine: true,
+        privacyShield: true,
+        shapeShifter: true,
+        cognitiveAudit: true,
+        zeroCode: true,
+        preCognition: true,
+        chipDiagnostic: true,
+        satelliteControl: true,
+        neomCity: true
+    },
+
+    limits: {
+        maxRequestSize: '10mb',
+        maxFileUpload: '50mb',
+        rateLimitWindow: 15 * 60 * 1000,
+        rateLimitMax: 10000,
+        authRateLimitMax: 20,
+        apiRateLimitMax: 100
+    },
+
+    monitoring: {
+        healthCheckInterval: 30000,
+        metricsInterval: 5000,
+        snapshotInterval: 5000,
+        mutationInterval: 1000,
+        thermalMonitorInterval: 3000,
+        alertThresholds: {
+            cpu: 85,
+            memory: 90,
+            disk: 85,
+            temperature: 80
+        }
+    },
+
+    tiers: {
+        STARTER: { price: 199, maxUsers: 3, features: ['Basic'] },
+        PROFESSIONAL: { price: 799, maxUsers: 10, features: ['Advanced', 'AutoFix'] },
+        BUSINESS: { price: 2499, maxUsers: 50, features: ['Full', 'Priority'] },
+        ENTERPRISE: { price: 9999, maxUsers: 200, features: ['All', 'Satellite'] },
+        GLOBAL: { price: 49999, maxUsers: 1000, features: ['Unlimited', 'NEOM'] }
+    }
+};
