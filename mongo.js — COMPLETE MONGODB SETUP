@@ -1,0 +1,608 @@
+// ============================================================
+// 🗄️ db/mongo.js — COMPLETE MONGODB SETUP
+// ============================================================
+// Supreme Platform — MongoDB Connection + Models + Operations
+// ============================================================
+
+const mongoose = require('mongoose');
+const crypto = require('crypto');
+
+// ============================================================
+// 🗄️ MONGODB CONNECTION MANAGER
+// ============================================================
+class MongoDBManager {
+    constructor() {
+        this.uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/supreme-platform';
+        this.options = {
+            maxPoolSize: 50,
+            minPoolSize: 10,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+            retryWrites: true,
+            w: 'majority',
+            readPreference: 'secondaryPreferred'
+        };
+        
+        this.connected = false;
+        this.models = {};
+    }
+
+    // =============================================
+    // 🔌 CONNECT
+    // =============================================
+    async connect() {
+        try {
+            console.log('🗄️ [MONGODB] Connecting...');
+            
+            await mongoose.connect(this.uri, this.options);
+            this.connected = true;
+            
+            console.log('✅ [MONGODB] Connected to:', this.uri);
+            
+            // Register all models
+            this.registerModels();
+            
+            // Create indexes
+            await this.createIndexes();
+            
+            return this;
+            
+        } catch (err) {
+            console.error('❌ [MONGODB] Connection failed:', err.message);
+            throw err;
+        }
+    }
+
+    // =============================================
+    // 📋 REGISTER ALL MODELS
+    // =============================================
+    registerModels() {
+        this.models.User = this.createUserModel();
+        this.models.Company = this.createCompanyModel();
+        this.models.Problem = this.createProblemModel();
+        this.models.Solution = this.createSolutionModel();
+        this.models.Transaction = this.createTransactionModel();
+        this.models.AuditLog = this.createAuditLogModel();
+        this.models.Metrics = this.createMetricsModel();
+        this.models.Snapshot = this.createSnapshotModel();
+        this.models.Alert = this.createAlertModel();
+        this.models.Plugin = this.createPluginModel();
+        
+        console.log('📋 [MONGODB] 10 Models Registered');
+    }
+
+    // =============================================
+    // 👤 USER MODEL
+    // =============================================
+    createUserModel() {
+        const UserSchema = new mongoose.Schema({
+            email: { type: String, required: true, unique: true, lowercase: true },
+            password: { type: String, required: true },
+            name: { type: String, required: true },
+            role: { 
+                type: String, 
+                enum: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_ENGINEER', 'COMPANY_VIEWER', 'EXTERNAL_USER'],
+                default: 'EXTERNAL_USER' 
+            },
+            companyId: { type: String, required: true },
+            tenantId: { type: String, required: true },
+            isActive: { type: Boolean, default: true },
+            isVerified: { type: Boolean, default: false },
+            lastLogin: Date,
+            loginAttempts: { type: Number, default: 0 },
+            permissions: [String],
+            preferences: {
+                theme: { type: String, default: 'DARK' },
+                language: { type: String, default: 'en' },
+                notifications: { type: Boolean, default: true }
+            },
+            createdAt: { type: Date, default: Date.now },
+            updatedAt: { type: Date, default: Date.now }
+        });
+
+        UserSchema.pre('save', function(next) {
+            this.updatedAt = new Date();
+            if (this.isModified('password')) {
+                this.password = crypto.createHash('sha256').update(this.password).digest('hex');
+            }
+            next();
+        });
+
+        UserSchema.methods.comparePassword = function(password) {
+            const hash = crypto.createHash('sha256').update(password).digest('hex');
+            return this.password === hash;
+        };
+
+        UserSchema.methods.toJSON = function() {
+            const obj = this.toObject();
+            delete obj.password;
+            return obj;
+        };
+
+        return mongoose.model('User', UserSchema);
+    }
+
+    // =============================================
+    // 🏢 COMPANY MODEL
+    // =============================================
+    createCompanyModel() {
+        const CompanySchema = new mongoose.Schema({
+            name: { type: String, required: true },
+            email: { type: String, required: true, unique: true },
+            industry: { type: String, default: 'Technology' },
+            size: { type: String, default: '1-10' },
+            country: { type: String, default: 'US' },
+            tier: { 
+                type: String, 
+                enum: ['STARTER', 'PROFESSIONAL', 'BUSINESS', 'ENTERPRISE', 'GLOBAL'],
+                default: 'STARTER' 
+            },
+            status: { type: String, enum: ['TRIAL', 'ACTIVE', 'SUSPENDED'], default: 'TRIAL' },
+            dna: { type: String, unique: true },
+            billing: {
+                plan: String,
+                monthlyPrice: Number,
+                billingCycle: { type: String, enum: ['MONTHLY', 'ANNUAL'], default: 'MONTHLY' },
+                nextBillingDate: Date,
+                stripeCustomerId: String,
+                totalSpent: { type: Number, default: 0 }
+            },
+            users: [{ id: String, email: String, name: String, role: String, addedAt: Date }],
+            maxUsers: Number,
+            features: [String],
+            stats: {
+                totalProblems: { type: Number, default: 0 },
+                problemsResolved: { type: Number, default: 0 },
+                autoFixes: { type: Number, default: 0 },
+                uptime: { type: String, default: '100%' },
+                lastActive: Date
+            },
+            createdAt: { type: Date, default: Date.now },
+            updatedAt: { type: Date, default: Date.now }
+        });
+
+        return mongoose.model('Company', CompanySchema);
+    }
+
+    // =============================================
+    // 🔍 PROBLEM MODEL
+    // =============================================
+    createProblemModel() {
+        const ProblemSchema = new mongoose.Schema({
+            problemId: { type: String, required: true, unique: true },
+            companyId: { type: String, required: true },
+            tenantId: { type: String, required: true },
+            problem: { type: String, required: true },
+            category: { 
+                type: String, 
+                enum: ['PERFORMANCE', 'AVAILABILITY', 'SECURITY', 'RESOURCE', 'APPLICATION', 'NEOM', 'GENERAL'],
+                default: 'GENERAL' 
+            },
+            severity: { type: String, enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], default: 'MEDIUM' },
+            status: { 
+                type: String, 
+                enum: ['OPEN', 'DETECTED', 'ANALYZING', 'SOLVING', 'RESOLVED', 'CLOSED'],
+                default: 'OPEN' 
+            },
+            detection: {
+                method: String,
+                confidence: Number,
+                timestamp: Date
+            },
+            rootCause: {
+                description: String,
+                category: String,
+                confidence: Number
+            },
+            solution: {
+                id: String,
+                action: String,
+                description: String,
+                applied: Boolean,
+                appliedAt: Date,
+                success: Boolean
+            },
+            assignedTo: String,
+            resolvedBy: String,
+            resolutionTime: Number,
+            createdAt: { type: Date, default: Date.now },
+            updatedAt: { type: Date, default: Date.now },
+            resolvedAt: Date
+        });
+
+        return mongoose.model('Problem', ProblemSchema);
+    }
+
+    // =============================================
+    // 🔧 SOLUTION MODEL
+    // =============================================
+    createSolutionModel() {
+        const SolutionSchema = new mongoose.Schema({
+            solutionId: { type: String, required: true, unique: true },
+            problemType: { type: String, required: true },
+            action: { type: String, required: true },
+            description: String,
+            risk: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH'], default: 'LOW' },
+            successRate: { type: Number, default: 90 },
+            autoFixable: { type: Boolean, default: true },
+            timeEstimate: String,
+            steps: [String],
+            appliedCount: { type: Number, default: 0 },
+            successCount: { type: Number, default: 0 },
+            createdAt: { type: Date, default: Date.now }
+        });
+
+        return mongoose.model('Solution', SolutionSchema);
+    }
+
+    // =============================================
+    // 💳 TRANSACTION MODEL
+    // =============================================
+    createTransactionModel() {
+        const TransactionSchema = new mongoose.Schema({
+            transactionId: { type: String, required: true, unique: true },
+            companyId: { type: String, required: true },
+            tenantId: { type: String, required: true },
+            amount: { type: Number, required: true },
+            currency: { type: String, default: 'USD' },
+            method: { type: String, enum: ['CARD', 'PAYPAL', 'CRYPTO', 'BANK', 'APPLE_PAY', 'GOOGLE_PAY'] },
+            status: { type: String, enum: ['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED'], default: 'PENDING' },
+            description: String,
+            invoice: String,
+            processingFee: Number,
+            taxAmount: Number,
+            metadata: mongoose.Schema.Types.Mixed,
+            createdAt: { type: Date, default: Date.now },
+            updatedAt: { type: Date, default: Date.now }
+        });
+
+        return mongoose.model('Transaction', TransactionSchema);
+    }
+
+    // =============================================
+    // 📝 AUDIT LOG MODEL
+    // =============================================
+    createAuditLogModel() {
+        const AuditLogSchema = new mongoose.Schema({
+            type: { type: String, enum: ['AUDIT', 'SYSTEM', 'ERROR', 'SECURITY', 'EXECUTION'], default: 'SYSTEM' },
+            level: { type: String, enum: ['INFO', 'WARN', 'ERROR', 'CRITICAL'], default: 'INFO' },
+            message: { type: String, required: true },
+            userId: String,
+            companyId: String,
+            tenantId: String,
+            action: String,
+            resource: String,
+            resourceId: String,
+            details: mongoose.Schema.Types.Mixed,
+            metadata: {
+                ip: String,
+                userAgent: String,
+                method: String,
+                path: String,
+                statusCode: Number,
+                duration: Number
+            },
+            timestamp: { type: Date, default: Date.now }
+        });
+
+        return mongoose.model('AuditLog', AuditLogSchema);
+    }
+
+    // =============================================
+    // 📊 METRICS MODEL
+    // =============================================
+    createMetricsModel() {
+        const MetricsSchema = new mongoose.Schema({
+            tenantId: { type: String, required: true },
+            type: { type: String, enum: ['CPU', 'MEMORY', 'DISK', 'NETWORK', 'ALERTS', 'SYSTEM'] },
+            values: {
+                current: Number,
+                min: Number,
+                max: Number,
+                avg: Number
+            },
+            tags: [String],
+            timestamp: { type: Date, default: Date.now }
+        });
+
+        return mongoose.model('Metrics', MetricsSchema);
+    }
+
+    // =============================================
+    // 💾 SNAPSHOT MODEL
+    // =============================================
+    createSnapshotModel() {
+        const SnapshotSchema = new mongoose.Schema({
+            snapshotId: { type: String, required: true, unique: true },
+            type: { type: String, enum: ['SYSTEM', 'PROBLEM', 'ROLLBACK'], default: 'SYSTEM' },
+            state: {
+                cpu: Number,
+                memory: Number,
+                disk: Number,
+                processes: Number,
+                uptime: Number
+            },
+            checksum: String,
+            metadata: mongoose.Schema.Types.Mixed,
+            timestamp: { type: Date, default: Date.now }
+        });
+
+        return mongoose.model('Snapshot', SnapshotSchema);
+    }
+
+    // =============================================
+    // 📡 ALERT MODEL
+    // =============================================
+    createAlertModel() {
+        const AlertSchema = new mongoose.Schema({
+            alertId: { type: String, required: true, unique: true },
+            type: String,
+            severity: { type: String, enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'], default: 'MEDIUM' },
+            title: String,
+            message: String,
+            source: String,
+            companyId: String,
+            tenantId: String,
+            status: { type: String, enum: ['ACTIVE', 'ACKNOWLEDGED', 'RESOLVED'], default: 'ACTIVE' },
+            acknowledged: { type: Boolean, default: false },
+            acknowledgedBy: String,
+            acknowledgedAt: Date,
+            resolvedAt: Date,
+            channels: [String],
+            escalationLevel: { type: Number, default: 0 },
+            timestamp: { type: Date, default: Date.now }
+        });
+
+        return mongoose.model('Alert', AlertSchema);
+    }
+
+    // =============================================
+    // 🔌 PLUGIN MODEL
+    // =============================================
+    createPluginModel() {
+        const PluginSchema = new mongoose.Schema({
+            name: { type: String, required: true, unique: true },
+            version: { type: String, default: '1.0.0' },
+            description: String,
+            author: String,
+            enabled: { type: Boolean, default: true },
+            category: String,
+            hooks: [String],
+            config: mongoose.Schema.Types.Mixed,
+            installedAt: { type: Date, default: Date.now },
+            updatedAt: { type: Date, default: Date.now }
+        });
+
+        return mongoose.model('Plugin', PluginSchema);
+    }
+
+    // =============================================
+    // 📊 CREATE INDEXES
+    // =============================================
+    async createIndexes() {
+        const db = mongoose.connection.db;
+        
+        console.log('📊 [MONGODB] Creating indexes...');
+
+        // Users
+        await db.collection('users').createIndex({ email: 1 }, { unique: true });
+        await db.collection('users').createIndex({ companyId: 1 });
+        await db.collection('users').createIndex({ tenantId: 1 });
+
+        // Companies
+        await db.collection('companies').createIndex({ email: 1 }, { unique: true });
+        await db.collection('companies').createIndex({ dna: 1 }, { unique: true });
+        await db.collection('companies').createIndex({ tier: 1 });
+        await db.collection('companies').createIndex({ status: 1 });
+
+        // Problems
+        await db.collection('problems').createIndex({ problemId: 1 }, { unique: true });
+        await db.collection('problems').createIndex({ companyId: 1, createdAt: -1 });
+        await db.collection('problems').createIndex({ severity: 1, status: 1 });
+        await db.collection('problems').createIndex({ category: 1 });
+
+        // Solutions
+        await db.collection('solutions').createIndex({ solutionId: 1 }, { unique: true });
+        await db.collection('solutions').createIndex({ problemType: 1 });
+
+        // Transactions
+        await db.collection('transactions').createIndex({ transactionId: 1 }, { unique: true });
+        await db.collection('transactions').createIndex({ companyId: 1, createdAt: -1 });
+
+        // Audit Logs
+        await db.collection('audit_logs').createIndex({ timestamp: -1 });
+        await db.collection('audit_logs').createIndex({ userId: 1, timestamp: -1 });
+        await db.collection('audit_logs').createIndex({ type: 1, timestamp: -1 });
+
+        // Metrics
+        await db.collection('metrics').createIndex({ tenantId: 1, timestamp: -1 });
+        await db.collection('metrics').createIndex({ timestamp: 1 }, { expireAfterSeconds: 7776000 });
+
+        // Snapshots
+        await db.collection('snapshots').createIndex({ snapshotId: 1 }, { unique: true });
+        await db.collection('snapshots').createIndex({ timestamp: -1 });
+
+        // Alerts
+        await db.collection('alerts').createIndex({ alertId: 1 }, { unique: true });
+        await db.collection('alerts').createIndex({ severity: 1, status: 1 });
+        await db.collection('alerts').createIndex({ timestamp: -1 });
+
+        // Plugins
+        await db.collection('plugins').createIndex({ name: 1 }, { unique: true });
+
+        console.log('✅ [MONGODB] All indexes created');
+    }
+
+    // =============================================
+    // 🔍 HEALTH CHECK
+    // =============================================
+    async healthCheck() {
+        try {
+            const admin = mongoose.connection.db.admin();
+            const result = await admin.ping();
+            
+            return {
+                status: 'CONNECTED',
+                ping: result,
+                readyState: mongoose.connection.readyState,
+                host: mongoose.connection.host,
+                name: mongoose.connection.name,
+                models: Object.keys(this.models).length,
+                collections: Object.keys(mongoose.connection.collections).length
+            };
+        } catch (err) {
+            return {
+                status: 'ERROR',
+                error: err.message
+            };
+        }
+    }
+
+    // =============================================
+    // 🔌 DISCONNECT
+    // =============================================
+    async disconnect() {
+        if (this.connected) {
+            await mongoose.disconnect();
+            this.connected = false;
+            console.log('🔌 [MONGODB] Disconnected');
+        }
+    }
+
+    // =============================================
+    // 📊 GET STATS
+    // =============================================
+    async getStats() {
+        const stats = {};
+        
+        for (let [name, model] of Object.entries(this.models)) {
+            try {
+                stats[name] = await model.countDocuments();
+            } catch {
+                stats[name] = 0;
+            }
+        }
+
+        return {
+            connected: this.connected,
+            database: mongoose.connection.name,
+            collections: stats,
+            totalDocuments: Object.values(stats).reduce((a, b) => a + b, 0),
+            uptime: process.uptime()
+        };
+    }
+
+    // =============================================
+    // 🌱 SEED DEMO DATA
+    // =============================================
+    async seedDemoData() {
+        console.log('🌱 [MONGODB] Seeding demo data...');
+
+        // Seed demo company
+        const company = await this.models.Company.create({
+            name: 'TechCorp Inc.',
+            email: 'info@techcorp.com',
+            industry: 'Technology',
+            tier: 'BUSINESS',
+            status: 'ACTIVE',
+            dna: 'DNA-' + crypto.randomBytes(32).toString('hex'),
+            billing: {
+                plan: 'BUSINESS',
+                monthlyPrice: 2499,
+                billingCycle: 'MONTHLY',
+                nextBillingDate: new Date(Date.now() + 30 * 86400000)
+            },
+            maxUsers: 50,
+            features: ['Full Detection', 'Smart Alerts', 'Auto-Fix', 'API Access']
+        });
+
+        // Seed demo user
+        const user = await this.models.User.create({
+            email: 'admin@techcorp.com',
+            password: 'Admin@123',
+            name: 'Tech Admin',
+            role: 'COMPANY_ADMIN',
+            companyId: company._id.toString(),
+            tenantId: company._id.toString()
+        });
+
+        // Seed demo problems
+        const problems = [
+            { problem: 'CPU usage critically high', category: 'PERFORMANCE', severity: 'CRITICAL' },
+            { problem: 'Memory leak detected in production', category: 'PERFORMANCE', severity: 'HIGH' },
+            { problem: 'Database connection pool exhausted', category: 'RESOURCE', severity: 'HIGH' },
+            { problem: 'SSL certificate expiring in 3 days', category: 'AVAILABILITY', severity: 'HIGH' },
+            { problem: 'DDoS attack detected', category: 'SECURITY', severity: 'CRITICAL' }
+        ];
+
+        for (let p of problems) {
+            await this.models.Problem.create({
+                problemId: 'PROB-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+                companyId: company._id.toString(),
+                tenantId: company._id.toString(),
+                ...p,
+                status: 'DETECTED'
+            });
+        }
+
+        // Seed demo solutions
+        const solutions = [
+            { problemType: 'CPU_HIGH', action: 'SCALE_CPU', description: 'Increase CPU cores', risk: 'LOW', successRate: 95 },
+            { problemType: 'MEMORY_LEAK', action: 'CLEAR_CACHE', description: 'Clear system cache', risk: 'LOW', successRate: 90 },
+            { problemType: 'DDOS_ATTACK', action: 'BLOCK_IPS', description: 'Block attack IPs', risk: 'LOW', successRate: 98 }
+        ];
+
+        for (let s of solutions) {
+            await this.models.Solution.create({
+                solutionId: 'SOL-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+                ...s
+            });
+        }
+
+        console.log('✅ [MONGODB] Demo data seeded');
+        
+        return {
+            company: company.name,
+            user: user.email,
+            problems: problems.length,
+            solutions: solutions.length
+        };
+    }
+}
+
+// ============================================================
+// 🤫 EXPORT SINGLETON
+// ============================================================
+const db = new MongoDBManager();
+module.exports = db;
+
+// ============================================================
+// 🚀 AUTO-CONNECT IF RUN DIRECTLY
+// ============================================================
+if (require.main === module) {
+    (async () => {
+        try {
+            await db.connect();
+            
+            console.log('\n📊 DATABASE STATS:');
+            const stats = await db.getStats();
+            console.log(JSON.stringify(stats, null, 2));
+            
+            console.log('\n💚 HEALTH CHECK:');
+            const health = await db.healthCheck();
+            console.log(JSON.stringify(health, null, 2));
+            
+            // Seed demo data
+            const demo = await db.seedDemoData();
+            console.log('\n🌱 DEMO DATA:', demo);
+            
+            await db.disconnect();
+            console.log('\n✅ MongoDB Setup Complete\n');
+            process.exit(0);
+            
+        } catch (err) {
+            console.error('❌ Error:', err.message);
+            process.exit(1);
+        }
+    })();
+}
