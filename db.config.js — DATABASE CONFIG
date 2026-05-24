@@ -1,0 +1,46 @@
+// ============================================================
+// 📁 config/db.config.js — DATABASE CONFIGURATION
+// ============================================================
+module.exports = {
+    mongodb: {
+        uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/supreme-platform',
+        options: {
+            maxPoolSize: 50,
+            minPoolSize: 10,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+            retryWrites: true,
+            w: 'majority',
+            readPreference: 'secondaryPreferred'
+        },
+        collections: {
+            USERS: 'users',
+            COMPANIES: 'companies', 
+            PROBLEMS: 'problems',
+            SOLUTIONS: 'solutions',
+            TRANSACTIONS: 'transactions',
+            AUDIT_LOGS: 'audit_logs',
+            METRICS: 'metrics',
+            SNAPSHOTS: 'snapshots'
+        }
+    },
+    redis: {
+        url: process.env.REDIS_URL || 'redis://localhost:6379',
+        options: {
+            socket: { reconnectStrategy: (retries) => Math.min(retries * 100, 3000) }
+        },
+        keys: {
+            SESSION: 'supreme:session:',
+            CACHE: 'supreme:cache:',
+            RATE_LIMIT: 'supreme:ratelimit:',
+            QUEUE: 'supreme:queue:',
+            METRICS: 'supreme:metrics:'
+        },
+        ttl: {
+            SESSION: 86400,
+            CACHE: 3600,
+            RATE_LIMIT: 900,
+            METRICS: 300
+        }
+    }
+};
