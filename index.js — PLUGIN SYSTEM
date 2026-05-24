@@ -1,0 +1,126 @@
+// ============================================================
+// 📁 plugins/index.js — PLUGIN SYSTEM
+// ============================================================
+const EventEmitter = require('events');
+
+class PluginSystem extends EventEmitter {
+    constructor() {
+        super();
+        this.plugins = new Map();
+        this.hooks = new Map();
+        this.loadedPlugins = [];
+    }
+
+    // =============================================
+    // 🔌 REGISTER PLUGIN
+    // =============================================
+    register(plugin) {
+        if (this.plugins.has(plugin.name)) {
+            throw new Error(`Plugin "${plugin.name}" already registered`);
+        }
+
+        const pluginInfo = {
+            name: plugin.name,
+            version: plugin.version || '1.0.0',
+            description: plugin.description || '',
+            author: plugin.author || 'Unknown',
+            enabled: true,
+            dependencies: plugin.dependencies || [],
+            hooks: plugin.hooks || [],
+            installedAt: new Date().toISOString()
+        };
+
+        this.plugins.set(plugin.name, pluginInfo);
+
+        // Register hooks
+        if (plugin.hooks) {
+            for (let hook of plugin.hooks) {
+                this.registerHook(hook.name, hook.handler);
+            }
+        }
+
+        // Call init if exists
+        if (plugin.init) {
+            plugin.init();
+        }
+
+        this.loadedPlugins.push(plugin.name);
+        console.log(`🔌 [PLUGIN] Registered: ${plugin.name} v${plugin.version}`);
+        this.emit('plugin:registered', pluginInfo);
+
+        return pluginInfo;
+    }
+
+    // =============================================
+    // 🔌 REGISTER HOOK
+    // =============================================
+    registerHook(name, handler) {
+        if (!this.hooks.has(name)) {
+            this.hooks.set(name, []);
+        }
+        this.hooks.get(name).push(handler);
+    }
+
+    // =============================================
+    // 🔌 EXECUTE HOOK
+    // =============================================
+    async executeHook(name, ...args) {
+        const handlers = this.hooks.get(name);
+        if (!handlers || handlers.length === 0) return null;
+
+        const results = [];
+        for (let handler of handlers) {
+            try {
+                const result = await handler(...args);
+                results.push(result);
+            } catch (err) {
+                console.error(`❌ [HOOK] ${name} error:`, err.message);
+            }
+        }
+
+        return results;
+    }
+
+    // =============================================
+    // 🔌 UNREGISTER PLUGIN
+    // =============================================
+    unregister(pluginName) {
+        const plugin = this.plugins.get(pluginName);
+        if (!plugin) return false;
+
+        this.plugins.delete(pluginName);
+        this.loadedPlugins = this.loadedPlugins.filter(p => p !== pluginName);
+        
+        console.log(`🔌 [PLUGIN] Unregistered: ${pluginName}`);
+        this.emit('plugin:unregistered', pluginName);
+        return true;
+    }
+
+    // =============================================
+    // 🔌 GET ALL PLUGINS
+    // =============================================
+    getAll() {
+        return Array.from(this.plugins.values());
+    }
+
+    // =============================================
+    // 🔌 GET PLUGIN
+    // =============================================
+    get(name) {
+        return this.plugins.get(name);
+    }
+
+    // =============================================
+    // 📊 STATUS
+    // =============================================
+    getStatus() {
+        return {
+            totalPlugins: this.plugins.size,
+            loadedPlugins: this.loadedPlugins,
+            activeHooks: this.hooks.size,
+            plugins: this.getAll()
+        };
+    }
+}
+
+module.exports = new PluginSystem();
