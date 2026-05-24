@@ -1,0 +1,222 @@
+// ============================================================
+// 📁 alerts/alert.service.js — ALERT SERVICE
+// ============================================================
+const EventEmitter = require('events');
+const eventBus = require('../events/event.bus');
+
+class AlertService extends EventEmitter {
+    constructor() {
+        super();
+        this.alerts = [];
+        this.alertRules = new Map();
+        this.escalationLevels = [
+            { level: 1, name: 'Engineer', timeout: '5 min', channels: ['DASHBOARD', 'SLACK'] },
+            { level: 2, name: 'Senior Engineer', timeout: '10 min', channels: ['EMAIL', 'PAGERDUTY'] },
+            { level: 3, name: 'Team Lead', timeout: '15 min', channels: ['SMS', 'PAGERDUTY'] },
+            { level: 4, name: 'Manager', timeout: '30 min', channels: ['SMS', 'PHONE'] },
+            { level: 5, name: 'CTO', timeout: '60 min', channels: ['ALL'] }
+        ];
+        
+        this.init();
+    }
+
+    init() {
+        eventBus.registerHandler('detection:complete', (data) => this.processDetection(data));
+        eventBus.registerHandler('execution:complete', (data) => this.processExecution(data));
+        eventBus.registerHandler('problem:critical', (data) => this.processCritical(data));
+        console.log('📡 [ALERT SERVICE] Active');
+    }
+
+    // =============================================
+    // 📡 CREATE ALERT
+    // =============================================
+    createAlert(problem, context = {}) {
+        const alert = {
+            id: 'ALT-' + Date.now().toString(36).toUpperCase(),
+            timestamp: new Date().toISOString(),
+            type: problem.type || 'GENERAL',
+            severity: problem.severity || 'MEDIUM',
+            title: problem.name || problem.description || 'Unknown Alert',
+            message: problem.description || problem.message || 'Alert triggered',
+            source: problem.source || 'SYSTEM',
+            
+            context: {
+                companyId: context.companyId,
+                userId: context.userId,
+                location: context.location || 'Unknown',
+                environment: context.environment || 'PRODUCTION'
+            },
+
+            status: 'ACTIVE',
+            acknowledged: false,
+            acknowledgedBy: null,
+            acknowledgedAt: null,
+            
+            escalation: {
+                level: 0,
+                nextEscalation: this.getNextEscalationTime(0)
+            },
+
+            actions: [],
+            channels: this.getChannels(problem.severity)
+        };
+
+        this.alerts.push(alert);
+        
+        // Keep last 10,000 alerts
+        if (this.alerts.length > 10000) {
+            this.alerts.shift();
+        }
+
+        // Auto-escalate if critical
+        if (alert.severity === 'CRITICAL') {
+            this.startEscalation(alert);
+        }
+
+        console.log(`📡 [ALERT] ${alert.severity}: ${alert.title}`);
+        this.emit('alert:created', alert);
+
+        return alert;
+    }
+
+    // =============================================
+    // 📡 PROCESS DETECTION
+    // =============================================
+    processDetection(data) {
+        if (data.criticalCount > 0 || data.totalProblems > 0) {
+            this.createAlert({
+                type: 'DETECTION',
+                severity: data.criticalCount > 0 ? 'CRITICAL' : 'WARNING',
+                name: `${data.totalProblems} problems detected`,
+                description: `${data.criticalCount} critical, ${data.totalProblems} total`,
+                source: 'DETECTION_ENGINE'
+            }, data.context);
+        }
+    }
+
+    // =============================================
+    // 📡 PROCESS EXECUTION
+    // =============================================
+    processExecution(data) {
+        this.createAlert({
+            type: 'EXECUTION',
+            severity: 'INFO',
+            name: 'Execution completed',
+            description: `Execution ${data.id} completed successfully`,
+            source: 'EXECUTION_ENGINE'
+        }, data.context);
+    }
+
+    // =============================================
+    // 📡 PROCESS CRITICAL
+    // =============================================
+    processCritical(data) {
+        this.createAlert({
+            type: 'EMERGENCY',
+            severity: 'CRITICAL',
+            name: data.message || 'Critical emergency',
+            description: data.message || 'Immediate action required',
+            source: 'EMERGENCY_SYSTEM'
+        }, data.context);
+    }
+
+    // =============================================
+    // 📡 GET CHANNELS BY SEVERITY
+    // =============================================
+    getChannels(severity) {
+        const channelMap = {
+            CRITICAL: ['DASHBOARD', 'SLACK', 'EMAIL', 'SMS', 'PAGERDUTY'],
+            HIGH: ['DASHBOARD', 'SLACK', 'EMAIL', 'PAGERDUTY'],
+            MEDIUM: ['DASHBOARD', 'SLACK', 'EMAIL'],
+            LOW: ['DASHBOARD', 'EMAIL'],
+            INFO: ['DASHBOARD']
+        };
+        return channelMap[severity] || ['DASHBOARD'];
+    }
+
+    // =============================================
+    // 📡 ESCALATION
+    // =============================================
+    startEscalation(alert) {
+        this.escalationLevels.forEach((level, index) => {
+            setTimeout(() => {
+                if (alert.status === 'ACTIVE' && !alert.acknowledged) {
+                    alert.escalation.level = index + 1;
+                    alert.escalation.nextEscalation = this.getNextEscalationTime(index + 1);
+                    alert.channels = level.channels;
+                    
+                    console.log(`📡 [ESCALATION] ${alert.id} → Level ${level.level} (${level.name})`);
+                    this.emit('alert:escalated', { alert, level });
+                }
+            }, this.parseTimeout(level.timeout) * (index + 1));
+        });
+    }
+
+    getNextEscalationTime(currentLevel) {
+        if (currentLevel >= this.escalationLevels.length) return null;
+        return new Date(Date.now() + this.parseTimeout(this.escalationLevels[currentLevel].timeout)).toISOString();
+    }
+
+    parseTimeout(timeout) {
+        const match = timeout.match(/(\d+)\s*(min|hour|sec)/i);
+        if (!match) return 300000;
+        const value = parseInt(match[1]);
+        const unit = match[2].toLowerCase();
+        if (unit === 'sec') return value * 1000;
+        if (unit === 'min') return value * 60000;
+        if (unit === 'hour') return value * 3600000;
+        return 300000;
+    }
+
+    // =============================================
+    // 📡 ACKNOWLEDGE
+    // =============================================
+    acknowledge(alertId, userId) {
+        const alert = this.alerts.find(a => a.id === alertId);
+        if (!alert) return null;
+
+        alert.acknowledged = true;
+        alert.acknowledgedBy = userId;
+        alert.acknowledgedAt = new Date().toISOString();
+        alert.status = 'ACKNOWLEDGED';
+
+        return alert;
+    }
+
+    // =============================================
+    // 📡 RESOLVE
+    // =============================================
+    resolve(alertId, resolution = {}) {
+        const alert = this.alerts.find(a => a.id === alertId);
+        if (!alert) return null;
+
+        alert.status = 'RESOLVED';
+        alert.resolution = resolution;
+        alert.resolvedAt = new Date().toISOString();
+
+        return alert;
+    }
+
+    // =============================================
+    // 📊 GET ALL
+    // =============================================
+    getAll(filters = {}) {
+        let alerts = [...this.alerts];
+
+        if (filters.severity) alerts = alerts.filter(a => a.severity === filters.severity);
+        if (filters.status) alerts = alerts.filter(a => a.status === filters.status);
+        if (filters.type) alerts = alerts.filter(a => a.type === filters.type);
+
+        return alerts.slice(-100);
+    }
+
+    getStats() {
+        const total = this.alerts.length;
+        const critical = this.alerts.filter(a => a.severity === 'CRITICAL').length;
+        const active = this.alerts.filter(a => a.status === 'ACTIVE').length;
+
+        return { total, critical, active };
+    }
+}
+
+module.exports = new AlertService();
