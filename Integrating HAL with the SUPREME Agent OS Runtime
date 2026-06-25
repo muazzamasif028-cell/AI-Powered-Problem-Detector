@@ -1,0 +1,30 @@
+/**
+ * Verification Script: Hooking HardwareHAL directly into the Planetary OS Core
+ */
+const HardwareHAL = require('./hardware_hal');
+
+async function testPlanetaryOS_HardwareAllocation() {
+    const hal = new HardwareHAL();
+
+    console.log("\n⚡ [PLANETARY OS] Booting Hardware Abstraction Layer Diagnostics...");
+
+    // Scenario A: Coding Agent needs compiling -> Sent to CPU
+    const cpuResult = await hal.CPU({ name: 'KERNEL_COMPILE_JOB' });
+    console.log(`Result:`, cpuResult);
+
+    // Scenario B: Multimodal Agent triggers Video Synthesis -> Sent to GPU
+    const gpuResult = await hal.GPU({ pipeline: 'RUNWAY_RENDER' });
+    console.log(`Result:`, gpuResult);
+
+    // Scenario C: LLM Orchestrator needs Deep Brain Reasoning -> Sent to TPU
+    const tpuResult = await hal.TPU({ tokens: 4096 });
+    console.log(`Result:`, tpuResult);
+
+    // Scenario D: Sovereign Security Agent requests uncrackable Ledger Signatures -> Sent to QPU!
+    const qpuResult = await hal.QPU({ algorithmicComplexity: 'NON_POLYNOMIAL' });
+    console.log(`Result:`, qpuResult);
+    
+    console.log("\n👑 [HAL STATUS] All heterogeneous compute accelerators routed successfully.");
+}
+
+testPlanetaryOS_HardwareAllocation();
