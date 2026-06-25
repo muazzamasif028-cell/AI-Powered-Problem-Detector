@@ -1,0 +1,66 @@
+// SUPREME Heterogeneous SoC - Live Telemetry & Logging Unit
+module telemetry_engine (
+    input  logic        clk,
+    input  logic        rst_n,
+    
+    // Telemetry Trigger Inputs from Hardware Cores
+    input  logic        mpu_event_trigger,
+    input  logic [7:0]  mpu_event_id,
+    input  logic        ptu_event_trigger,
+    input  logic [7:0]  ptu_event_id,
+    input  logic        gpu_event_trigger,
+    input  logic [7:0]  gpu_event_id,
+    
+    // System Bus Interface (For Admin Dashboard Reading)
+    input  logic [3:0]  reg_address,
+    output logic [32:0] reg_read_data
+);
+
+    // Internal 32-bit Hardware Timestamp Timer
+    logic [31:0] cycle_counter;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) 
+            cycle_counter <= 32'h0;
+        else 
+            cycle_counter <= cycle_counter + 1'b1;
+    end
+
+    // Sovereign Memory-Mapped Telemetry Registers
+    logic [31:0] mpu_log_reg;
+    logic [31:0] ptu_log_reg;
+    logic [31:0] gpu_log_reg;
+
+    // Asynchronous Event Logging Capture Engine
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            mpu_log_reg <= 32'h0;
+            ptu_log_reg <= 32'h0;
+            gpu_log_reg <= 32'h0;
+        end else begin
+            // Log MPU activity with current timestamp
+            if (mpu_event_trigger) begin
+                mpu_log_reg <= {mpu_event_id, cycle_counter[23:0]};
+            end
+            // Log PTU Platform Tracking activity
+            if (ptu_event_trigger) begin
+                ptu_log_reg <= {ptu_event_id, cycle_counter[23:0]};
+            end
+            // Log GPU Matrix Parallel workload activity
+            if (gpu_event_trigger) begin
+                gpu_log_reg <= {gpu_event_id, cycle_counter[23:0]};
+            end
+        end
+    end
+
+    // Bus Read Routing Interface for Dashboard Extraction
+    always_comb begin
+        case (reg_address)
+            4'h0    : reg_read_data = cycle_counter;
+            4'h1    : reg_read_data = mpu_log_reg;
+            4'h2    : reg_read_data = ptu_log_reg;
+            4'h3    : reg_read_data = gpu_log_reg;
+            default : reg_read_data = 32'hDEADBEEF; // Error code if address invalid
+        endcase
+    end
+
+endmodule
