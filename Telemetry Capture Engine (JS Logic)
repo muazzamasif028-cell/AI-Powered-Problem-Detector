@@ -1,0 +1,20 @@
+// Global Telemetry Store (In production, this posts to: https://api.supreme-problem.company/v1/telemetry)
+window.SUPREME_TELEMETRY_LOGS = JSON.parse(localStorage.getItem('supreme_sys_logs') || '[]');
+
+function logSupremeAction(actionType, metaData) {
+    const logEntry = {
+        id: 'LOG_' + Math.random().toString(36).substr(2, 9).toUpperCase(),
+        timestamp: new Date().toLocaleTimeString(),
+        action: actionType,
+        details: metaData,
+        status: 'SUCCESS'
+    };
+    
+    // Save locally for simulation, push to cloud in production
+    window.SUPREME_TELEMETRY_LOGS.unshift(logEntry); // Newest first
+    if(window.SUPREME_TELEMETRY_LOGS.length > 100) window.SUPREME_TELEMETRY_LOGS.pop(); // Cap at 100 logs
+    localStorage.setItem('supreme_sys_logs', JSON.stringify(window.SUPREME_TELEMETRY_LOGS));
+    
+    // Refresh Admin UI dynamically if open
+    if (typeof renderAdminLogs === 'function') renderAdminLogs();
+}
