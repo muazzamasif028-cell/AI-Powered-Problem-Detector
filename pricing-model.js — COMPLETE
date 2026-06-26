@@ -1,438 +1,222 @@
-// ============================================================
-// 🤫 PRICING MODEL ENGINE v7.0
-// ============================================================
-// Supreme Problem Detector — Tiered Pricing System
-// Architecture: 7000+ Languages | 2.5T Nodes | 5.9B Layers | 500B Components
-// ============================================================
-// THIS FILE RUNS COMPLETELY HIDDEN BEHIND THE CANVAS
-// ============================================================
+// =============================================================
+// SUPREME CLOUD
+// pricing-model.js
+// Enterprise Pricing Engine
+// =============================================================
 
-class PricingModelEngine {
+class PricingModel {
+
     constructor() {
-        // =============================================
-        // ENGINE STATE
-        // =============================================
-        this.state = {
-            initialized: false,
-            totalQuotes: 0,
-            totalRevenue: 0,
-            averageTicket: 0
-        };
 
-        // =============================================
-        // 🟢 SMALL (STARTER LEVEL)
-        // =============================================
         this.tiers = {
-            SMALL: {
-                name: 'STARTER',
-                emoji: '🟢',
-                description: 'Small Systems — Easy Entry',
-                useCases: ['CPU high', 'Disk full', 'Minor bugs', 'Single service alerts'],
-                trigger: 'Single service issue',
-                pricing: {
-                    DIAGNOSIS: { min: 50, max: 80, average: 65 },
-                    FIX_REPAIR: { min: 100, max: 180, average: 140 },
-                    FULL_SOLUTION: { min: 200, max: 280, average: 240 }
-                },
-                features: [
-                    'Basic problem detection',
-                    'Automated diagnosis report',
-                    'Standard fix recommendations',
-                    'Email support',
-                    '24-hour response time'
-                ],
-                targetCustomers: ['Freelancers', 'Small startups', 'Individual developers', 'Small websites'],
-                conversionRate: 'HIGH',
-                profitMargin: '35%'
-            },
 
-            // =============================================
-            // 🟡 MEDIUM (GROWING SYSTEMS)
-            // =============================================
-            MEDIUM: {
-                name: 'GROWING',
-                emoji: '🟡',
-                description: 'Growing Systems — Balanced Pricing',
-                useCases: ['DB issues', 'Latency problems', 'API errors', 'Performance degradation'],
-                trigger: 'Multiple services affected',
-                pricing: {
-                    DIAGNOSIS: { min: 120, max: 400, average: 260 },
-                    FIX_REPAIR: { min: 550, max: 1000, average: 775 },
-                    FULL_SOLUTION: { min: 1250, max: 1800, average: 1525 }
-                },
-                features: [
-                    'Advanced problem detection',
-                    'Deep root cause analysis',
-                    'Automated fix application',
-                    'Priority email + chat support',
-                    '4-hour response time',
-                    'Performance optimization',
-                    'Monthly health reports'
-                ],
-                targetCustomers: ['SaaS companies', 'E-commerce platforms', 'Mid-size tech teams', 'Growing startups'],
-                conversionRate: 'BALANCED',
-                profitMargin: '50%',
-                popularChoice: true
-            },
+            STARTER: {
+                name: "Starter",
+                customers: "Individual / Small Business",
 
-            // =============================================
-            // 🟠 BUSINESS (PRODUCTION LEVEL)
-            // =============================================
-            BUSINESS: {
-                name: 'BUSINESS',
-                emoji: '🟠',
-                description: 'Production Systems — High Value',
-                useCases: ['System slowdown', 'Service outages', 'Production impact', 'Scaling issues'],
-                trigger: 'Production impact',
-                pricing: {
-                    DIAGNOSIS: { min: 1800, max: 4000, average: 2900 },
-                    FIX_REPAIR: { min: 5000, max: 12000, average: 8500 },
-                    FULL_SOLUTION: { min: 13000, max: 25000, average: 19000 }
-                },
-                features: [
-                    'Enterprise-grade detection',
-                    'Real-time monitoring',
-                    'Instant automated fixes',
-                    'Dedicated support engineer',
-                    '1-hour response time',
-                    'SLA guaranteed',
-                    'Custom integrations',
-                    'Quarterly audits',
-                    'Team training included'
-                ],
-                targetCustomers: ['Large enterprises', 'Production systems', 'High-traffic platforms', 'Financial services'],
-                conversionRate: 'MEDIUM',
-                profitMargin: '60%'
-            },
-
-            // =============================================
-            // 🔴 ENTERPRISE (CRITICAL SYSTEMS)
-            // =============================================
-            ENTERPRISE: {
-                name: 'ENTERPRISE',
-                emoji: '🔴',
-                description: 'Critical Systems — Maximum Protection',
-                useCases: ['Cloud outage', 'Security breach', 'Data center failure', 'Critical infrastructure'],
-                trigger: 'Revenue impact',
-                pricing: {
-                    DIAGNOSIS: { min: 10000, max: 30000, average: 20000 },
-                    FIX_REPAIR: { min: 35000, max: 120000, average: 77500 },
-                    FULL_SOLUTION: { min: 130000, max: 250000, average: 190000 }
-                },
-                features: [
-                    'Full infrastructure monitoring',
-                    '24/7 dedicated response team',
-                    'Instant emergency fixes',
-                    'Security incident response',
-                    '15-minute response time',
-                    '99.99% SLA',
-                    'Full system audit',
-                    'Compliance reporting',
-                    'Executive dashboard',
-                    'Disaster recovery planning',
-                    'Unlimited support'
-                ],
-                targetCustomers: ['Fortune 500', 'Banks', 'Hospitals', 'Government', 'Cloud providers'],
-                conversionRate: 'LOW',
-                profitMargin: '70%',
-                exclusiveAccess: true
-            },
-
-            // =============================================
-            // 🏢 GLOBAL (CITY / INFRA LEVEL)
-            // =============================================
-            GLOBAL: {
-                name: 'GLOBAL',
-                emoji: '🏢',
-                description: 'Smart Cities & Global Infrastructure',
-                useCases: ['Smart city infrastructure', 'NEOM-type projects', 'National infrastructure', 'Global networks'],
-                trigger: 'Critical infrastructure',
-                pricing: {
-                    DIAGNOSIS: { min: 100000, max: 250000, average: 175000 },
-                    FIX_REPAIR: { min: 280000, max: 700000, average: 490000 },
-                    FULL_SOLUTION: { min: 750000, max: 1500000, average: 1125000 }
-                },
-                features: [
-                    'Global infrastructure control',
-                    'Satellite fleet management',
-                    'Cross-continent monitoring',
-                    'Government-grade security',
-                    '5-minute response time',
-                    '99.999% SLA',
-                    'Custom AI models',
-                    'Dedicated data centers',
-                    'On-site response teams',
-                    'Full regulatory compliance',
-                    'Unlimited everything',
-                    'White-glove service'
-                ],
-                targetCustomers: ['Governments', 'Smart cities', 'International orgs', 'Critical infrastructure'],
-                conversionRate: 'ULTRA_LOW',
-                profitMargin: '80%',
-                exclusiveAccess: true,
-                requiresContract: true
-            }
-        };
-
-        // =============================================
-        // PRICING HISTORY
-        // =============================================
-        this.quoteHistory = [];
-        this.maxHistorySize = 5000;
-
-        // =============================================
-        // DISCOUNTS & PROMOTIONS
-        // =============================================
-        this.discounts = {
-            ANNUAL_PLAN: 0.15,
-            VOLUME: 0.10,
-            STARTUP: 0.20,
-            NONPROFIT: 0.25,
-            REFERRAL: 0.05
-        };
-
-        console.log('🤫 [PRICING MODEL]: System created');
-    }
-
-    // =============================================
-    // INITIALIZE
-    // =============================================
-    initialize() {
-        this.state.initialized = true;
-        console.log('🤫 [PRICING MODEL]: Ready —', Object.keys(this.tiers).length, 'tiers');
-        return { status: 'READY', tiers: Object.keys(this.tiers).length };
-    }
-
-    // =============================================
-    // GET TIER BY PROBLEM
-    // =============================================
-    detectTier(problem, context = {}) {
-        const lowerProblem = (typeof problem === 'string' ? problem : JSON.stringify(problem)).toLowerCase();
-        
-        // GLOBAL indicators
-        if (lowerProblem.includes('city') || lowerProblem.includes('infrastructure') || 
-            lowerProblem.includes('neom') || lowerProblem.includes('national') ||
-            lowerProblem.includes('government') || lowerProblem.includes('smart city')) {
-            return 'GLOBAL';
-        }
-
-        // ENTERPRISE indicators
-        if (lowerProblem.includes('breach') || lowerProblem.includes('outage') ||
-            lowerProblem.includes('revenue') || lowerProblem.includes('critical') ||
-            lowerProblem.includes('datacenter') || lowerProblem.includes('security incident')) {
-            return 'ENTERPRISE';
-        }
-
-        // BUSINESS indicators
-        if (lowerProblem.includes('production') || lowerProblem.includes('slowdown') ||
-            lowerProblem.includes('outage') || lowerProblem.includes('scaling') ||
-            context.userCount > 1000) {
-            return 'BUSINESS';
-        }
-
-        // MEDIUM indicators
-        if (lowerProblem.includes('database') || lowerProblem.includes('latency') ||
-            lowerProblem.includes('api') || lowerProblem.includes('multiple') ||
-            (context.services && context.services > 1)) {
-            return 'MEDIUM';
-        }
-
-        // SMALL (default)
-        return 'SMALL';
-    }
-
-    // =============================================
-    // GENERATE QUOTE
-    // =============================================
-    generateQuote(problem, options = {}) {
-        const quoteId = 'QUOTE-' + Date.now().toString(36) + '-' + 
-                       Math.random().toString(36).substr(2, 6).toUpperCase();
-        
-        const tier = options.tier || this.detectTier(problem, options);
-        const tierConfig = this.tiers[tier];
-        
-        // Calculate pricing
-        const diagnosis = this.calculatePrice(tierConfig.pricing.DIAGNOSIS, options);
-        const fixRepair = this.calculatePrice(tierConfig.pricing.FIX_REPAIR, options);
-        const fullSolution = this.calculatePrice(tierConfig.pricing.FULL_SOLUTION, options);
-        
-        // Apply discounts
-        const discount = this.calculateDiscount(options);
-        const discountedDiagnosis = Math.round(diagnosis * (1 - discount));
-        const discountedFix = Math.round(fixRepair * (1 - discount));
-        const discountedSolution = Math.round(fullSolution * (1 - discount));
-
-        const quote = {
-            quoteId,
-            timestamp: new Date().toISOString(),
-            tier: {
-                level: tier,
-                name: tierConfig.name,
-                emoji: tierConfig.emoji,
-                description: tierConfig.description
-            },
-            problem: {
-                summary: typeof problem === 'string' ? problem.substring(0, 100) : 'Custom problem',
-                detectedTier: tier,
-                useCases: tierConfig.useCases
-            },
-            pricing: {
                 diagnosis: {
-                    original: diagnosis,
-                    discounted: discountedDiagnosis,
-                    range: `$${tierConfig.pricing.DIAGNOSIS.min.toLocaleString()} - $${tierConfig.pricing.DIAGNOSIS.max.toLocaleString()}`
+                    min: 49,
+                    max: 99
                 },
-                fixRepair: {
-                    original: fixRepair,
-                    discounted: discountedFix,
-                    range: `$${tierConfig.pricing.FIX_REPAIR.min.toLocaleString()} - $${tierConfig.pricing.FIX_REPAIR.max.toLocaleString()}`
+
+                repair: {
+                    min: 149,
+                    max: 299
                 },
-                fullSolution: {
-                    original: fullSolution,
-                    discounted: discountedSolution,
-                    range: `$${tierConfig.pricing.FULL_SOLUTION.min.toLocaleString()} - $${tierConfig.pricing.FULL_SOLUTION.max.toLocaleString()}`
-                }
+
+                solution: {
+                    min: 299,
+                    max: 599
+                },
+
+                sla: "24 Hours"
             },
-            discount: {
-                applied: discount > 0,
-                percentage: (discount * 100).toFixed(0) + '%',
-                reason: this.getDiscountReason(options),
-                savings: `$${(fullSolution - discountedSolution).toLocaleString()}`
+
+            PROFESSIONAL: {
+                name: "Professional",
+                customers: "SME / Startup",
+
+                diagnosis: {
+                    min: 199,
+                    max: 799
+                },
+
+                repair: {
+                    min: 800,
+                    max: 2500
+                },
+
+                solution: {
+                    min: 2500,
+                    max: 7500
+                },
+
+                sla: "8 Hours"
             },
-            features: tierConfig.features,
-            targetCustomers: tierConfig.targetCustomers,
-            profitMargin: tierConfig.profitMargin,
-            conversionRate: tierConfig.conversionRate,
-            popularChoice: tierConfig.popularChoice || false,
-            requiresContract: tierConfig.requiresContract || false,
-            totalEstimate: {
-                minimum: `$${tierConfig.pricing.DIAGNOSIS.min.toLocaleString()}`,
-                average: `$${tierConfig.pricing.FULL_SOLUTION.average.toLocaleString()}`,
-                maximum: `$${tierConfig.pricing.FULL_SOLUTION.max.toLocaleString()}`
+
+            BUSINESS: {
+                name: "Business",
+                customers: "Production Company",
+
+                diagnosis: {
+                    min: 2000,
+                    max: 10000
+                },
+
+                repair: {
+                    min: 10000,
+                    max: 50000
+                },
+
+                solution: {
+                    min: 50000,
+                    max: 150000
+                },
+
+                sla: "4 Hours"
+            },
+
+            ENTERPRISE: {
+                name: "Enterprise",
+
+                quoteOnly: true,
+
+                sla: "1 Hour",
+
+                features: [
+
+                    "Dedicated Engineer",
+
+                    "24x7 Monitoring",
+
+                    "Priority Ghost Repair",
+
+                    "AI Swarm Support",
+
+                    "Security Response"
+
+                ]
+            },
+
+            GOVERNMENT: {
+                name: "Government / Smart City",
+
+                proposalOnly: true,
+
+                sla: "24x7 Dedicated",
+
+                features: [
+
+                    "National Infrastructure",
+
+                    "Defense Grade Security",
+
+                    "Dedicated AI Cluster",
+
+                    "Multi-Year Support",
+
+                    "Command Center"
+
+                ]
             }
+
         };
 
-        // Update state
-        this.state.totalQuotes++;
-        this.state.totalRevenue += discountedSolution;
-        this.state.averageTicket = this.state.totalRevenue / this.state.totalQuotes;
-
-        this.quoteHistory.push(quote);
-        if (this.quoteHistory.length > this.maxHistorySize) this.quoteHistory.shift();
-
-        console.log(`🤫 [PRICING]: ${quoteId} — ${tier} tier — $${discountedSolution.toLocaleString()}`);
-
-        return quote;
     }
 
-    // =============================================
-    // CALCULATE PRICE
-    // =============================================
-    calculatePrice(range, options) {
-        const base = range.average;
-        
-        // Adjust based on urgency
-        if (options.urgent) return Math.round(base * 1.5);
-        
-        // Adjust based on complexity
-        if (options.complexity === 'HIGH') return Math.round(base * 1.3);
-        if (options.complexity === 'LOW') return Math.round(base * 0.8);
-        
-        return base;
+    // ==========================================================
+    // Return Tier
+    // ==========================================================
+
+    getTier(name){
+
+        return this.tiers[name.toUpperCase()] || null;
+
     }
 
-    // =============================================
-    // CALCULATE DISCOUNT
-    // =============================================
-    calculateDiscount(options) {
-        let totalDiscount = 0;
-        
-        if (options.annualPlan) totalDiscount += this.discounts.ANNUAL_PLAN;
-        if (options.volume) totalDiscount += this.discounts.VOLUME;
-        if (options.startup) totalDiscount += this.discounts.STARTUP;
-        if (options.nonprofit) totalDiscount += this.discounts.NONPROFIT;
-        if (options.referral) totalDiscount += this.discounts.REFERRAL;
-        
-        return Math.min(0.40, totalDiscount); // Cap at 40%
+    // ==========================================================
+    // Auto Tier Detection
+    // ==========================================================
+
+    detectTier(system){
+
+        if(system.users < 1000)
+            return "STARTER";
+
+        if(system.users < 50000)
+            return "PROFESSIONAL";
+
+        if(system.users < 1000000)
+            return "BUSINESS";
+
+        if(system.users < 50000000)
+            return "ENTERPRISE";
+
+        return "GOVERNMENT";
+
     }
 
-    getDiscountReason(options) {
-        const reasons = [];
-        if (options.annualPlan) reasons.push('Annual Plan (15%)');
-        if (options.volume) reasons.push('Volume (10%)');
-        if (options.startup) reasons.push('Startup (20%)');
-        if (options.nonprofit) reasons.push('Nonprofit (25%)');
-        if (options.referral) reasons.push('Referral (5%)');
-        return reasons.length > 0 ? reasons.join(' + ') : 'None';
-    }
+    // ==========================================================
+    // Estimate Price
+    // ==========================================================
 
-    // =============================================
-    // GET ALL TIERS SUMMARY
-    // =============================================
-    getAllTiers() {
-        return Object.entries(this.tiers).map(([level, config]) => ({
-            level,
-            name: config.name,
-            emoji: config.emoji,
-            description: config.description,
-            diagnosisRange: `$${config.pricing.DIAGNOSIS.min.toLocaleString()} - $${config.pricing.DIAGNOSIS.max.toLocaleString()}`,
-            fixRange: `$${config.pricing.FIX_REPAIR.min.toLocaleString()} - $${config.pricing.FIX_REPAIR.max.toLocaleString()}`,
-            solutionRange: `$${config.pricing.FULL_SOLUTION.min.toLocaleString()} - $${config.pricing.FULL_SOLUTION.max.toLocaleString()}`,
-            features: config.features.length,
-            profitMargin: config.profitMargin,
-            popularChoice: config.popularChoice || false
-        }));
-    }
+    estimate({
 
-    // =============================================
-    // COMPARE TIERS
-    // =============================================
-    compareTiers(tier1, tier2) {
-        const t1 = this.tiers[tier1];
-        const t2 = this.tiers[tier2];
-        
-        if (!t1 || !t2) return { error: 'Invalid tier(s)' };
+        tier,
 
-        return {
-            tier1: { level: tier1, name: t1.name, averageSolution: t1.pricing.FULL_SOLUTION.average },
-            tier2: { level: tier2, name: t2.name, averageSolution: t2.pricing.FULL_SOLUTION.average },
-            priceDifference: `$${(t2.pricing.FULL_SOLUTION.average - t1.pricing.FULL_SOLUTION.average).toLocaleString()}`,
-            featureDifference: t2.features.length - t1.features.length,
-            upgradeRecommended: t2.pricing.FULL_SOLUTION.average > t1.pricing.FULL_SOLUTION.average
+        service
+
+    }){
+
+        const plan = this.getTier(tier);
+
+        if(!plan)
+            throw new Error("Invalid Tier");
+
+        if(plan.quoteOnly){
+
+            return{
+
+                tier,
+
+                pricing:"CUSTOM QUOTE REQUIRED",
+
+                sla:plan.sla
+
+            };
+
+        }
+
+        if(plan.proposalOnly){
+
+            return{
+
+                tier,
+
+                pricing:"CUSTOM GOVERNMENT PROPOSAL",
+
+                sla:plan.sla
+
+            };
+
+        }
+
+        return{
+
+            tier,
+
+            service,
+
+            minimum:plan[service].min,
+
+            maximum:plan[service].max,
+
+            sla:plan.sla
+
         };
+
     }
 
-    // =============================================
-    // SYSTEM STATUS
-    // =============================================
-    getStatus() {
-        return {
-            initialized: this.state.initialized,
-            totalQuotes: this.state.totalQuotes,
-            totalRevenue: '$' + this.state.totalRevenue.toLocaleString(),
-            averageTicket: '$' + this.state.averageTicket.toLocaleString(),
-            tiers: Object.keys(this.tiers).length,
-            discounts: Object.keys(this.discounts).length,
-            historySize: this.quoteHistory.length
-        };
-    }
-
-    reset() {
-        this.quoteHistory = [];
-        this.state.totalQuotes = 0;
-        this.state.totalRevenue = 0;
-        this.state.averageTicket = 0;
-        return { status: 'RESET' };
-    }
 }
 
-// ============================================================
-// 🤫 EXPORT
-// ============================================================
-if (typeof module !== 'undefined' && module.exports) module.exports = PricingModelEngine;
-if (typeof window !== 'undefined') {
-    window.PricingModelEngine = PricingModelEngine;
-    window.__SUPREME_PRICING_MODEL = new PricingModelEngine();
-    window.__SUPREME_PRICING_MODEL.initialize();
-    console.log('🤫 [PRICING MODEL]: Ready — 5 tiers | SMALL → GLOBAL');
-}
+module.exports = new PricingModel();
