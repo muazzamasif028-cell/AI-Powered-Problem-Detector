@@ -4,16 +4,27 @@
  */
 
 const axios = require('axios');
-const OpenAI = require('openai'); // Upgraded package from your package.json
-const HardwareHAL = require('./hardware_hal'); // Dynamic hardware tracking
+const OpenAI = require('openai');
 
-// Initialize OpenAI and Hardware HAL
+// 🛠️ SAFE HARDWARE HAL FALLBACK INTEGRATION
+let hal;
+try {
+    const HardwareHAL = require('./hardware_hal');
+    hal = new HardwareHAL();
+} catch (error) {
+    // If hardware_hal.js doesn't exist yet, use this safe bypass mock
+    hal = {
+        CPU: async (task) => console.log(`💻 [MOCK HAL] CPU virtual allocation for: ${task.name}`),
+        TPU: async (matrix) => console.log(`⚡ [MOCK HAL] Token matrix acceleration simulated for ${matrix.tokens} tokens.`)
+    };
+}
+
+// Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'YOUR_OPENAI_KEY' });
-const hal = new HardwareHAL();
 
 class SupremeSearchEngine {
     constructor() {
-        // Using Serper.dev or Tavily API for clean, structured live internet indexing
+        // Using Serper.dev API for clean, structured live internet indexing
         this.searchApiKey = process.env.SERPER_API_KEY || 'YOUR_SERPER_API_KEY';
     }
 
@@ -23,7 +34,7 @@ class SupremeSearchEngine {
     async fetchInternetData(query) {
         console.log(`🔍 [SUPREME CRAWLER] Deploying internet probes for query: "${query}"`);
         
-        // Triggering CPU/MPU for networking overhead and socket management
+        // Triggering CPU for networking overhead and socket management
         await hal.CPU({ name: 'WEB_CRAWL_SOCKET_ALLOCATION' });
 
         try {
@@ -42,7 +53,7 @@ class SupremeSearchEngine {
                 snippet: result.snippet
             }));
         } catch (error) {
-            console.error('❌ [CRAWL ERROR] Internet probe failed. Falling back to local cache registry.', error.message);
+            console.error('❌ [CRAWL ERROR] Internet probe failed. Verify your SERPER_API_KEY.', error.message);
             return [];
         }
     }
@@ -57,7 +68,7 @@ class SupremeSearchEngine {
         const webKnowledgeBase = await this.fetchInternetData(userQuery);
 
         if (webKnowledgeBase.length === 0) {
-            return { status: 'FAILED', message: 'No internet context retrieved.' };
+            return { status: 'FAILED', message: 'No internet context retrieved. Check network or API key.' };
         }
 
         console.log(`🧠 [SUPREME VERIFIER] Analyzing ${webKnowledgeBase.length} web sources. Cross-verifying claims...`);
@@ -78,12 +89,12 @@ class SupremeSearchEngine {
         try {
             // Hit the Frontier AI model for reasoning synthesis
             const response = await openai.chat.completions.create({
-                model: 'gpt-4o', // Can be swapped with Claude 3.5 Sonnet dynamically via supreme_gateway.js
+                model: 'gpt-4o', 
                 messages: [
                     { role: 'system', content: systemInstruction },
                     { role: 'user', content: `Internet Raw Data:\n${contextPacket}\n\nUser Question: ${userQuery}` }
                 ],
-                temperature: 0.2 // Kept low for absolute factual accuracy, avoiding creative guessing
+                temperature: 0.2 // Kept low for absolute factual accuracy
             });
 
             const duration = (performance.now() - startTime) / 1000;
@@ -97,7 +108,7 @@ class SupremeSearchEngine {
             };
 
         } catch (error) {
-            console.error('❌ [SYNTHESIS ERROR] Cognitive layer hallucinated or dropped connection.', error.message);
+            console.error('❌ [SYNTHESIS ERROR] Cognitive layer failed. Verify your OPENAI_API_KEY.', error.message);
             return { status: 'ERROR', error: error.message };
         }
     }
@@ -115,9 +126,13 @@ async function runLiveTest() {
     const finalReport = await searchEngine.executeSovereignSearch(query);
     
     console.log("\n=================== THE VERIFIED TRUTH REPORT ===================");
-    console.log(finalReport.verifiedAnswer);
+    if(finalReport.verifiedAnswer) {
+        console.log(finalReport.verifiedAnswer);
+    } else {
+        console.log("Error running search:", finalReport.message || finalReport.error);
+    }
     console.log("=================================================================\n");
 }
 
-// To run this module independently, uncomment the line below:
-// runLiveTest();
+// Run the live test instantly upon execution
+runLiveTest();
