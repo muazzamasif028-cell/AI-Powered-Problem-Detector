@@ -1,0 +1,134 @@
+/**
+ * SUPREME Planetary OS - Enterprise Conversation Isolation Manager
+ * Path: supreme/core/conversation-manager.js
+ */
+
+const crypto = require("crypto");
+
+class ConversationManager {
+    constructor() {
+        this.conversations = new Map(); // Global Active Session Hot-Cache
+    }
+
+    // =========================================================
+    // Create New Conversation
+    // =========================================================
+    create({ tenantId, userId, title = "New Chat" }) {
+        if (!tenantId || !userId) {
+            throw new Error("SUPREME AUTH ERROR: tenantId and userId are mandatory for context isolation.");
+        }
+
+        const conversationId = crypto.randomUUID();
+        const conversation = {
+            id: conversationId,
+            tenantId,
+            userId,
+            title,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            status: "ACTIVE",
+            messages: [],
+            memory: [],      // Dynamic episodic memory summaries
+            files: [],       // Base64/Cloud storage attachment pointers
+            agents: [],      // Registered agent swarms for this context
+            metadata: {
+                messageCount: 0
+            }
+        };
+
+        this.conversations.set(conversationId, conversation);
+        return conversation;
+    }
+
+    // =========================================================
+    // Secure Get Conversation (With Ownership Assertion)
+    // =========================================================
+    getSecure({ conversationId, tenantId, userId }) {
+        const chat = this.conversations.get(conversationId);
+        if (!chat) return null;
+
+        // Strict Perimeter Check
+        if (chat.tenantId !== tenantId || chat.userId !== userId) {
+            console.error(`🚨 [SECURITY BREACH ATTEMPT] Tenant ${tenantId} tried accessing Session ${conversationId}`);
+            throw new Error("Access Denied: Tenant security isolation mismatch.");
+        }
+
+        return chat;
+    }
+
+    // =========================================================
+    // Secure Add Message
+    // =========================================================
+    addMessage({ conversationId, tenantId, userId, role, content }) {
+        // Enforcing tenant validation prior to mutating state
+        const chat = this.getSecure({ conversationId, tenantId, userId });
+        if (!chat) throw new Error("Conversation Not Found");
+
+        const newMessage = {
+            id: crypto.randomUUID(),
+            role, // 'user' | 'assistant' | 'system' | 'agent_name'
+            content,
+            timestamp: new Date().toISOString()
+        };
+
+        chat.messages.push(newMessage);
+        chat.updatedAt = new Date().toISOString();
+        chat.metadata.messageCount = chat.messages.length;
+
+        /**
+         * 💡 OPTIMIZATION SLIDING WINDOW: 
+         * Agar messages 100 se barh jayein, toh memory crash se bachne ke liye 
+         * hum sab se purane messages ko database/long-term-RAG mein sync karke 
+         * hot-cache se shift kar sakte hain.
+         */
+        if (chat.messages.length > 100) {
+            this._offloadToLongTermStorage(chat);
+        }
+
+        return newMessage;
+    }
+
+    // =========================================================
+    // Secure Get Messages
+    // =========================================================
+    getMessages({ conversationId, tenantId, userId }) {
+        const chat = this.getSecure({ conversationId, tenantId, userId });
+        return chat ? chat.messages : [];
+    }
+
+    // =========================================================
+    // Inject Dynamic Episodic Memory Summary
+    // =========================================================
+    updateMemory({ conversationId, tenantId, userId, memoryFact }) {
+        const chat = this.getSecure({ conversationId, tenantId, userId });
+        if (chat) {
+            chat.memory.push({
+                factId: crypto.randomUUID(),
+                fact: memoryFact,
+                timestamp: new Date().toISOString()
+            });
+            chat.updatedAt = new Date().toISOString();
+        }
+    }
+
+    // =========================================================
+    // Secure Delete Conversation
+    // =========================================================
+    deleteSecure({ conversationId, tenantId, userId }) {
+        // Ensuring user actually owns it before dropping from memory Map
+        const chat = this.getSecure({ conversationId, tenantId, userId });
+        if (!chat) return false;
+        
+        return this.conversations.delete(conversationId);
+    }
+
+    // Internal Helper: Context Offloading Engine
+    _offloadToLongTermStorage(chat) {
+        // Future Integration: Supabase / Postgres bulk insertion hook goes here
+        console.log(`📦 [CONTEXT COMPACTION] Offloading chat segments for session: ${chat.id} to cold database storage.`);
+        // Keep the latest 20 messages for prompt latency fluidity, slice the rest
+        // chat.messages = chat.messages.slice(-20);
+    }
+}
+
+module.exports = new ConversationManager();
