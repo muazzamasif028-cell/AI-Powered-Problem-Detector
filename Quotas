@@ -1,0 +1,17 @@
+_getQuota(tier){
+
+    const quotas={
+
+        prototype:100000,
+
+        mvp:1000000,
+
+        business:10000000,
+
+        enterprise:Number.MAX_SAFE_INTEGER
+
+    };
+
+    return quotas[tier] || quotas.prototype;
+
+}
