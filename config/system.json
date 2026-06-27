@@ -1,0 +1,33 @@
+async function loadModule(module) {
+
+    const start = performance.now();
+
+    try {
+
+        const instance = require(module.module);
+
+        if(instance.initialize){
+
+            await instance.initialize();
+
+        }
+
+        console.log(`✅ ${module.id} Ready (${(performance.now()-start).toFixed(2)}ms)`);
+
+        return true;
+
+    } catch(err){
+
+        console.error(`❌ ${module.id} Failed`);
+
+        if(module.critical){
+
+            process.exit(1);
+
+        }
+
+        return false;
+
+    }
+
+}
