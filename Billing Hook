@@ -1,0 +1,23 @@
+billUsage({
+
+    provider,
+
+    tokens,
+
+    tenant
+
+}){
+
+    return{
+
+        provider,
+
+        tokens,
+
+        estimatedCost:tokens*0.000002,
+
+        tenant
+
+    };
+
+}
