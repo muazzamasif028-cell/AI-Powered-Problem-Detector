@@ -1,0 +1,32 @@
+const bootSequence = [
+    {
+        id: "HAL",
+        critical: true,
+        dependencies: [],
+        module: "../hal/hardware-hal.js"
+    },
+    {
+        id: "KERNEL",
+        critical: true,
+        dependencies: ["HAL"],
+        module: "./planetary-kernel.js"
+    },
+    {
+        id: "BUS",
+        critical: true,
+        dependencies: ["KERNEL"],
+        module: "../bus/event-bus.js"
+    },
+    {
+        id: "SECURITY",
+        critical: true,
+        dependencies: ["BUS"],
+        module: "../security/security-engine.js"
+    },
+    {
+        id: "MEMORY",
+        critical: true,
+        dependencies: ["SECURITY"],
+        module: "../memory/memory-engine.js"
+    }
+];
