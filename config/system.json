@@ -1,33 +1,63 @@
+/**
+ * SUPREME Planetary OS - Core Boot Loader & Orchestrator
+ * Path: supreme/kernel/boot-loader.js
+ */
+
+const performance = require('perf_hooks').performance; // Cross-compatibility check
+
+// 1. Define the Core Boot Manifest (Phase 1 Architecture)
+const coreManifest = [
+    { id: "HARDWARE_HAL", module: "../hal/hardware-hal.js", critical: true },
+    { id: "PLANETARY_KERNEL", module: "./planetary-kernel.js", critical: true },
+    { id: "EVENT_BUS", module: "../bus/event-bus.js", critical: true },
+    { id: "SECURITY_ENGINE", module: "../security/security-engine.js", critical: true },
+    { id: "TELEMETRY_ENGINE", module: "../telemetry/telemetry-engine.js", critical: false },
+    { id: "GOVERNANCE_ENGINE", module: "../governance/governance-engine.js", critical: false },
+    { id: "MEMORY_ENGINE", module: "../memory/memory-engine.js", critical: true }
+];
+
+// 2. Your Core Module Loader Logic
 async function loadModule(module) {
-
     const start = performance.now();
-
     try {
-
         const instance = require(module.module);
-
-        if(instance.initialize){
-
+        
+        // Duck-typing initialization hook check
+        if (instance && typeof instance.initialize === 'function') {
             await instance.initialize();
-
         }
-
-        console.log(`✅ ${module.id} Ready (${(performance.now()-start).toFixed(2)}ms)`);
-
+        
+        console.log(`✅ [BOOT] ${module.id} Ready (${(performance.now() - start).toFixed(2)}ms)`);
         return true;
-
-    } catch(err){
-
-        console.error(`❌ ${module.id} Failed`);
-
-        if(module.critical){
-
+    } catch (err) {
+        console.error(`❌ [CRITICAL FAULT] ${module.id} Failed to Load! Reason: ${err.message}`);
+        if (module.critical) {
+            console.error(`🚨 [KERNEL PANIC] System halted due to critical dependency failure.`);
             process.exit(1);
-
         }
-
         return false;
+    }
+}
 
+// 3. System Orchestrator Loop
+async function bootstrapSystem() {
+    console.log("\n=======================================================");
+    console.log("🌌 [BOOT SEQUENCE] INITIALIZING PLANETARY OPERATING SYSTEM");
+    console.log("=======================================================\n");
+
+    const globalStart = performance.now();
+    let loadedCount = 0;
+
+    // Sequential boot execution to guarantee dependency order
+    for (const targetModule of coreManifest) {
+        const success = await loadModule(targetModule);
+        if (success) loadedCount++;
     }
 
+    const totalBootTime = (performance.now() - globalStart).toFixed(2);
+    console.log(`\n🚀 [SYSTEM READY] SUPREME Planetary OS is fully operational.`);
+    console.log(`📊 Telemetry Metrics: ${loadedCount}/${coreManifest.length} subsystems synchronized in ${totalBootTime}ms.\n`);
 }
+
+// Execute Kernel Space Bootstrap
+bootstrapSystem();
