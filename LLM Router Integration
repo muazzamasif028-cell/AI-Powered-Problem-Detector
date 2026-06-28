@@ -1,0 +1,30 @@
+const truthEngine = require("../verification/truth-engine");
+
+const consensus = require("../verification/consensus-engine");
+
+// GPT
+// Claude
+// Gemini
+// DeepSeek
+// Azure
+// Llama
+// Mistral
+// Qwen
+
+const verification = await truthEngine.verify({
+
+    answer : finalAnswer,
+
+    officialDocumentation : true,
+
+    trustedAPI : true,
+
+    databaseVerified : true,
+
+    internalKnowledge : true,
+
+    consensus : true
+
+});
+
+return verification;
