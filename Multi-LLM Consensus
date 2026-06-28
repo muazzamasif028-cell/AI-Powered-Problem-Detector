@@ -1,0 +1,51 @@
+class ConsensusEngine{
+
+    async compare(responses){
+
+        const answerMap = new Map();
+
+        for(const response of responses){
+
+            const key = response.answer.trim().toLowerCase();
+
+            answerMap.set(
+
+                key,
+
+                (answerMap.get(key) || 0)+1
+
+            );
+
+        }
+
+        let winner = null;
+
+        let highest = 0;
+
+        for(const [answer,count] of answerMap){
+
+            if(count > highest){
+
+                highest = count;
+
+                winner = answer;
+
+            }
+
+        }
+
+        return{
+
+            consensus : highest >= 3,
+
+            winner,
+
+            agreement : highest / responses.length
+
+        };
+
+    }
+
+}
+
+module.exports = new ConsensusEngine();
