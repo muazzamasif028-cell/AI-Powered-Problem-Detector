@@ -1,0 +1,119 @@
+/**
+ * ============================================================
+ * SUPREME Planetary OS
+ * Truth Verification Engine
+ * Path: supreme/verification/truth-engine.js
+ * ============================================================
+ */
+
+class TruthEngine {
+
+    constructor() {
+
+        this.minimumConfidence = 0.80;
+
+        this.weights = {
+
+            officialDocumentation : 1.00,
+            trustedAPI            : 0.98,
+            database              : 0.95,
+            internalKnowledge     : 0.92,
+            llmConsensus          : 0.90,
+            webSource             : 0.75,
+            community             : 0.55
+
+        };
+
+    }
+
+    /**
+     * Verify Response
+     */
+
+    async verify(result){
+
+        let score = 0;
+
+        const evidence = [];
+
+        //--------------------------------------------------
+        // Official Docs
+        //--------------------------------------------------
+
+        if(result.officialDocumentation){
+
+            score += this.weights.officialDocumentation;
+
+            evidence.push("Official Documentation");
+
+        }
+
+        //--------------------------------------------------
+        // Trusted API
+        //--------------------------------------------------
+
+        if(result.trustedAPI){
+
+            score += this.weights.trustedAPI;
+
+            evidence.push("Trusted API");
+
+        }
+
+        //--------------------------------------------------
+        // Database
+        //--------------------------------------------------
+
+        if(result.databaseVerified){
+
+            score += this.weights.database;
+
+            evidence.push("Verified Database");
+
+        }
+
+        //--------------------------------------------------
+        // Internal Knowledge
+        //--------------------------------------------------
+
+        if(result.internalKnowledge){
+
+            score += this.weights.internalKnowledge;
+
+            evidence.push("Internal Knowledge");
+
+        }
+
+        //--------------------------------------------------
+        // Multi LLM Consensus
+        //--------------------------------------------------
+
+        if(result.consensus){
+
+            score += this.weights.llmConsensus;
+
+            evidence.push("Multi LLM Consensus");
+
+        }
+
+        //--------------------------------------------------
+
+        const confidence = Math.min(score / 5,1);
+
+        return{
+
+            verified : confidence >= this.minimumConfidence,
+
+            confidence,
+
+            evidence,
+
+            answer : result.answer
+
+        };
+
+    }
+
+}
+
+module.exports = new TruthEngine();
