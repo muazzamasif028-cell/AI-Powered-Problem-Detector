@@ -1,0 +1,468 @@
+// ============================================================
+// 📁 routes/index.js — SUPREME ENTERPRISE ROUTER v11.0
+// Production-Ready — All Middleware Applied
+// ============================================================
+const express = require('express');
+const router = express.Router();
+
+// =============================================
+// 📦 IMPORT ALL ROUTE MODULES
+// =============================================
+const executeRoutes = require('./execute.routes');
+const telemetryRoutes = require('./telemetry.routes');
+const agentRoutes = require('./agent.routes');
+const llmRoutes = require('./llm.routes');
+const cloudRoutes = require('./cloud.routes');
+const analyticsRoutes = require('./analytics.routes');
+const billingRoutes = require('./billing.routes');
+const notificationRoutes = require('./notification.routes');
+const aiChatRoutes = require('./ai-chat.routes');
+const projectRoutes = require('./project.routes');
+const settingsRoutes = require('./settings.routes');
+const satelliteRoutes = require('./satellite.routes');
+const chipRoutes = require('./chip.routes');
+const detectRoutes = require('./detect.routes');
+
+// =============================================
+// 🎮 IMPORT CONTROLLERS
+// =============================================
+const authController = require('../controllers/auth.controller');
+const solveController = require('../controllers/solve.controller');
+const dashboardController = require('../controllers/dashboard.controller');
+const webhookController = require('../controllers/webhook.controller');
+
+// =============================================
+// 🛡️ IMPORT MIDDLEWARE
+// =============================================
+const authMiddleware = require('../middleware/auth.middleware');
+const rateLimiter = require('../middleware/rateLimiter.middleware');
+const auditLogger = require('../middleware/auditLogger.middleware');
+const requestId = require('../middleware/requestId.middleware');
+const apiVersion = require('../middleware/apiVersion.middleware');
+const corsMiddleware = require('../middleware/cors.middleware');
+const compressionMiddleware = require('../middleware/compression.middleware');
+const asyncHandler = require('../middleware/asyncHandler');
+
+// =============================================
+// 🛠️ IMPORT SERVICES
+// =============================================
+const healthService = require('../services/health.service');
+
+// =============================================
+// 📦 IMPORT UTILS
+// =============================================
+const { success: successResponse, serverError } = require('../utils/responseFormatter');
+const CONSTANTS = require('../config/constants');
+
+// =============================================
+// 🔧 GLOBAL MIDDLEWARE (Order Matters!)
+// =============================================
+
+// 1. Request ID — Sabse pehle (har request ko unique ID)
+router.use(requestId);
+
+// 2. CORS — Cross-origin requests handle karo
+router.use(corsMiddleware);
+
+// 3. Compression — Response size reduce karo
+router.use(compressionMiddleware);
+
+// 4. API Version — Version header parse karo
+router.use(apiVersion);
+
+// 5. Audit Logger — Har request log karo (lightweight)
+router.use(auditLogger);
+
+// =============================================
+// 🌐 PUBLIC ROUTES (No Authentication)
+// =============================================
+
+// Health Check — Uses health service
+router.get('/health', asyncHandler(async (req, res) => {
+    const health = await healthService.getQuickHealth();
+    return successResponse(res, health, 'System is healthy');
+}));
+
+// Full Health Check (Detailed)
+router.get('/health/full', asyncHandler(async (req, res) => {
+    const health = await healthService.getFullHealth();
+    return successResponse(res, health, 'Full health check completed');
+}));
+
+// Platform Info
+router.get('/info', (req, res) => {
+    return successResponse(res, {
+        platform: CONSTANTS.PLATFORM_NAME,
+        version: CONSTANTS.VERSION,
+        pillars: 30,
+        agents: CONSTANTS.AGENTS.TOTAL,
+        detectors: CONSTANTS.DETECTORS.TOTAL,
+        llm_models: CONSTANTS.LLM_MODELS,
+        languages: CONSTANTS.LANGUAGES.SUPPORTED,
+        chips_supported: CONSTANTS.HARDWARE.CHIPS_SUPPORTED,
+        satellites: CONSTANTS.SATELLITES.TOTAL,
+        apiVersion: req.apiVersion
+    }, 'Platform information retrieved');
+});
+
+// API Documentation
+router.get('/docs', (req, res) => {
+    return successResponse(res, {
+        swagger: '/api-docs',
+        postman: '/postman-collection.json',
+        openapi: '/openapi.json',
+        currentVersion: req.apiVersion,
+        supportedVersions: ['v2']
+    }, 'API documentation links');
+});
+
+// =============================================
+// 📊 SYSTEM ROUTES (Public Metrics)
+// =============================================
+
+// System Metrics
+router.get('/metrics', (req, res) => {
+    const memUsage = process.memoryUsage();
+    
+    return successResponse(res, {
+        uptime: process.uptime(),
+        uptimeFormatted: healthService.getUptime().formatted,
+        memory: {
+            heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + ' MB',
+            heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + ' MB',
+            rss: Math.round(memUsage.rss / 1024 / 1024) + ' MB',
+            external: Math.round(memUsage.external / 1024 / 1024) + ' MB'
+        },
+        node: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        pid: process.pid
+    }, 'System metrics retrieved');
+});
+
+// Runtime Status
+router.get('/runtime', (req, res) => {
+    return successResponse(res, {
+        runtime: 'ACTIVE',
+        agents: CONSTANTS.AGENTS.TOTAL,
+        llm_models: CONSTANTS.LLM_MODELS.length,
+        status: 'ONLINE',
+        mode: process.env.NODE_ENV || 'development',
+        startedAt: new Date(Date.now() - process.uptime() * 1000).toISOString(),
+        requestId: req.id
+    }, 'Runtime status retrieved');
+});
+
+// =============================================
+// 🔐 AUTH ROUTES (Rate Limited)
+// =============================================
+router.post('/auth/signin', 
+    rateLimiter.authLimiter, 
+    asyncHandler(authController.signin)
+);
+
+router.post('/auth/signup', 
+    rateLimiter.authLimiter, 
+    asyncHandler(authController.signup)
+);
+
+router.post('/auth/signout', 
+    authMiddleware.authenticate(), 
+    asyncHandler(authController.signout)
+);
+
+router.get('/auth/verify', 
+    authMiddleware.authenticate(), 
+    asyncHandler(authController.verify)
+);
+
+router.post('/auth/refresh', 
+    authMiddleware.authenticate(), 
+    asyncHandler(authController.refreshToken)
+);
+
+router.post('/auth/forgot-password', 
+    rateLimiter.authLimiter, 
+    asyncHandler(authController.forgotPassword)
+);
+
+router.post('/auth/reset-password', 
+    rateLimiter.authLimiter, 
+    asyncHandler(authController.resetPassword)
+);
+
+// =============================================
+// 🏠 DASHBOARD ROUTES (Protected)
+// =============================================
+router.get('/dashboard', 
+    authMiddleware.authenticate(), 
+    asyncHandler(dashboardController.getDashboard)
+);
+
+router.get('/dashboard/stats', 
+    authMiddleware.authenticate(), 
+    asyncHandler(dashboardController.getStats)
+);
+
+router.get('/dashboard/activity', 
+    authMiddleware.authenticate(), 
+    asyncHandler(dashboardController.getRecentActivity)
+);
+
+// =============================================
+// ⚡ EXECUTION ROUTES (Protected + Rate Limited)
+// =============================================
+router.use('/execute', 
+    authMiddleware.authenticate(), 
+    rateLimiter.apiLimiter, 
+    executeRoutes
+);
+
+// =============================================
+// 🔧 SOLVE ROUTES (Protected)
+// =============================================
+router.post('/solve', 
+    authMiddleware.authenticate(), 
+    rateLimiter.apiLimiter, 
+    asyncHandler(solveController.solve)
+);
+
+router.get('/solve/status/:id', 
+    authMiddleware.authenticate(), 
+    asyncHandler(solveController.status)
+);
+
+router.get('/solve/history', 
+    authMiddleware.authenticate(), 
+    asyncHandler(solveController.history)
+);
+
+router.delete('/solve/:id', 
+    authMiddleware.authenticate(), 
+    asyncHandler(solveController.cancel)
+);
+
+// =============================================
+// 📡 TELEMETRY ROUTES (Protected)
+// =============================================
+router.use('/telemetry', 
+    authMiddleware.authenticate(), 
+    rateLimiter.apiLimiter, 
+    telemetryRoutes
+);
+
+// =============================================
+// 🧠 AGENT ROUTES (Protected + Admin/Operator Role)
+// =============================================
+router.use('/agents', 
+    authMiddleware.authenticate(), 
+    authMiddleware.requireRole(CONSTANTS.ROLES.ADMIN, CONSTANTS.ROLES.OPERATOR), 
+    agentRoutes
+);
+
+// =============================================
+// 🤖 LLM ROUTES (Protected)
+// =============================================
+router.use('/llm', 
+    authMiddleware.authenticate(), 
+    rateLimiter.llmLimiter, 
+    llmRoutes
+);
+
+// =============================================
+// 💬 AI CHAT ROUTES (Protected)
+// =============================================
+router.use('/chat', 
+    authMiddleware.authenticate(), 
+    rateLimiter.llmLimiter, 
+    aiChatRoutes
+);
+
+// =============================================
+// ☁️ CLOUD ROUTES (Protected)
+// =============================================
+router.use('/cloud', 
+    authMiddleware.authenticate(), 
+    rateLimiter.apiLimiter, 
+    cloudRoutes
+);
+
+// =============================================
+// 📊 ANALYTICS ROUTES (Protected + Admin/Analyst Role)
+// =============================================
+router.use('/analytics', 
+    authMiddleware.authenticate(), 
+    authMiddleware.requireRole(CONSTANTS.ROLES.ADMIN, CONSTANTS.ROLES.ANALYST), 
+    analyticsRoutes
+);
+
+// =============================================
+// 💳 BILLING ROUTES (Protected + Admin/Customer Role)
+// =============================================
+router.use('/billing', 
+    authMiddleware.authenticate(), 
+    authMiddleware.requireRole(CONSTANTS.ROLES.ADMIN, CONSTANTS.ROLES.CUSTOMER), 
+    billingRoutes
+);
+
+// =============================================
+// 🔔 NOTIFICATION ROUTES (Protected)
+// =============================================
+router.use('/notifications', 
+    authMiddleware.authenticate(), 
+    notificationRoutes
+);
+
+// =============================================
+// 🛠 PROJECT ROUTES (Protected)
+// =============================================
+router.use('/projects', 
+    authMiddleware.authenticate(), 
+    rateLimiter.apiLimiter, 
+    projectRoutes
+);
+
+// =============================================
+// ⚙️ SETTINGS ROUTES (Protected)
+// =============================================
+router.use('/settings', 
+    authMiddleware.authenticate(), 
+    settingsRoutes
+);
+
+// =============================================
+// 🛰️ SATELLITE ROUTES (Protected + Admin Role Only)
+// =============================================
+router.use('/satellite', 
+    authMiddleware.authenticate(), 
+    authMiddleware.requireRole(CONSTANTS.ROLES.ADMIN), 
+    satelliteRoutes
+);
+
+// =============================================
+// 💾 CHIP DIAGNOSTIC ROUTES (Protected + Admin/Operator Role)
+// =============================================
+router.use('/chip', 
+    authMiddleware.authenticate(), 
+    authMiddleware.requireRole(CONSTANTS.ROLES.ADMIN, CONSTANTS.ROLES.OPERATOR), 
+    chipRoutes
+);
+
+// =============================================
+// 🔍 DETECTION ROUTES (Protected)
+// =============================================
+router.use('/detect', 
+    authMiddleware.authenticate(), 
+    rateLimiter.apiLimiter, 
+    detectRoutes
+);
+
+// =============================================
+// 📦 API VERSIONING SUPPORT
+// =============================================
+
+// Version 1 (Deprecated — Returns warning)
+router.use('/v1', (req, res) => {
+    return res.status(410).json({
+        success: false,
+        error: {
+            code: 'VERSION_DEPRECATED',
+            message: 'API v1 is no longer available. Please use /v2 or direct routes.',
+            migrationGuide: '/docs/migration',
+            currentVersion: req.apiVersion
+        }
+    });
+});
+
+// Version 2 (Current)
+router.get('/v2/info', (req, res) => {
+    return successResponse(res, {
+        version: 'v2',
+        platform: CONSTANTS.PLATFORM_NAME,
+        apiVersion: '2.0.0'
+    }, 'API v2 information');
+});
+
+// =============================================
+// 🔌 WEBHOOK ROUTES (External Services — No Auth)
+// =============================================
+
+// Stripe requires raw body for signature verification
+router.post('/webhooks/stripe', 
+    express.raw({ type: 'application/json' }), 
+    asyncHandler(webhookController.stripe)
+);
+
+router.post('/webhooks/github', 
+    express.json(), 
+    asyncHandler(webhookController.github)
+);
+
+router.post('/webhooks/slack', 
+    express.json(), 
+    asyncHandler(webhookController.slack)
+);
+
+// =============================================
+// 🚫 404 HANDLER — Catch all unmatched routes
+// =============================================
+router.use((req, res) => {
+    return res.status(404).json({
+        success: false,
+        error: {
+            code: 'ROUTE_NOT_FOUND',
+            message: `Cannot ${req.method} ${req.originalUrl}`,
+            timestamp: new Date().toISOString(),
+            requestId: req.id || 'N/A',
+            suggestion: 'Check /docs for available API routes'
+        }
+    });
+});
+
+// =============================================
+// ❌ GLOBAL ERROR HANDLER
+// =============================================
+router.use((err, req, res, next) => {
+    // Log error details (but not in response for production)
+    console.error(`[ERROR] ${new Date().toISOString()}`);
+    console.error(`Request ID: ${req.id}`);
+    console.error(`Route: ${req.method} ${req.originalUrl}`);
+    console.error(`Error: ${err.message}`);
+    
+    if (process.env.NODE_ENV === 'development') {
+        console.error(`Stack: ${err.stack}`);
+    }
+    
+    // Determine status code
+    const statusCode = err.statusCode || 500;
+    const errorCode = err.code || 'INTERNAL_ERROR';
+    
+    // Build error response
+    const errorResponse = {
+        success: false,
+        error: {
+            code: errorCode,
+            message: err.message || 'Internal Server Error',
+            statusCode,
+            timestamp: new Date().toISOString(),
+            requestId: req.id || 'N/A'
+        }
+    };
+    
+    // Add stack trace only in development
+    if (process.env.NODE_ENV === 'development' && err.stack) {
+        errorResponse.error.stack = err.stack;
+    }
+    
+    // Add validation errors if present
+    if (err.errors) {
+        errorResponse.error.details = err.errors;
+    }
+    
+    return res.status(statusCode).json(errorResponse);
+});
+
+// =============================================
+// 🤫 EXPORT
+// =============================================
+module.exports = router;
