@@ -1,0 +1,601 @@
+# ============================================================
+# 🏗️ kubernetes/supreme-infrastructure.yaml
+# SUPREME OS Hyperscale Infrastructure v18.0
+# ============================================================
+
+---
+# =============================================
+# 📦 NAMESPACES
+# =============================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supreme-platform
+  labels:
+    name: supreme-platform
+    environment: production
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supreme-ai
+  labels:
+    name: supreme-ai
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supreme-domain
+  labels:
+    name: supreme-domain
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supreme-cloud
+  labels:
+    name: supreme-cloud
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supreme-monitoring
+  labels:
+    name: supreme-monitoring
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supreme-security
+  labels:
+    name: supreme-security
+
+---
+# =============================================
+# 🔐 SECRETS MANAGEMENT (Vault Integration)
+# =============================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: supreme-global-secrets
+  namespace: supreme-platform
+type: Opaque
+stringData:
+  JWT_SECRET: ${JWT_SECRET}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+  REDIS_PASSWORD: ${REDIS_PASSWORD}
+  MONGODB_URI: ${MONGODB_URI}
+  EPP_PASSWORD: ${EPP_PASSWORD}
+
+---
+# =============================================
+# 🗄️ MONGODB CLUSTER (Sharded)
+# =============================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: supreme-mongodb
+  namespace: supreme-platform
+spec:
+  serviceName: supreme-mongodb
+  replicas: 5
+  selector:
+    matchLabels:
+      app: supreme-mongodb
+  template:
+    metadata:
+      labels:
+        app: supreme-mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:7.0
+        ports:
+        - containerPort: 27017
+          name: mongodb
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: supreme-global-secrets
+              key: MONGO_USERNAME
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: supreme-global-secrets
+              key: MONGO_PASSWORD
+        resources:
+          requests:
+            memory: "16Gi"
+            cpu: "4"
+          limits:
+            memory: "32Gi"
+            cpu: "8"
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+        livenessProbe:
+          exec:
+            command:
+            - mongosh
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - mongosh
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: 5
+          periodSeconds: 5
+  volumeClaimTemplates:
+  - metadata:
+      name: mongodb-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: ssd-premium
+      resources:
+        requests:
+          storage: 1Ti
+
+---
+# =============================================
+# 🔴 REDIS CLUSTER (Sentinel)
+# =============================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: supreme-redis
+  namespace: supreme-platform
+spec:
+  serviceName: supreme-redis
+  replicas: 6
+  selector:
+    matchLabels:
+      app: supreme-redis
+  template:
+    metadata:
+      labels:
+        app: supreme-redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.2-alpine
+        command: ["redis-server"]
+        args: ["--requirepass", "$(REDIS_PASSWORD)", "--maxmemory", "32gb", "--maxmemory-policy", "allkeys-lru"]
+        ports:
+        - containerPort: 6379
+          name: redis
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: supreme-global-secrets
+              key: REDIS_PASSWORD
+        resources:
+          requests:
+            memory: "16Gi"
+            cpu: "2"
+          limits:
+            memory: "32Gi"
+            cpu: "4"
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: ssd-premium
+      resources:
+        requests:
+          storage: 500Gi
+
+---
+# =============================================
+# 🧠 AI CLUSTER (GPU Nodes)
+# =============================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supreme-ai-inference
+  namespace: supreme-ai
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: supreme-ai-inference
+  template:
+    metadata:
+      labels:
+        app: supreme-ai-inference
+    spec:
+      nodeSelector:
+        accelerator: nvidia-tesla-a100
+      containers:
+      - name: ai-inference
+        image: supreme-os/ai-engine:v18.0
+        ports:
+        - containerPort: 8080
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: supreme-global-secrets
+              key: OPENAI_API_KEY
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: supreme-global-secrets
+              key: ANTHROPIC_API_KEY
+        resources:
+          requests:
+            memory: "32Gi"
+            cpu: "8"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: "64Gi"
+            cpu: "16"
+            nvidia.com/gpu: "2"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: supreme-ai-inference-hpa
+  namespace: supreme-ai
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: supreme-ai-inference
+  minReplicas: 10
+  maxReplicas: 100
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# =============================================
+# ☁️ PLATFORM CORE (Auto-scaling)
+# =============================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supreme-platform-core
+  namespace: supreme-platform
+spec:
+  replicas: 20
+  selector:
+    matchLabels:
+      app: supreme-platform-core
+  template:
+    metadata:
+      labels:
+        app: supreme-platform-core
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - supreme-platform-core
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: platform-core
+        image: supreme-os/platform-core:v18.0
+        ports:
+        - containerPort: 3000
+          name: http
+        - containerPort: 9090
+          name: metrics
+        envFrom:
+        - secretRef:
+            name: supreme-global-secrets
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: NODE_OPTIONS
+          value: "--max-old-space-size=8192"
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: supreme-platform-core-hpa
+  namespace: supreme-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: supreme-platform-core
+  minReplicas: 20
+  maxReplicas: 500
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "1000"
+
+---
+# =============================================
+# 🌐 GLOBAL LOAD BALANCER (Ingress)
+# =============================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: supreme-global-ingress
+  namespace: supreme-platform
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/limit-rps: "10000"
+    nginx.ingress.kubernetes.io/limit-rpm: "600000"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://supreme-os.com"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Platform: SUPREME-OS";
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+spec:
+  tls:
+  - hosts:
+    - supreme-os.com
+    - api.supreme-os.com
+    - "*.supreme-os.com"
+    secretName: supreme-tls-cert
+  rules:
+  - host: api.supreme-os.com
+    http:
+      paths:
+      - path: /api/
+        pathType: Prefix
+        backend:
+          service:
+            name: supreme-platform-service
+            port:
+              number: 3000
+  - host: supreme-os.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: supreme-dashboard-service
+            port:
+              number: 80
+
+---
+# =============================================
+# 📊 MONITORING (Prometheus + Grafana)
+# =============================================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: supreme-platform-monitor
+  namespace: supreme-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: supreme-platform-core
+  endpoints:
+  - port: metrics
+    interval: 15s
+    path: /metrics
+  namespaceSelector:
+    matchNames:
+    - supreme-platform
+
+---
+# =============================================
+# 🚨 ALERTING RULES
+# =============================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: supreme-alerting-rules
+  namespace: supreme-monitoring
+spec:
+  groups:
+  - name: supreme-platform
+    rules:
+    - alert: HighErrorRate
+      expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High error rate detected"
+        description: "Error rate is {{ $value }} over last 5 minutes"
+    
+    - alert: HighLatency
+      expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 2
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High latency detected (P99 > 2s)"
+    
+    - alert: PodCrashLooping
+      expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Pod is crash looping"
+    
+    - alert: HighMemoryUsage
+      expr: container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.9
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Container memory usage above 90%"
+    
+    - alert: DatabaseConnectionPool
+      expr: mongodb_connections_current / mongodb_connections_available > 0.8
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "MongoDB connection pool nearly exhausted"
+    
+    - alert: RedisMemoryHigh
+      expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Redis memory usage above 85%"
+    
+    - alert: DomainRegistrationFailure
+      expr: rate(domain_registration_failures_total[15m]) > 0.01
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Domain registration failure rate increasing"
+    
+    - alert: SSLExpiringSoon
+      expr: ssl_certificate_expiry_days < 7
+      for: 1h
+      labels:
+        severity: warning
+      annotations:
+        summary: "SSL certificate expiring in less than 7 days"
+    
+    - alert: QueueBacklog
+      expr: bull_queue_waiting_count > 1000
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Transaction queue backlog exceeds 1000"
+
+---
+# =============================================
+# 🔐 NETWORK POLICIES (Zero Trust)
+# =============================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: supreme-zero-trust
+  namespace: supreme-platform
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: supreme-monitoring
+    ports:
+    - port: 9090
+      protocol: TCP
+  - from:
+    - podSelector:
+        matchLabels:
+          app: supreme-global-ingress
+    ports:
+    - port: 3000
+      protocol: TCP
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: supreme-mongodb
+    ports:
+    - port: 27017
+      protocol: TCP
+  - to:
+    - podSelector:
+        matchLabels:
+          app: supreme-redis
+    ports:
+    - port: 6379
+      protocol: TCP
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          app: supreme-ai-inference
+    ports:
+    - port: 8080
+      protocol: TCP
