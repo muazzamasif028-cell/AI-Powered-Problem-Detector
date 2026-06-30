@@ -1,0 +1,105 @@
+// ============================================================
+// 🛣️ routes/index.js — SUPREME 10 Pillars Router v11.0
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const authMiddleware = require('../middleware/auth.middleware');
+const rateLimiter = require('../middleware/rateLimiter.middleware');
+const asyncHandler = require('../middleware/asyncHandler');
+
+// =============================================
+// 🧠 PILLAR 1: AI OS
+// =============================================
+const aiOSRoutes = require('../modules/01-ai-os/routes/ai-os.routes');
+router.use('/ai', authMiddleware.authenticate(), rateLimiter.llmLimiter, aiOSRoutes);
+
+// =============================================
+// ☁️ PILLAR 2: CLOUD OS
+// =============================================
+const cloudOSRoutes = require('../modules/02-cloud-os/routes/cloud-os.routes');
+router.use('/cloud', authMiddleware.authenticate(), rateLimiter.apiLimiter, cloudOSRoutes);
+
+// =============================================
+// 💻 PILLAR 3: DEVELOPER OS
+// =============================================
+const developerOSRoutes = require('../modules/03-developer-os/routes/developer-os.routes');
+router.use('/dev', authMiddleware.authenticate(), rateLimiter.apiLimiter, developerOSRoutes);
+
+// =============================================
+// 🌐 PILLAR 4: DOMAIN & INTERNET OS
+// =============================================
+const domainOSRoutes = require('../modules/04-domain-os/routes/domain-os.routes');
+router.use('/domain', authMiddleware.authenticate(), rateLimiter.apiLimiter, domainOSRoutes);
+
+// =============================================
+// 🏢 PILLAR 5: BUSINESS OS
+// =============================================
+const businessOSRoutes = require('../modules/05-business-os/routes/business-os.routes');
+router.use('/business', authMiddleware.authenticate(), rateLimiter.apiLimiter, businessOSRoutes);
+
+// =============================================
+// 📊 PILLAR 6: DATA OS
+// =============================================
+const dataOSRoutes = require('../modules/06-data-os/routes/data-os.routes');
+router.use('/data', authMiddleware.authenticate(), rateLimiter.apiLimiter, dataOSRoutes);
+
+// =============================================
+// 🔐 PILLAR 7: SECURITY OS
+// =============================================
+const securityOSRoutes = require('../modules/07-security-os/routes/security-os.routes');
+router.use('/security', authMiddleware.authenticate(), authMiddleware.requireRole('admin'), securityOSRoutes);
+
+// =============================================
+// 📡 PILLAR 8: COMMUNICATION OS
+// =============================================
+const communicationOSRoutes = require('../modules/08-communication-os/routes/communication-os.routes');
+router.use('/comm', authMiddleware.authenticate(), rateLimiter.apiLimiter, communicationOSRoutes);
+
+// =============================================
+// 🛒 PILLAR 9: MARKETPLACE OS
+// =============================================
+const marketplaceOSRoutes = require('../modules/09-marketplace-os/routes/marketplace-os.routes');
+router.use('/marketplace', rateLimiter.apiLimiter, marketplaceOSRoutes);
+
+// =============================================
+// 🌍 PILLAR 10: CREATOR OS
+// =============================================
+const creatorOSRoutes = require('../modules/10-creator-os/routes/creator-os.routes');
+router.use('/creator', authMiddleware.authenticate(), rateLimiter.apiLimiter, creatorOSRoutes);
+
+// =============================================
+// 🔐 AUTH ROUTES
+// =============================================
+const authRoutes = require('../modules/07-security-os/routes/auth.routes');
+router.use('/auth', authRoutes);
+
+// =============================================
+// 📊 GLOBAL ROUTES
+// =============================================
+router.get('/info', (req, res) => {
+    res.json({
+        success: true,
+        platform: 'SUPREME Planetary OS',
+        version: '11.0.0',
+        pillars: [
+            { id: 1, name: 'AI OS', icon: '🧠', status: 'ACTIVE' },
+            { id: 2, name: 'Cloud OS', icon: '☁️', status: 'ACTIVE' },
+            { id: 3, name: 'Developer OS', icon: '💻', status: 'ACTIVE' },
+            { id: 4, name: 'Domain & Internet OS', icon: '🌐', status: 'ACTIVE' },
+            { id: 5, name: 'Business OS', icon: '🏢', status: 'ACTIVE' },
+            { id: 6, name: 'Data OS', icon: '📊', status: 'ACTIVE' },
+            { id: 7, name: 'Security OS', icon: '🔐', status: 'ACTIVE' },
+            { id: 8, name: 'Communication OS', icon: '📡', status: 'ACTIVE' },
+            { id: 9, name: 'Marketplace OS', icon: '🛒', status: 'ACTIVE' },
+            { id: 10, name: 'Creator OS', icon: '🌍', status: 'ACTIVE' }
+        ],
+        agents: 280,
+        llmModels: ['GPT-4', 'Claude-3', 'Gemini', 'DeepSeek', 'Qwen'],
+        timestamp: new Date().toISOString()
+    });
+});
+
+// =============================================
+// 🤫 EXPORT
+// =============================================
+module.exports = router;
