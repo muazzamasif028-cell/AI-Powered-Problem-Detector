@@ -1,0 +1,43 @@
+// ============================================================
+// 🛣️ routes/billing/webhook.routes.js
+// SUPREME Stripe Webhook Handler v16.0
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const stripeService = require('../../services/billing/stripe.service');
+
+// Stripe requires raw body for signature verification
+router.post('/stripe', 
+    express.raw({ type: 'application/json' }),
+    async (req, res) => {
+        const signature = req.headers['stripe-signature'];
+        
+        if (!signature) {
+            return res.status(400).json({ error: 'Missing stripe-signature header' });
+        }
+
+        try {
+            const result = await stripeService.handleWebhook(signature, req.body);
+            return res.json(result);
+        } catch (error) {
+            console.error('Webhook error:', error.message);
+            return res.status(400).json({ error: error.message });
+        }
+    }
+);
+
+// PayPal webhook
+router.post('/paypal', express.json(), async (req, res) => {
+    // Verify PayPal webhook signature
+    // Process PayPal event
+    res.json({ received: true });
+});
+
+// Crypto payment webhook
+router.post('/crypto', express.json(), async (req, res) => {
+    // Verify crypto payment confirmation
+    // Process crypto payment
+    res.json({ received: true });
+});
+
+module.exports = router;
