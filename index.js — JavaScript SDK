@@ -1,0 +1,243 @@
+// ============================================================
+// 📦 packages/supreme-js/index.js
+// SUPREME JavaScript/TypeScript SDK v1.0
+// ============================================================
+
+class SupremeSDK {
+    constructor(config = {}) {
+        this.apiKey = config.apiKey || process.env.SUPREME_API_KEY;
+        this.baseURL = config.baseURL || 'https://api.supreme-os.com';
+        this.version = 'v1';
+        this.timeout = config.timeout || 30000;
+        
+        // Initialize sub-clients
+        this.domain = new DomainClient(this);
+        this.ai = new AIClient(this);
+        this.cloud = new CloudClient(this);
+        this.storage = new StorageClient(this);
+        this.auth = new AuthClient(this);
+    }
+
+    /**
+     * Make API request
+     */
+    async request(method, path, options = {}) {
+        const url = `${this.baseURL}/api/${this.version}${path}`;
+        
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`,
+            'X-SDK-Version': '1.0.0',
+            'X-Request-ID': this.generateRequestId(),
+            ...options.headers
+        };
+
+        const response = await fetch(url, {
+            method,
+            headers,
+            body: options.body ? JSON.stringify(options.body) : undefined,
+            signal: AbortSignal.timeout(this.timeout)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new SupremeError(data.error?.message || 'Request failed', response.status, data.error);
+        }
+
+        return data;
+    }
+
+    generateRequestId() {
+        return `sdk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+}
+
+// =============================================
+// 🌐 DOMAIN CLIENT
+// =============================================
+class DomainClient {
+    constructor(sdk) {
+        this.sdk = sdk;
+    }
+
+    /**
+     * Search domain availability
+     */
+    async search(domain) {
+        return this.sdk.request('POST', '/domain/search', { body: { domain } });
+    }
+
+    /**
+     * Register domain
+     */
+    async register(params) {
+        return this.sdk.request('POST', '/domain/register', { body: params });
+    }
+
+    /**
+     * Get my domains
+     */
+    async list() {
+        return this.sdk.request('GET', '/domain/my-domains');
+    }
+
+    /**
+     * Get domain details
+     */
+    async get(domainId) {
+        return this.sdk.request('GET', `/domain/${domainId}`);
+    }
+
+    /**
+     * Manage DNS records
+     */
+    async addDNSRecord(domainId, record) {
+        return this.sdk.request('POST', `/domain/${domainId}/dns`, { body: record });
+    }
+
+    /**
+     * Issue SSL certificate
+     */
+    async issueSSL(domainId) {
+        return this.sdk.request('POST', `/domain/${domainId}/ssl/issue`);
+    }
+
+    /**
+     * One-click deploy
+     */
+    async deploy(domainId) {
+        return this.sdk.request('POST', `/domain/${domainId}/deploy`);
+    }
+}
+
+// =============================================
+// 🤖 AI CLIENT
+// =============================================
+class AIClient {
+    constructor(sdk) {
+        this.sdk = sdk;
+    }
+
+    /**
+     * Chat completion
+     */
+    async chat(messages, options = {}) {
+        return this.sdk.request('POST', '/ai/chat', {
+            body: {
+                messages,
+                model: options.model || 'gpt-4',
+                temperature: options.temperature || 0.7,
+                max_tokens: options.maxTokens || 2000
+            }
+        });
+    }
+
+    /**
+     * Generate image
+     */
+    async generateImage(prompt, options = {}) {
+        return this.sdk.request('POST', '/ai/image/generate', {
+            body: { prompt, ...options }
+        });
+    }
+
+    /**
+     * Create AI agent
+     */
+    async createAgent(params) {
+        return this.sdk.request('POST', '/ai/agents', { body: params });
+    }
+
+    /**
+     * List agents
+     */
+    async listAgents() {
+        return this.sdk.request('GET', '/ai/agents');
+    }
+}
+
+// =============================================
+// ☁️ CLOUD CLIENT
+// =============================================
+class CloudClient {
+    constructor(sdk) {
+        this.sdk = sdk;
+    }
+
+    async createInstance(params) {
+        return this.sdk.request('POST', '/cloud/instances', { body: params });
+    }
+
+    async listInstances() {
+        return this.sdk.request('GET', '/cloud/instances');
+    }
+}
+
+// =============================================
+// 💾 STORAGE CLIENT
+// =============================================
+class StorageClient {
+    constructor(sdk) {
+        this.sdk = sdk;
+    }
+
+    async upload(file, path) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('path', path);
+        
+        return this.sdk.request('POST', '/cloud/storage/upload', {
+            body: formData,
+            headers: {} // Let browser set Content-Type for FormData
+        });
+    }
+
+    async listFiles(prefix = '') {
+        return this.sdk.request('GET', `/cloud/storage?prefix=${prefix}`);
+    }
+}
+
+// =============================================
+// 🔐 AUTH CLIENT
+// =============================================
+class AuthClient {
+    constructor(sdk) {
+        this.sdk = sdk;
+    }
+
+    async login(email, password) {
+        return this.sdk.request('POST', '/auth/signin', {
+            body: { email, password }
+        });
+    }
+
+    async register(params) {
+        return this.sdk.request('POST', '/auth/signup', { body: params });
+    }
+
+    async verify() {
+        return this.sdk.request('GET', '/auth/verify');
+    }
+}
+
+// =============================================
+// ❌ ERROR CLASS
+// =============================================
+class SupremeError extends Error {
+    constructor(message, statusCode, details = {}) {
+        super(message);
+        this.name = 'SupremeError';
+        this.statusCode = statusCode;
+        this.details = details;
+    }
+}
+
+// =============================================
+// 📦 EXPORT
+// =============================================
+module.exports = SupremeSDK;
+module.exports.SupremeError = SupremeError;
+
+// Default export for ESM
+module.exports.default = SupremeSDK;
