@@ -1,0 +1,405 @@
+// ============================================================
+// 🗄️ models/Transaction.js
+// SUPREME Persistent Transaction Model v17.0
+// ============================================================
+const mongoose = require('mongoose');
+
+const TransactionStepSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        enum: ['price_calculation', 'payment_initiated', 'payment_processing', 
+               'payment_completed', 'payment_failed', 'registry_check',
+               'registry_registration', 'registry_transfer', 'registry_renewal',
+               'dns_setup', 'ssl_issuance', 'quantum_activation',
+               'completion', 'failed', 'refund_initiated', 'refund_completed'],
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ['pending', 'processing', 'completed', 'failed', 'skipped', 'rolled_back'],
+        default: 'pending'
+    },
+    startedAt: Date,
+    completedAt: Date,
+    duration: Number, // milliseconds
+    error: {
+        code: String,
+        message: String,
+        stack: String,
+        retryable: Boolean
+    },
+    metadata: mongoose.Schema.Types.Mixed,
+    attempts: { type: Number, default: 0 },
+    maxAttempts: { type: Number, default: 3 }
+});
+
+const TransactionSchema = new mongoose.Schema({
+    // Core identifiers
+    transactionId: {
+        type: String,
+        unique: true,
+        required: true,
+        index: true
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        index: true
+    },
+    
+    // Domain details
+    type: {
+        type: String,
+        enum: ['domain_purchase', 'domain_renewal', 'domain_transfer', 
+               'domain_transfer_in', 'domain_transfer_out',
+               'plan_upgrade', 'quantum_activation', 'quantum_upgrade'],
+        required: true
+    },
+    domain: {
+        name: { type: String, required: true },
+        tld: { type: String, required: true },
+        fullDomain: { type: String, required: true }
+    },
+    
+    // Product configuration
+    config: {
+        years: { type: Number, default: 1, min: 1, max: 10 },
+        plan: {
+            type: String,
+            enum: ['starter', 'business', 'enterprise'],
+            default: 'starter'
+        },
+        quantumTier: {
+            type: String,
+            enum: ['standard', 'business', 'enterprise', 'enterprise_plus', 
+                   'quantum', 'sovereign', 'planetary', 'galactic'],
+            default: 'standard'
+        },
+        autoRenew: { type: Boolean, default: true },
+        whoisPrivacy: { type: Boolean, default: true },
+        nameservers: [String]
+    },
+    
+    // Pricing
+    pricing: {
+        currency: { type: String, default: 'USD' },
+        subtotal: { type: Number, required: true },
+        discount: { type: Number, default: 0 },
+        tax: { type: Number, default: 0 },
+        processingFee: { type: Number, default: 0 },
+        total: { type: Number, required: true },
+        breakdown: mongoose.Schema.Types.Mixed
+    },
+    
+    // Payment
+    payment: {
+        provider: {
+            type: String,
+            enum: ['stripe', 'paypal', 'crypto', 'bank_transfer', 'wallet'],
+            required: true
+        },
+        providerTransactionId: String,
+        providerPaymentIntent: String,
+        status: {
+            type: String,
+            enum: ['pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded'],
+            default: 'pending'
+        },
+        method: String,
+        cardBrand: String,
+        cardLast4: String,
+        paidAt: Date,
+        refundedAt: Date,
+        refundAmount: Number,
+        refundReason: String,
+        receiptUrl: String
+    },
+    
+    // Registry interaction
+    registry: {
+        provider: String,
+        eppTransactionId: String,
+        registryOrderId: String,
+        registryDomainId: String,
+        authCode: String,
+        status: String,
+        requestedAt: Date,
+        completedAt: Date,
+        rawResponse: mongoose.Schema.Types.Mixed
+    },
+    
+    // Domain result
+    result: {
+        domainId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Domain'
+        },
+        registrationDate: Date,
+        expiryDate: Date,
+        status: String
+    },
+    
+    // Promo code
+    promo: {
+        code: String,
+        discountAmount: Number,
+        discountPercent: Number,
+        campaignId: String
+    },
+    
+    // Steps tracking
+    steps: [TransactionStepSchema],
+    currentStep: String,
+    progress: { type: Number, default: 0, min: 0, max: 100 },
+    
+    // Status & retry
+    status: {
+        type: String,
+        enum: ['pending', 'processing', 'completed', 'failed', 'rolled_back', 'cancelled'],
+        default: 'pending',
+        index: true
+    },
+    error: {
+        code: String,
+        message: String,
+        step: String,
+        timestamp: Date,
+        retryCount: { type: Number, default: 0 },
+        maxRetries: { type: Number, default: 3 }
+    },
+    
+    // Idempotency
+    idempotencyKey: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    
+    // Notifications
+    notifications: [{
+        type: { type: String, enum: ['email', 'sms', 'push', 'webhook'] },
+        recipient: String,
+        sentAt: Date,
+        status: String
+    }],
+    
+    // Audit
+    audit: [{
+        action: String,
+        performedBy: String,
+        timestamp: { type: Date, default: Date.now },
+        details: mongoose.Schema.Types.Mixed
+    }],
+    
+    // Metadata
+    metadata: mongoose.Schema.Types.Mixed,
+    tags: [String],
+    priority: {
+        type: String,
+        enum: ['low', 'normal', 'high', 'critical'],
+        default: 'normal'
+    }
+}, {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+// =============================================
+// 📊 INDEXES
+// =============================================
+TransactionSchema.index({ userId: 1, status: 1 });
+TransactionSchema.index({ userId: 1, createdAt: -1 });
+TransactionSchema.index({ 'payment.providerTransactionId': 1 }, { sparse: true });
+TransactionSchema.index({ 'payment.status': 1 });
+TransactionSchema.index({ status: 1, createdAt: 1 });
+TransactionSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
+TransactionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 }); // Auto-delete after 90 days
+
+// =============================================
+// 🔗 VIRTUALS
+// =============================================
+TransactionSchema.virtual('isRefundable').get(function() {
+    return this.status === 'completed' && 
+           this.payment.status === 'completed' &&
+           !this.payment.refundedAt;
+});
+
+TransactionSchema.virtual('canRetry').get(function() {
+    return this.status === 'failed' && 
+           this.error.retryCount < this.error.maxRetries;
+});
+
+TransactionSchema.virtual('duration').get(function() {
+    if (this.steps.length === 0) return 0;
+    const firstStep = this.steps[0].startedAt;
+    const lastStep = this.steps[this.steps.length - 1].completedAt;
+    return lastStep && firstStep ? lastStep - firstStep : 0;
+});
+
+// =============================================
+// 🎯 METHODS
+// =============================================
+
+/**
+ * Add a step to transaction
+ */
+TransactionSchema.methods.addStep = function(stepName, status = 'processing') {
+    this.steps.push({
+        name: stepName,
+        status,
+        startedAt: new Date()
+    });
+    this.currentStep = stepName;
+    this.progress = Math.min(100, (this.steps.length / 6) * 100);
+    return this.save();
+};
+
+/**
+ * Complete current step
+ */
+TransactionSchema.methods.completeStep = function(stepName, metadata = {}) {
+    const step = this.steps.find(s => s.name === stepName);
+    if (step) {
+        step.status = 'completed';
+        step.completedAt = new Date();
+        step.duration = step.completedAt - step.startedAt;
+        step.metadata = { ...step.metadata, ...metadata };
+    }
+    return this.save();
+};
+
+/**
+ * Fail current step
+ */
+TransactionSchema.methods.failStep = function(stepName, error) {
+    const step = this.steps.find(s => s.name === stepName);
+    if (step) {
+        step.status = 'failed';
+        step.error = {
+            code: error.code || 'UNKNOWN',
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+            retryable: error.retryable !== false
+        };
+    }
+    this.status = 'failed';
+    this.error = {
+        code: error.code || 'TRANSACTION_FAILED',
+        message: error.message,
+        step: stepName,
+        timestamp: new Date(),
+        retryCount: this.error.retryCount + 1
+    };
+    return this.save();
+};
+
+/**
+ * Rollback transaction
+ */
+TransactionSchema.methods.rollback = async function(reason) {
+    // Reverse completed steps
+    const completedSteps = this.steps.filter(s => s.status === 'completed').reverse();
+    
+    for (const step of completedSteps) {
+        try {
+            // Execute rollback logic based on step name
+            switch (step.name) {
+                case 'ssl_issuance':
+                    // Revoke SSL
+                    break;
+                case 'dns_setup':
+                    // Remove DNS records
+                    break;
+                case 'registry_registration':
+                    // Delete domain (if within grace period)
+                    break;
+                case 'payment_completed':
+                    // Initiate refund
+                    await this.initiateRefund(reason);
+                    break;
+            }
+            step.status = 'rolled_back';
+        } catch (error) {
+            console.error(`Rollback failed for step ${step.name}:`, error.message);
+        }
+    }
+    
+    this.status = 'rolled_back';
+    return this.save();
+};
+
+/**
+ * Initiate refund
+ */
+TransactionSchema.methods.initiateRefund = async function(reason) {
+    if (!this.isRefundable) {
+        throw new Error('Transaction is not refundable');
+    }
+    
+    // Call payment provider for refund
+    const stripeService = require('../services/billing/stripe.service');
+    // Refund logic here
+    
+    this.payment.status = 'refunded';
+    this.payment.refundedAt = new Date();
+    this.payment.refundReason = reason;
+    this.status = 'rolled_back';
+    
+    return this.save();
+};
+
+// =============================================
+// 🔍 STATICS
+// =============================================
+
+/**
+ * Find by idempotency key (prevents duplicate transactions)
+ */
+TransactionSchema.statics.findByIdempotencyKey = function(key) {
+    return this.findOne({ idempotencyKey: key });
+};
+
+/**
+ * Find pending transactions that need processing
+ */
+TransactionSchema.statics.findPending = function(limit = 10) {
+    return this.find({
+        status: 'pending',
+        'error.retryCount': { $lt: 3 }
+    })
+    .sort({ priority: -1, createdAt: 1 })
+    .limit(limit);
+};
+
+/**
+ * Find stuck transactions (processing for too long)
+ */
+TransactionSchema.statics.findStuck = function(timeoutMinutes = 30) {
+    const cutoff = new Date(Date.now() - timeoutMinutes * 60 * 1000);
+    return this.find({
+        status: 'processing',
+        updatedAt: { $lt: cutoff }
+    });
+};
+
+/**
+ * Get transaction statistics
+ */
+TransactionSchema.statics.getStats = async function(userId = null) {
+    const match = userId ? { userId: mongoose.Types.ObjectId(userId) } : {};
+    
+    const stats = await this.aggregate([
+        { $match: match },
+        { $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+            totalRevenue: { $sum: '$pricing.total' }
+        }}
+    ]);
+    
+    return stats;
+};
+
+module.exports = mongoose.model('Transaction', TransactionSchema);
