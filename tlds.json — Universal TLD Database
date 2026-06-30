@@ -1,0 +1,76 @@
+{
+  "version": "14.0.0",
+  "lastUpdated": "2025-01-01",
+  "totalTLDs": 1500,
+  "categories": {
+    "generic": {
+      "name": "Generic TLDs",
+      "tlds": [
+        { "tld": "com", "name": "Commercial", "registry": "Verisign", "premium": false, "quantumEligible": true },
+        { "tld": "net", "name": "Network", "registry": "Verisign", "premium": false, "quantumEligible": true },
+        { "tld": "org", "name": "Organization", "registry": "PIR", "premium": false, "quantumEligible": true },
+        { "tld": "info", "name": "Information", "registry": "Afilias", "premium": false, "quantumEligible": true },
+        { "tld": "biz", "name": "Business", "registry": "Neustar", "premium": false, "quantumEligible": true },
+        { "tld": "name", "name": "Personal", "registry": "Verisign", "premium": false, "quantumEligible": true },
+        { "tld": "pro", "name": "Professional", "registry": "Afilias", "premium": true, "quantumEligible": true }
+      ]
+    },
+    "new_generic": {
+      "name": "New Generic TLDs",
+      "tlds": [
+        { "tld": "xyz", "name": "XYZ", "registry": "XYZ.com", "premium": false, "quantumEligible": true },
+        { "tld": "online", "name": "Online", "registry": "Radix", "premium": false, "quantumEligible": true },
+        { "tld": "site", "name": "Site", "registry": "Radix", "premium": false, "quantumEligible": true },
+        { "tld": "website", "name": "Website", "registry": "Radix", "premium": false, "quantumEligible": true },
+        { "tld": "space", "name": "Space", "registry": "Radix", "premium": false, "quantumEligible": true },
+        { "tld": "world", "name": "World", "registry": "Donuts", "premium": false, "quantumEligible": true },
+        { "tld": "live", "name": "Live", "registry": "Donuts", "premium": false, "quantumEligible": true },
+        { "tld": "digital", "name": "Digital", "registry": "Donuts", "premium": false, "quantumEligible": true },
+        { "tld": "global", "name": "Global", "registry": "Donuts", "premium": false, "quantumEligible": true },
+        { "tld": "plus", "name": "Plus", "registry": "Donuts", "premium": false, "quantumEligible": true },
+        { "tld": "vip", "name": "VIP", "registry": "Minds + Machines", "premium": true, "quantumEligible": true },
+        { "tld": "one", "name": "One", "registry": "One Registry", "premium": false, "quantumEligible": true },
+        { "tld": "systems", "name": "Systems", "registry": "Donuts", "premium": false, "quantumEligible": true },
+        { "tld": "company", "name": "Company", "registry": "Donuts", "premium": false, "quantumEligible": true },
+        { "tld": "business", "name": "Business", "registry": "Donuts", "premium": false, "quantumEligible": true },
+        { "tld": "network", "name": "Network", "registry": "Donuts", "premium": false, "quantumEligible": true },
+        { "tld": "solutions", "name": "Solutions", "registry": "Donuts", "premium": false, "quantumEligible": true },
+        { "tld": "technology", "name": "Technology", "registry": "Donuts", "premium": false, "quantumEligible": true },
+        { "tld": "cloud", "name": "Cloud", "registry": "Aruba", "premium": true, "quantumEligible": true },
+        { "tld": "dev", "name": "Developer", "registry": "Google", "premium": false, "quantumEligible": true },
+        { "tld": "app", "name": "Application", "registry": "Google", "premium": true, "quantumEligible": true },
+        { "tld": "ai", "name": "Artificial Intelligence", "registry": "Anguilla", "premium": true, "quantumEligible": true },
+        { "tld": "io", "name": "Input/Output", "registry": "British Indian Ocean Territory", "premium": true, "quantumEligible": true },
+        { "tld": "tech", "name": "Technology", "registry": "Radix", "premium": false, "quantumEligible": true },
+        { "tld": "shop", "name": "Shop", "registry": "GMO", "premium": false, "quantumEligible": true },
+        { "tld": "store", "name": "Store", "registry": "Radix", "premium": false, "quantumEligible": true },
+        { "tld": "blog", "name": "Blog", "registry": "Knock Knock WHOIS There", "premium": false, "quantumEligible": true }
+      ]
+    },
+    "country": {
+      "name": "Country Code TLDs",
+      "tlds": [
+        { "tld": "us", "country": "United States", "registry": "Neustar", "quantumEligible": true },
+        { "tld": "uk", "country": "United Kingdom", "registry": "Nominet", "quantumEligible": true },
+        { "tld": "ca", "country": "Canada", "registry": "CIRA", "quantumEligible": true },
+        { "tld": "au", "country": "Australia", "registry": "auDA", "quantumEligible": true },
+        { "tld": "de", "country": "Germany", "registry": "DENIC", "quantumEligible": true },
+        { "tld": "fr", "country": "France", "registry": "AFNIC", "quantumEligible": true },
+        { "tld": "jp", "country": "Japan", "registry": "JPRS", "quantumEligible": true },
+        { "tld": "cn", "country": "China", "registry": "CNNIC", "quantumEligible": true },
+        { "tld": "in", "country": "India", "registry": "NIXI", "quantumEligible": true },
+        { "tld": "br", "country": "Brazil", "registry": "NIC.br", "quantumEligible": true },
+        { "tld": "ru", "country": "Russia", "registry": "CC for TLD RU", "quantumEligible": true },
+        { "tld": "za", "country": "South Africa", "registry": "ZADNA", "quantumEligible": true },
+        { "tld": "pk", "country": "Pakistan", "registry": "PKNIC", "quantumEligible": true },
+        { "tld": "ae", "country": "UAE", "registry": "TRA", "quantumEligible": true },
+        { "tld": "sa", "country": "Saudi Arabia", "registry": "CITC", "quantumEligible": true },
+        { "tld": "sg", "country": "Singapore", "registry": "SGNIC", "quantumEligible": true },
+        { "tld": "nz", "country": "New Zealand", "registry": "InternetNZ", "quantumEligible": true },
+        { "tld": "ie", "country": "Ireland", "registry": "IEDR", "quantumEligible": true },
+        { "tld": "ch", "country": "Switzerland", "registry": "SWITCH", "quantumEligible": true },
+        { "tld": "nl", "country": "Netherlands", "registry": "SIDN", "quantumEligible": true }
+      ]
+    }
+  }
+}
