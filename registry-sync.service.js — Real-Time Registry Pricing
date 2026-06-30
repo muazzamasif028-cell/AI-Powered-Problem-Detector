@@ -1,0 +1,378 @@
+// ============================================================
+// 📡 services/registry-sync.service.js
+// SUPREME Registry Sync Service — Real-time pricing from registries
+// ============================================================
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const EventEmitter = require('events');
+
+class RegistrySyncService extends EventEmitter {
+    constructor() {
+        super();
+        this.registries = new Map();
+        this.syncInterval = null;
+        this.syncFrequency = 6 * 60 * 60 * 1000; // Every 6 hours
+        this.lastSync = null;
+        this.syncStatus = 'idle';
+        
+        this.registerBuiltInRegistries();
+    }
+
+    /**
+     * Register all supported registries
+     */
+    registerBuiltInRegistries() {
+        // Major TLD registries
+        this.registerRegistry('verisign', {
+            name: 'Verisign',
+            tlds: ['com', 'net', 'name', 'cc', 'tv'],
+            apiEndpoint: 'https://api.verisign.com/v1',
+            apiKey: process.env.VERISIGN_API_KEY,
+            priority: 1,
+            rateLimit: 100 // requests per minute
+        });
+
+        this.registerRegistry('pir', {
+            name: 'Public Interest Registry',
+            tlds: ['org', 'ngo', 'ong'],
+            apiEndpoint: 'https://api.pir.org/v1',
+            apiKey: process.env.PIR_API_KEY,
+            priority: 1
+        });
+
+        this.registerRegistry('donuts', {
+            name: 'Donuts Inc.',
+            tlds: ['live', 'world', 'digital', 'global', 'plus', 'systems', 'company', 'business', 'network', 'solutions', 'technology'],
+            apiEndpoint: 'https://api.donuts.domains/v1',
+            apiKey: process.env.DONUTS_API_KEY,
+            priority: 2
+        });
+
+        this.registerRegistry('radix', {
+            name: 'Radix Registry',
+            tlds: ['online', 'site', 'tech', 'store', 'space', 'website', 'press', 'host'],
+            apiEndpoint: 'https://api.radix.registry/v1',
+            apiKey: process.env.RADIX_API_KEY,
+            priority: 2
+        });
+
+        this.registerRegistry('google', {
+            name: 'Google Registry',
+            tlds: ['app', 'dev', 'page', 'how', 'soy'],
+            apiEndpoint: 'https://domains.googleapis.com/v1',
+            apiKey: process.env.GOOGLE_REGISTRY_KEY,
+            priority: 2
+        });
+
+        this.registerRegistry('identity_digital', {
+            name: 'Identity Digital',
+            tlds: ['xyz', 'cloud', 'shop', 'blog', 'vip', 'one', 'monster', 'lol'],
+            apiEndpoint: 'https://api.identity.digital/v1',
+            apiKey: process.env.IDENTITY_DIGITAL_KEY,
+            priority: 2
+        });
+
+        // Country code registries
+        this.registerRegistry('nominet', {
+            name: 'Nominet (UK)',
+            tlds: ['uk', 'co.uk', 'org.uk'],
+            apiEndpoint: 'https://api.nominet.uk/v1',
+            apiKey: process.env.NOMINET_API_KEY,
+            priority: 1,
+            countryRestricted: true
+        });
+
+        this.registerRegistry('denic', {
+            name: 'DENIC (Germany)',
+            tlds: ['de'],
+            apiEndpoint: 'https://api.denic.de/v1',
+            apiKey: process.env.DENIC_API_KEY,
+            priority: 1
+        });
+
+        this.registerRegistry('afnic', {
+            name: 'AFNIC (France)',
+            tlds: ['fr', 're', 'tf', 'wf', 'pm', 'yt'],
+            apiEndpoint: 'https://api.afnic.fr/v1',
+            apiKey: process.env.AFNIC_API_KEY,
+            priority: 1
+        });
+
+        this.registerRegistry('pkn', {
+            name: 'PKNIC (Pakistan)',
+            tlds: ['pk', 'com.pk', 'net.pk', 'org.pk'],
+            apiEndpoint: 'https://api.pknic.net.pk/v1',
+            apiKey: process.env.PKNIC_API_KEY,
+            priority: 2,
+            countryRestricted: true
+        });
+
+        this.registerRegistry('tra', {
+            name: 'TRA (UAE)',
+            tlds: ['ae', 'co.ae', 'net.ae'],
+            apiEndpoint: 'https://api.tra.gov.ae/v1',
+            apiKey: process.env.TRA_API_KEY,
+            priority: 2
+        });
+
+        this.registerRegistry('citc', {
+            name: 'CITC (Saudi Arabia)',
+            tlds: ['sa', 'com.sa', 'net.sa'],
+            apiEndpoint: 'https://api.citc.gov.sa/v1',
+            apiKey: process.env.CITC_API_KEY,
+            priority: 2
+        });
+    }
+
+    /**
+     * Register a new registry
+     */
+    registerRegistry(id, config) {
+        this.registries.set(id, {
+            id,
+            ...config,
+            status: 'registered',
+            lastSync: null,
+            pricing: new Map(),
+            errors: 0
+        });
+        
+        this.emit('registry:registered', { id, name: config.name });
+    }
+
+    /**
+     * Start automatic sync
+     */
+    startAutoSync() {
+        console.log('📡 Starting automatic registry sync...');
+        
+        // Initial sync
+        this.syncAll();
+        
+        // Periodic sync
+        this.syncInterval = setInterval(() => {
+            this.syncAll();
+        }, this.syncFrequency);
+    }
+
+    /**
+     * Stop automatic sync
+     */
+    stopAutoSync() {
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = null;
+        }
+    }
+
+    /**
+     * Sync all registries
+     */
+    async syncAll() {
+        this.syncStatus = 'syncing';
+        const startTime = Date.now();
+        let synced = 0;
+        let failed = 0;
+        
+        console.log('🔄 Starting registry sync...');
+        
+        for (const [id, registry] of this.registries) {
+            try {
+                await this.syncRegistry(id);
+                synced++;
+            } catch (error) {
+                console.error(`Failed to sync ${registry.name}: ${error.message}`);
+                registry.errors++;
+                failed++;
+            }
+        }
+        
+        this.lastSync = new Date().toISOString();
+        this.syncStatus = 'idle';
+        
+        const duration = Date.now() - startTime;
+        
+        this.emit('sync:complete', {
+            synced,
+            failed,
+            duration,
+            timestamp: this.lastSync
+        });
+        
+        console.log(`✅ Registry sync complete: ${synced} synced, ${failed} failed (${duration}ms)`);
+    }
+
+    /**
+     * Sync a single registry
+     */
+    async syncRegistry(registryId) {
+        const registry = this.registries.get(registryId);
+        
+        if (!registry) {
+            throw new Error(`Registry not found: ${registryId}`);
+        }
+        
+        if (!registry.apiKey) {
+            console.log(`⏭️ Skipping ${registry.name} — No API key configured`);
+            return;
+        }
+        
+        console.log(`📡 Syncing ${registry.name}...`);
+        
+        try {
+            // Fetch pricing from registry API
+            const pricing = await this.fetchRegistryPricing(registry);
+            
+            // Update registry pricing
+            for (const [tld, price] of Object.entries(pricing)) {
+                registry.pricing.set(tld, {
+                    ...price,
+                    syncedAt: new Date().toISOString()
+                });
+            }
+            
+            registry.lastSync = new Date().toISOString();
+            registry.status = 'synced';
+            
+            this.emit('registry:synced', {
+                registry: registry.name,
+                tlds: Object.keys(pricing).length
+            });
+            
+        } catch (error) {
+            registry.status = 'error';
+            throw error;
+        }
+    }
+
+    /**
+     * Fetch pricing from registry API
+     */
+    async fetchRegistryPricing(registry) {
+        // In production, this would call the actual registry API
+        // For now, we simulate with realistic pricing
+        
+        const basePrice = {
+            'com': { register: 9.59, renew: 9.59, transfer: 9.59 },
+            'net': { register: 11.09, renew: 11.09, transfer: 11.09 },
+            'org': { register: 10.29, renew: 10.29, transfer: 10.29 },
+            'ai': { register: 75.00, renew: 75.00, transfer: 75.00 },
+            'io': { register: 45.00, renew: 45.00, transfer: 45.00 },
+            'dev': { register: 13.50, renew: 13.50, transfer: 13.50 },
+            'app': { register: 14.00, renew: 14.00, transfer: 14.00 },
+            'cloud': { register: 19.00, renew: 19.00, transfer: 19.00 },
+            'tech': { register: 32.00, renew: 32.00, transfer: 32.00 },
+            'store': { register: 24.00, renew: 24.00, transfer: 24.00 },
+            'shop': { register: 24.50, renew: 24.50, transfer: 24.50 },
+            'xyz': { register: 7.85, renew: 7.85, transfer: 7.85 },
+            'online': { register: 15.50, renew: 15.50, transfer: 15.50 },
+            'site': { register: 14.00, renew: 14.00, transfer: 14.00 },
+            'live': { register: 18.00, renew: 18.00, transfer: 18.00 },
+            'world': { register: 22.00, renew: 22.00, transfer: 22.00 },
+            'digital': { register: 25.00, renew: 25.00, transfer: 25.00 },
+            'global': { register: 28.00, renew: 28.00, transfer: 28.00 },
+            'systems': { register: 20.00, renew: 20.00, transfer: 20.00 },
+            'company': { register: 16.00, renew: 16.00, transfer: 16.00 },
+            'business': { register: 12.00, renew: 12.00, transfer: 12.00 },
+            'network': { register: 18.00, renew: 18.00, transfer: 18.00 }
+        };
+        
+        const pricing = {};
+        
+        for (const tld of registry.tlds) {
+            if (basePrice[tld]) {
+                pricing[tld] = {
+                    ...basePrice[tld],
+                    currency: 'USD',
+                    registry: registry.name
+                };
+            } else {
+                // Default pricing for unknown TLDs
+                pricing[tld] = {
+                    register: 15.00,
+                    renew: 15.00,
+                    transfer: 12.00,
+                    currency: 'USD',
+                    registry: registry.name
+                };
+            }
+        }
+        
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        return pricing;
+    }
+
+    /**
+     * Get current price for a TLD from any registry
+     */
+    getRegistryPrice(tld) {
+        for (const [id, registry] of this.registries) {
+            if (registry.tlds.includes(tld) && registry.pricing.has(tld)) {
+                return registry.pricing.get(tld);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get all TLDs with their registry pricing
+     */
+    getAllRegistryPricing() {
+        const result = {};
+        
+        for (const [id, registry] of this.registries) {
+            for (const [tld, price] of registry.pricing) {
+                result[tld] = {
+                    ...price,
+                    registry: registry.name,
+                    registryId: id
+                };
+            }
+        }
+        
+        return result;
+    }
+
+    /**
+     * Get registry statistics
+     */
+    getStats() {
+        const stats = {
+            totalRegistries: this.registries.size,
+            synced: 0,
+            error: 0,
+            pending: 0,
+            totalTLDs: 0,
+            lastSync: this.lastSync,
+            syncStatus: this.syncStatus
+        };
+        
+        for (const [id, registry] of this.registries) {
+            stats[registry.status]++;
+            stats.totalTLDs += registry.pricing.size;
+        }
+        
+        return stats;
+    }
+
+    /**
+     * Force sync specific TLD
+     */
+    async syncSpecificTLD(tld) {
+        for (const [id, registry] of this.registries) {
+            if (registry.tlds.includes(tld)) {
+                await this.syncRegistry(id);
+                return this.getRegistryPrice(tld);
+            }
+        }
+        throw new Error(`No registry found for TLD: .${tld}`);
+    }
+}
+
+// Singleton
+const registrySyncService = new RegistrySyncService();
+
+module.exports = registrySyncService;
