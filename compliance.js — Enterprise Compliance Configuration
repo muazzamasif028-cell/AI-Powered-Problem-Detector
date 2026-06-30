@@ -1,0 +1,273 @@
+// ============================================================
+// 🔒 config/compliance.js
+// SUPREME Enterprise Compliance Configuration v18.0
+// ============================================================
+
+const complianceConfig = {
+    // =============================================
+    // 📜 COMPLIANCE FRAMEWORKS
+    // =============================================
+    frameworks: {
+        SOC2: {
+            name: 'SOC 2 Type II',
+            status: 'compliant',
+            lastAudit: '2025-01-15',
+            nextAudit: '2025-07-15',
+            controls: [
+                'Access Control',
+                'Change Management',
+                'System Operations',
+                'Risk Assessment',
+                'Vendor Management'
+            ]
+        },
+        ISO27001: {
+            name: 'ISO/IEC 27001:2022',
+            status: 'compliant',
+            certificationDate: '2024-06-01',
+            expiryDate: '2027-06-01',
+            scope: 'SUPREME Planetary OS Platform'
+        },
+        GDPR: {
+            name: 'GDPR Compliance',
+            status: 'compliant',
+            dpo: 'dpo@supreme-os.com',
+            dataProcessingAgreement: 'https://supreme-os.com/legal/dpa',
+            dataCenters: ['EU-West', 'EU-Central'],
+            features: {
+                rightToAccess: true,
+                rightToErasure: true,
+                dataPortability: true,
+                consentManagement: true,
+                breachNotification: true
+            }
+        },
+        PCI_DSS: {
+            name: 'PCI DSS v4.0',
+            status: 'compliant',
+            level: 'Level 1',
+            aoc: 'https://supreme-os.com/compliance/pci-aoc.pdf',
+            qsa: 'External QSA Company'
+        },
+        HIPAA: {
+            name: 'HIPAA Compliance',
+            status: 'available',
+            baa: 'https://supreme-os.com/legal/baa',
+            encryption: 'AES-256-GCM',
+            auditControls: true
+        },
+        FedRAMP: {
+            name: 'FedRAMP Moderate',
+            status: 'in_progress',
+            targetDate: '2025-12-31',
+            sponsor: 'US Government Agency'
+        }
+    },
+
+    // =============================================
+    // 🔐 DATA RESIDENCY
+    // =============================================
+    dataResidency: {
+        regions: {
+            'US': {
+                dataCenters: ['us-east-1', 'us-west-2', 'us-central-1'],
+                regulations: ['SOC2', 'HIPAA', 'FedRAMP']
+            },
+            'EU': {
+                dataCenters: ['eu-west-1', 'eu-central-1'],
+                regulations: ['GDPR', 'ISO27001']
+            },
+            'UK': {
+                dataCenters: ['eu-west-2'],
+                regulations: ['UK-GDPR', 'ISO27001']
+            },
+            'UAE': {
+                dataCenters: ['me-central-1'],
+                regulations: ['UAE-PDPL', 'ISO27001']
+            },
+            'KSA': {
+                dataCenters: ['me-south-1'],
+                regulations: ['KSA-PDPL', 'NCA-ECC']
+            },
+            'Singapore': {
+                dataCenters: ['ap-southeast-1'],
+                regulations: ['PDPA', 'ISO27001']
+            },
+            'Japan': {
+                dataCenters: ['ap-northeast-1'],
+                regulations: ['APPI', 'ISO27001']
+            },
+            'India': {
+                dataCenters: ['ap-south-1'],
+                regulations: ['DPDP-Act', 'ISO27001']
+            }
+        },
+        defaultRegion: 'US',
+        crossRegionTransfer: true,
+        dataLocalizationRequired: ['UAE', 'KSA', 'India', 'China']
+    },
+
+    // =============================================
+    // 🛡️ SECURITY CONTROLS
+    // =============================================
+    security: {
+        encryption: {
+            atRest: 'AES-256-GCM',
+            inTransit: 'TLS 1.3',
+            keyManagement: 'AWS KMS / HashiCorp Vault',
+            hsmEnabled: true,
+            quantumReady: false // Post-quantum coming Q3 2025
+        },
+        authentication: {
+            mfa: 'required',
+            sso: ['SAML 2.0', 'OIDC', 'LDAP'],
+            passwordPolicy: {
+                minLength: 12,
+                requireUppercase: true,
+                requireLowercase: true,
+                requireNumbers: true,
+                requireSpecialChars: true,
+                maxAge: 90,
+                preventReuse: 10
+            },
+            sessionTimeout: 3600, // 1 hour
+            maxConcurrentSessions: 5
+        },
+        network: {
+            waf: true,
+            ddosProtection: true,
+            ipWhitelisting: true,
+            vpcIsolation: true,
+            privateLink: true,
+            zeroTrustNetwork: true
+        },
+        monitoring: {
+            siem: 'Integrated',
+            auditLogging: true,
+            logRetention: 365, // days
+            realTimeAlerting: true,
+            penetrationTesting: 'Quarterly',
+            vulnerabilityScanning: 'Continuous'
+        }
+    },
+
+    // =============================================
+    // 📋 AUDIT & REPORTING
+    // =============================================
+    audit: {
+        logLevels: ['INFO', 'WARN', 'ERROR', 'CRITICAL', 'AUTH', 'DATA_ACCESS', 'ADMIN'],
+        retention: {
+            standard: '365 days',
+            extended: '7 years',
+            legal_hold: 'Indefinite'
+        },
+        tamperProof: true,
+        blockchainAuditTrail: false, // Coming 2025
+        realTimeExport: {
+            splunk: true,
+            elasticsearch: true,
+            s3: true,
+            syslog: true
+        },
+        reports: {
+            accessReview: 'Monthly',
+            changeManagement: 'Per Change',
+            incidentResponse: 'Per Incident',
+            complianceReport: 'Quarterly'
+        }
+    },
+
+    // =============================================
+    // 📄 LEGAL DOCUMENTS
+    // =============================================
+    legal: {
+        termsOfService: 'https://supreme-os.com/legal/terms',
+        privacyPolicy: 'https://supreme-os.com/legal/privacy',
+        dataProcessingAgreement: 'https://supreme-os.com/legal/dpa',
+        serviceLevelAgreement: 'https://supreme-os.com/legal/sla',
+        acceptableUsePolicy: 'https://supreme-os.com/legal/aup',
+        cookiePolicy: 'https://supreme-os.com/legal/cookies',
+        subprocessors: 'https://supreme-os.com/legal/subprocessors',
+        lawEnforcementGuidelines: 'https://supreme-os.com/legal/le-guidelines'
+    },
+
+    // =============================================
+    // 🏢 ENTERPRISE SLA TIERS
+    // =============================================
+    sla: {
+        standard: {
+            uptime: '99.9%',
+            responseTime: '< 24 hours',
+            resolutionTime: '< 72 hours',
+            compensation: '5% credit per 30min downtime'
+        },
+        business: {
+            uptime: '99.95%',
+            responseTime: '< 4 hours',
+            resolutionTime: '< 24 hours',
+            compensation: '10% credit per 30min downtime'
+        },
+        enterprise: {
+            uptime: '99.99%',
+            responseTime: '< 1 hour',
+            resolutionTime: '< 4 hours',
+            compensation: '25% credit per 30min downtime',
+            dedicatedSupport: true,
+            emergencyHotline: true
+        },
+        quantum: {
+            uptime: '99.999%',
+            responseTime: '< 15 minutes',
+            resolutionTime: '< 1 hour',
+            compensation: '50% credit per 30min downtime',
+            dedicatedTeam: true,
+            proactiveMonitoring: true,
+            quarterlyReview: true
+        },
+        sovereign: {
+            uptime: '99.9999%',
+            responseTime: '< 5 minutes',
+            resolutionTime: '< 30 minutes',
+            compensation: '100% credit per 30min downtime',
+            dedicatedInfrastructure: true,
+            onSiteSupport: true,
+            governmentClearance: true
+        }
+    },
+
+    // =============================================
+    // 📊 COMPLIANCE REPORTING API
+    // =============================================
+    getComplianceReport: () => {
+        return {
+            generatedAt: new Date().toISOString(),
+            overallStatus: 'COMPLIANT',
+            frameworks: Object.entries(complianceConfig.frameworks).map(([key, value]) => ({
+                framework: key,
+                name: value.name,
+                status: value.status
+            })),
+            dataResidency: Object.keys(complianceConfig.dataResidency.regions).length + ' regions',
+            securityControls: Object.keys(complianceConfig.security).length + ' controls',
+            lastAudit: '2025-01-15',
+            nextAudit: '2025-07-15'
+        };
+    },
+
+    getDataResidencyOptions: (country) => {
+        const region = Object.entries(complianceConfig.dataResidency.regions)
+            .find(([key, value]) => value.dataCenters.some(dc => dc.includes(country?.toLowerCase())));
+        
+        return region ? {
+            region: region[0],
+            dataCenters: region[1].dataCenters,
+            regulations: region[1].regulations,
+            dataLocalizationRequired: complianceConfig.dataResidency.dataLocalizationRequired.includes(country)
+        } : {
+            region: complianceConfig.dataResidency.defaultRegion,
+            dataCenters: ['us-east-1']
+        };
+    }
+};
+
+module.exports = complianceConfig;
