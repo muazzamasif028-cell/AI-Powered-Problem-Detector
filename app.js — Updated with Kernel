@@ -1,0 +1,47 @@
+// ============================================================
+// 🚀 app.js — SUPREME Planetary OS with Kernel v13.0
+// ============================================================
+const kernel = require('./kernel');
+const express = require('express');
+const helmet = require('helmet');
+
+// Initialize kernel first
+kernel.initialize().then(() => {
+    console.log('🌌 SUPREME Planetary OS booting...');
+    
+    const app = express();
+    
+    // Security
+    app.use(helmet());
+    app.use(express.json());
+    
+    // Kernel middleware
+    app.use((req, res, next) => {
+        req.kernel = kernel;
+        req.identity = kernel.getEngine('identity');
+        req.events = kernel.getEngine('event');
+        next();
+    });
+    
+    // Health check (uses kernel)
+    app.get('/health', (req, res) => {
+        res.json(kernel.getHealth());
+    });
+    
+    // Load modules
+    const routes = require('./routes/index');
+    app.use('/api', routes);
+    
+    // Start server
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`🌍 SUPREME Planetary OS running on port ${PORT}`);
+        console.log(`🔮 Kernel: ${kernel.status}`);
+        console.log(`📊 Engines: ${kernel.engines.size} loaded`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    });
+    
+}).catch(error => {
+    console.error('❌ Kernel initialization failed:', error);
+    process.exit(1);
+});
