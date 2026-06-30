@@ -1,0 +1,511 @@
+// ============================================================
+// 📡 providers/registry/epp-client.js
+// SUPREME EPP (Extensible Provisioning Protocol) Client
+// RFC 5730-5734 compliant — Used by Verisign, PIR, Donuts, etc.
+// ============================================================
+const net = require('net');
+const tls = require('tls');
+const xml2js = require('xml2js');
+const crypto = require('crypto');
+
+class EPPClient {
+    constructor(config) {
+        this.config = {
+            host: config.host,
+            port: config.port || 700,
+            tls: config.tls !== false,
+            username: config.username,
+            password: config.password,
+            clientId: config.clientId,
+            timeout: config.timeout || 30000,
+            ...config
+        };
+        
+        this.socket = null;
+        this.connected = false;
+        this.pendingRequests = new Map();
+        this.requestId = 0;
+        this.buffer = '';
+    }
+
+    /**
+     * Connect to EPP server
+     */
+    async connect() {
+        return new Promise((resolve, reject) => {
+            const options = {
+                host: this.config.host,
+                port: this.config.port,
+                rejectUnauthorized: true,
+                servername: this.config.host
+            };
+
+            const connectFn = this.config.tls ? tls.connect : net.connect;
+            
+            this.socket = connectFn(options, () => {
+                this.connected = true;
+                console.log(`📡 EPP Connected to ${this.config.host}:${this.config.port}`);
+                
+                // Send greeting is handled automatically
+                this.onData = this.handleData.bind(this);
+                this.socket.on('data', this.onData);
+                
+                // Login
+                this.login().then(resolve).catch(reject);
+            });
+
+            this.socket.on('error', (err) => {
+                this.connected = false;
+                console.error(`EPP Connection error: ${err.message}`);
+                reject(err);
+            });
+
+            this.socket.on('close', () => {
+                this.connected = false;
+                console.log('EPP Connection closed');
+            });
+
+            setTimeout(() => {
+                if (!this.connected) {
+                    reject(new Error('EPP Connection timeout'));
+                }
+            }, this.config.timeout);
+        });
+    }
+
+    /**
+     * Login to EPP server
+     */
+    async login() {
+        const loginXML = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <login>
+      <clID>${this.config.username}</clID>
+      <pw>${this.config.password}</pw>
+      <options>
+        <version>1.0</version>
+        <lang>en</lang>
+      </options>
+      <svcs>
+        <objURI>urn:ietf:params:xml:ns:domain-1.0</objURI>
+        <objURI>urn:ietf:params:xml:ns:host-1.0</objURI>
+        <objURI>urn:ietf:params:xml:ns:contact-1.0</objURI>
+      </svcs>
+    </login>
+    <clTRID>${this.generateTRID()}</clTRID>
+  </command>
+</epp>`;
+
+        return this.sendCommand(loginXML);
+    }
+
+    /**
+     * Check domain availability
+     */
+    async checkDomain(domain, tld) {
+        const fullDomain = `${domain}.${tld}`;
+        
+        const checkXML = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <check>
+      <domain:check xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>${fullDomain}</domain:name>
+      </domain:check>
+    </check>
+    <clTRID>${this.generateTRID()}</clTRID>
+  </command>
+</epp>`;
+
+        const response = await this.sendCommand(checkXML);
+        return this.parseCheckResponse(response);
+    }
+
+    /**
+     * Create/Register domain
+     */
+    async createDomain(params) {
+        const { domain, tld, registrant, years = 1, nameservers = [] } = params;
+        const fullDomain = `${domain}.${tld}`;
+        const period = `${years}y`;
+        
+        const nsXML = nameservers.map(ns => 
+            `<domain:hostObj>${ns}</domain:hostObj>`
+        ).join('\n');
+
+        const createXML = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <create>
+      <domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>${fullDomain}</domain:name>
+        <domain:period unit="y">${years}</domain:period>
+        ${nsXML}
+        <domain:registrant>${registrant}</domain:registrant>
+        <domain:contact type="admin">${registrant}</domain:contact>
+        <domain:contact type="tech">${registrant}</domain:contact>
+        <domain:contact type="billing">${registrant}</domain:contact>
+        <domain:authInfo>
+          <domain:pw>${this.generateAuthCode()}</domain:pw>
+        </domain:authInfo>
+      </domain:create>
+    </create>
+    <clTRID>${this.generateTRID()}</clTRID>
+  </command>
+</epp>`;
+
+        const response = await this.sendCommand(createXML);
+        return this.parseCreateResponse(response);
+    }
+
+    /**
+     * Transfer domain
+     */
+    async transferDomain(params) {
+        const { domain, tld, authCode, years = 1 } = params;
+        const fullDomain = `${domain}.${tld}`;
+
+        const transferXML = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <transfer op="request">
+      <domain:transfer xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>${fullDomain}</domain:name>
+        <domain:period unit="y">${years}</domain:period>
+        <domain:authInfo>
+          <domain:pw>${authCode}</domain:pw>
+        </domain:authInfo>
+      </domain:transfer>
+    </transfer>
+    <clTRID>${this.generateTRID()}</clTRID>
+  </command>
+</epp>`;
+
+        const response = await this.sendCommand(transferXML);
+        return this.parseTransferResponse(response);
+    }
+
+    /**
+     * Renew domain
+     */
+    async renewDomain(params) {
+        const { domain, tld, years = 1, currentExpiry } = params;
+        const fullDomain = `${domain}.${tld}`;
+
+        const renewXML = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <renew>
+      <domain:renew xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>${fullDomain}</domain:name>
+        <domain:curExpDate>${currentExpiry}</domain:curExpDate>
+        <domain:period unit="y">${years}</domain:period>
+      </domain:renew>
+    </renew>
+    <clTRID>${this.generateTRID()}</clTRID>
+  </command>
+</epp>`;
+
+        const response = await this.sendCommand(renewXML);
+        return this.parseRenewResponse(response);
+    }
+
+    /**
+     * Delete domain
+     */
+    async deleteDomain(domain, tld) {
+        const fullDomain = `${domain}.${tld}`;
+
+        const deleteXML = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <delete>
+      <domain:delete xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>${fullDomain}</domain:name>
+      </domain:delete>
+    </delete>
+    <clTRID>${this.generateTRID()}</clTRID>
+  </command>
+</epp>`;
+
+        const response = await this.sendCommand(deleteXML);
+        return this.parseDeleteResponse(response);
+    }
+
+    /**
+     * Get domain info
+     */
+    async getDomainInfo(domain, tld) {
+        const fullDomain = `${domain}.${tld}`;
+
+        const infoXML = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <info>
+      <domain:info xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>${fullDomain}</domain:name>
+      </domain:info>
+    </info>
+    <clTRID>${this.generateTRID()}</clTRID>
+  </command>
+</epp>`;
+
+        const response = await this.sendCommand(infoXML);
+        return this.parseInfoResponse(response);
+    }
+
+    /**
+     * Update nameservers
+     */
+    async updateNameservers(domain, tld, nameservers) {
+        const fullDomain = `${domain}.${tld}`;
+
+        const nsXML = nameservers.map(ns => 
+            `<domain:hostObj>${ns}</domain:hostObj>`
+        ).join('\n');
+
+        const updateXML = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <update>
+      <domain:update xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>${fullDomain}</domain:name>
+        <domain:ns>
+          ${nsXML}
+        </domain:ns>
+      </domain:update>
+    </update>
+    <clTRID>${this.generateTRID()}</clTRID>
+  </command>
+</epp>`;
+
+        const response = await this.sendCommand(updateXML);
+        return this.parseUpdateResponse(response);
+    }
+
+    /**
+     * Send command and get response
+     */
+    async sendCommand(xml) {
+        if (!this.connected) {
+            throw new Error('EPP not connected');
+        }
+
+        const trid = this.generateTRID();
+        
+        // Add EPP header with length
+        const xmlBuffer = Buffer.from(xml, 'utf-8');
+        const header = Buffer.alloc(4);
+        header.writeInt32BE(xmlBuffer.length + 4, 0);
+        const message = Buffer.concat([header, xmlBuffer]);
+
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                this.pendingRequests.delete(trid);
+                reject(new Error('EPP Command timeout'));
+            }, this.config.timeout);
+
+            this.pendingRequests.set(trid, { resolve, reject, timeout });
+            
+            this.socket.write(message);
+        });
+    }
+
+    /**
+     * Handle incoming data
+     */
+    handleData(data) {
+        this.buffer += data.toString('utf-8');
+        
+        // Check if we have a complete message (first 4 bytes = length)
+        while (this.buffer.length >= 4) {
+            const length = this.buffer.readInt32BE(0);
+            
+            if (this.buffer.length >= length) {
+                const message = this.buffer.substring(4, length);
+                this.buffer = this.buffer.substring(length);
+                this.processResponse(message);
+            } else {
+                break;
+            }
+        }
+    }
+
+    /**
+     * Process EPP response
+     */
+    async processResponse(xml) {
+        try {
+            const parser = new xml2js.Parser({ explicitArray: false });
+            const result = await parser.parseStringPromise(xml);
+            
+            const epp = result.epp;
+            const response = epp.response;
+            const trid = epp.response?.trID?.clTRID;
+            
+            if (this.pendingRequests.has(trid)) {
+                const pending = this.pendingRequests.get(trid);
+                clearTimeout(pending.timeout);
+                this.pendingRequests.delete(trid);
+                
+                // Check result code
+                const resultCode = parseInt(response.result?.$.code);
+                
+                if (resultCode >= 1000 && resultCode < 2000) {
+                    pending.resolve(response);
+                } else {
+                    const errorMsg = response.result?.msg || 'EPP Error';
+                    pending.reject(new Error(`EPP Error ${resultCode}: ${errorMsg}`));
+                }
+            }
+        } catch (error) {
+            console.error('EPP Parse error:', error.message);
+        }
+    }
+
+    /**
+     * Parse check response
+     */
+    parseCheckResponse(response) {
+        const checkData = response.resData?.['domain:chkData'];
+        const cd = checkData?.cd;
+        
+        return {
+            available: cd?.$.avail === '1' || cd?.$.avail === 'true',
+            domain: cd?.name,
+            reason: cd?.reason || null
+        };
+    }
+
+    /**
+     * Parse create response
+     */
+    parseCreateResponse(response) {
+        const createData = response.resData?.['domain:creData'];
+        
+        return {
+            success: true,
+            domain: createData?.name,
+            createdAt: createData?.crDate,
+            expiryDate: createData?.exDate
+        };
+    }
+
+    /**
+     * Parse transfer response
+     */
+    parseTransferResponse(response) {
+        const transferData = response.resData?.['domain:trnData'];
+        
+        return {
+            success: true,
+            domain: transferData?.name,
+            status: transferData?.trStatus,
+            requestedAt: transferData?.reDate,
+            actionAt: transferData?.acDate
+        };
+    }
+
+    /**
+     * Parse renew response
+     */
+    parseRenewResponse(response) {
+        const renewData = response.resData?.['domain:renData'];
+        
+        return {
+            success: true,
+            domain: renewData?.name,
+            newExpiryDate: renewData?.exDate
+        };
+    }
+
+    /**
+     * Parse delete response
+     */
+    parseDeleteResponse(response) {
+        return {
+            success: true,
+            message: 'Domain deleted successfully'
+        };
+    }
+
+    /**
+     * Parse info response
+     */
+    parseInfoResponse(response) {
+        const infoData = response.resData?.['domain:infData'];
+        
+        return {
+            domain: infoData?.name,
+            roid: infoData?.roid,
+            statuses: Array.isArray(infoData?.status) 
+                ? infoData.status.map(s => ({ status: s.$.s, message: s._ }))
+                : [infoData?.status].filter(Boolean).map(s => ({ status: s.$.s, message: s._ })),
+            registrant: infoData?.registrant,
+            contacts: {
+                admin: infoData?.contact?.find?.(c => c.$.type === 'admin')?.$?.id,
+                tech: infoData?.contact?.find?.(c => c.$.type === 'tech')?.$?.id,
+                billing: infoData?.contact?.find?.(c => c.$.type === 'billing')?.$?.id
+            },
+            nameservers: Array.isArray(infoData?.ns?.hostObj) 
+                ? infoData.ns.hostObj 
+                : [infoData?.ns?.hostObj].filter(Boolean),
+            createdAt: infoData?.crDate,
+            updatedAt: infoData?.upDate,
+            expiryDate: infoData?.exDate,
+            authCode: infoData?.authInfo?.pw
+        };
+    }
+
+    /**
+     * Parse update response
+     */
+    parseUpdateResponse(response) {
+        return {
+            success: true,
+            message: 'Nameservers updated successfully'
+        };
+    }
+
+    /**
+     * Generate transaction ID
+     */
+    generateTRID() {
+        this.requestId++;
+        return `SUPREME-${Date.now()}-${this.requestId}`;
+    }
+
+    /**
+     * Generate auth code
+     */
+    generateAuthCode() {
+        return crypto.randomBytes(8).toString('hex').toUpperCase();
+    }
+
+    /**
+     * Logout and close
+     */
+    async logout() {
+        if (!this.connected) return;
+
+        const logoutXML = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <logout/>
+    <clTRID>${this.generateTRID()}</clTRID>
+  </command>
+</epp>`;
+
+        try {
+            await this.sendCommand(logoutXML);
+        } catch (error) {
+            // Ignore logout errors
+        }
+
+        this.socket?.end();
+        this.connected = false;
+    }
+}
+
+module.exports = EPPClient;
