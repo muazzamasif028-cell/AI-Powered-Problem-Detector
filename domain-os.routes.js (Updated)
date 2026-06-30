@@ -1,0 +1,79 @@
+// ============================================================
+// 🛣️ routes/domain-os.routes.js
+// SUPREME Enterprise Quantum Domain Routes v14.0
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const asyncHandler = require('../../../middleware/asyncHandler');
+const domainController = require('../controllers/domain.controller');
+const dnsController = require('../controllers/dns.controller');
+const sslController = require('../controllers/ssl.controller');
+const quantumController = require('../controllers/quantum.controller');
+const authMiddleware = require('../../../middleware/auth.middleware');
+const rateLimiter = require('../../../middleware/rateLimiter.middleware');
+
+// =============================================
+// 🌍 TLD ENGINE
+// =============================================
+router.get('/tlds', asyncHandler(domainController.getAllTLDs));
+router.get('/tlds/popular', asyncHandler(domainController.getPopularTLDs));
+router.get('/tlds/country', asyncHandler(domainController.getCountryTLDs));
+router.get('/tlds/search', asyncHandler(domainController.searchTLDs));
+router.get('/tlds/:tld', asyncHandler(domainController.getTLDDetails));
+router.post('/tlds/sync', authMiddleware.authenticate(), authMiddleware.requireRole('admin'), asyncHandler(domainController.syncTLDs));
+
+// =============================================
+// 💰 PRICING
+// =============================================
+router.get('/pricing/tiers', asyncHandler(domainController.getPricingTiers));
+router.get('/pricing/compare', asyncHandler(domainController.compareTiers));
+router.post('/pricing/calculate', asyncHandler(domainController.calculatePrice));
+router.post('/pricing/enterprise-quote', authMiddleware.authenticate(), asyncHandler(domainController.getEnterpriseQuote));
+
+// =============================================
+// 🔍 DOMAIN SEARCH
+// =============================================
+router.post('/search', rateLimiter.apiLimiter, asyncHandler(domainController.search));
+router.post('/ai-suggest', rateLimiter.apiLimiter, asyncHandler(domainController.aiSuggest));
+
+// =============================================
+// 🌐 DOMAIN REGISTRATION
+// =============================================
+router.post('/register', authMiddleware.authenticate(), rateLimiter.paymentLimiter, asyncHandler(domainController.register));
+router.post('/transfer', authMiddleware.authenticate(), rateLimiter.paymentLimiter, asyncHandler(domainController.transfer));
+router.get('/my-domains', authMiddleware.authenticate(), asyncHandler(domainController.getMyDomains));
+router.get('/:id', authMiddleware.authenticate(), asyncHandler(domainController.getDomainDetails));
+router.post('/:id/renew', authMiddleware.authenticate(), rateLimiter.paymentLimiter, asyncHandler(domainController.renew));
+router.delete('/:id', authMiddleware.authenticate(), asyncHandler(domainController.delete));
+
+// =============================================
+// 🧬 QUANTUM LAYERS
+// =============================================
+router.get('/:id/quantum', authMiddleware.authenticate(), asyncHandler(quantumController.getQuantumStatus));
+router.post('/:id/quantum/activate', authMiddleware.authenticate(), rateLimiter.paymentLimiter, asyncHandler(quantumController.activateQuantum));
+router.post('/:id/quantum/upgrade', authMiddleware.authenticate(), rateLimiter.paymentLimiter, asyncHandler(quantumController.upgradeQuantum));
+router.delete('/:id/quantum', authMiddleware.authenticate(), asyncHandler(quantumController.deactivateQuantum));
+router.get('/:id/quantum/metrics', authMiddleware.authenticate(), asyncHandler(quantumController.getQuantumMetrics));
+
+// =============================================
+// 📋 DNS MANAGEMENT
+// =============================================
+router.get('/:id/dns', authMiddleware.authenticate(), asyncHandler(dnsController.getRecords));
+router.post('/:id/dns', authMiddleware.authenticate(), asyncHandler(dnsController.addRecord));
+router.put('/:id/dns/:recordId', authMiddleware.authenticate(), asyncHandler(dnsController.updateRecord));
+router.delete('/:id/dns/:recordId', authMiddleware.authenticate(), asyncHandler(dnsController.deleteRecord));
+
+// =============================================
+// 🔒 SSL
+// =============================================
+router.get('/:id/ssl', authMiddleware.authenticate(), asyncHandler(sslController.getStatus));
+router.post('/:id/ssl/issue', authMiddleware.authenticate(), asyncHandler(sslController.issue));
+router.post('/:id/ssl/renew', authMiddleware.authenticate(), asyncHandler(sslController.renew));
+
+// =============================================
+// 🚀 ONE-CLICK DEPLOY
+// =============================================
+router.post('/:id/deploy', authMiddleware.authenticate(), asyncHandler(domainController.oneClickDeploy));
+router.get('/:id/deploy-status', authMiddleware.authenticate(), asyncHandler(domainController.deployStatus));
+
+module.exports = router;
