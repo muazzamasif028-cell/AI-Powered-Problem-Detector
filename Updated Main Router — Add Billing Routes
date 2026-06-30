@@ -1,0 +1,9 @@
+// In routes/index.js
+const billingWebhookRoutes = require('../modules/04-domain-os/routes/billing/webhook.routes');
+const billingRoutes = require('../modules/12-billing-os/routes/billing.routes');
+
+// Webhook routes (no auth — external services call these)
+router.use('/webhooks', billingWebhookRoutes);
+
+// Billing routes (authenticated)
+router.use('/billing', authMiddleware.authenticate(), billingRoutes);
