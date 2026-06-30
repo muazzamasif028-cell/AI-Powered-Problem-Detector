@@ -1,0 +1,185 @@
+{
+  "version": "14.0.0",
+  "lastUpdated": "2025-01-01",
+  "currency": "USD",
+  
+  "tld_pricing": {
+    "premium_global": {
+      "com": {
+        "register": 12.99, "renew": 12.99, "transfer": 11.99,
+        "registry_cost": 9.59, "margin": 3.40,
+        "tier": "premium", "popularity": 100
+      },
+      "net": {
+        "register": 14.99, "renew": 14.99, "transfer": 13.99,
+        "registry_cost": 11.09, "margin": 3.90,
+        "tier": "premium", "popularity": 75
+      },
+      "org": {
+        "register": 13.99, "renew": 13.99, "transfer": 12.99,
+        "registry_cost": 10.29, "margin": 3.70,
+        "tier": "premium", "popularity": 65
+      }
+    },
+    
+    "standard_global": {
+      "xyz": {
+        "register": 9.99, "renew": 11.99, "transfer": 9.99,
+        "registry_cost": 7.85, "margin": 2.14,
+        "tier": "standard", "popularity": 45
+      },
+      "online": {
+        "register": 19.99, "renew": 24.99, "transfer": 19.99,
+        "registry_cost": 15.50, "margin": 4.49,
+        "tier": "standard", "popularity": 35
+      },
+      "site": {
+        "register": 17.99, "renew": 19.99, "transfer": 17.99,
+        "registry_cost": 14.00, "margin": 3.99,
+        "tier": "standard", "popularity": 30
+      },
+      "store": {
+        "register": 29.99, "renew": 34.99, "transfer": 29.99,
+        "registry_cost": 24.00, "margin": 5.99,
+        "tier": "standard", "popularity": 28
+      },
+      "shop": {
+        "register": 29.99, "renew": 34.99, "transfer": 29.99,
+        "registry_cost": 24.50, "margin": 5.49,
+        "tier": "standard", "popularity": 27
+      },
+      "tech": {
+        "register": 39.99, "renew": 44.99, "transfer": 39.99,
+        "registry_cost": 32.00, "margin": 7.99,
+        "tier": "standard", "popularity": 30
+      },
+      "cloud": {
+        "register": 24.99, "renew": 29.99, "transfer": 24.99,
+        "registry_cost": 19.00, "margin": 5.99,
+        "tier": "premium_tech", "popularity": 40
+      },
+      "app": {
+        "register": 18.99, "renew": 18.99, "transfer": 17.99,
+        "registry_cost": 14.00, "margin": 4.99,
+        "tier": "premium_tech", "popularity": 38
+      },
+      "dev": {
+        "register": 18.99, "renew": 18.99, "transfer": 17.99,
+        "registry_cost": 13.50, "margin": 5.49,
+        "tier": "premium_tech", "popularity": 36
+      },
+      "io": {
+        "register": 59.99, "renew": 59.99, "transfer": 54.99,
+        "registry_cost": 45.00, "margin": 14.99,
+        "tier": "premium_tech", "popularity": 55
+      },
+      "ai": {
+        "register": 99.99, "renew": 99.99, "transfer": 94.99,
+        "registry_cost": 75.00, "margin": 24.99,
+        "tier": "premium_tech", "popularity": 60
+      }
+    },
+    
+    "country": {
+      "pk": { "register": 19.99, "renew": 24.99, "transfer": 19.99, "registry_cost": 15.00 },
+      "us": { "register": 9.99, "renew": 12.99, "transfer": 9.99, "registry_cost": 7.50 },
+      "uk": { "register": 8.99, "renew": 10.99, "transfer": 8.99, "registry_cost": 6.50 },
+      "in": { "register": 7.99, "renew": 9.99, "transfer": 7.99, "registry_cost": 5.50 },
+      "ae": { "register": 39.99, "renew": 44.99, "transfer": 39.99, "registry_cost": 30.00 },
+      "sa": { "register": 34.99, "renew": 39.99, "transfer": 34.99, "registry_cost": 26.00 },
+      "jp": { "register": 29.99, "renew": 34.99, "transfer": 29.99, "registry_cost": 22.00 },
+      "cn": { "register": 24.99, "renew": 29.99, "transfer": 24.99, "registry_cost": 18.00 },
+      "de": { "register": 9.99, "renew": 12.99, "transfer": 9.99, "registry_cost": 7.00 },
+      "fr": { "register": 11.99, "renew": 13.99, "transfer": 11.99, "registry_cost": 8.50 },
+      "ca": { "register": 14.99, "renew": 16.99, "transfer": 14.99, "registry_cost": 11.00 },
+      "au": { "register": 16.99, "renew": 18.99, "transfer": 16.99, "registry_cost": 12.50 },
+      "br": { "register": 19.99, "renew": 22.99, "transfer": 19.99, "registry_cost": 15.00 },
+      "za": { "register": 13.99, "renew": 15.99, "transfer": 13.99, "registry_cost": 10.00 }
+    }
+  },
+  
+  "platform_plans": {
+    "starter": {
+      "name": "Starter Domain",
+      "price": 0,
+      "features": [
+        "Domain Registration",
+        "Basic DNS Management",
+        "WHOIS Privacy Protection",
+        "Free SSL Certificate",
+        "Basic DNSSEC",
+        "Email Forwarding (5 addresses)",
+        "Community Support"
+      ],
+      "addon_price": 0,
+      "target": "Personal & Hobby"
+    },
+    "business": {
+      "name": "Business Domain",
+      "price": 15.00,
+      "features": [
+        "All Starter Features",
+        "Advanced DNS Management",
+        "DNS Analytics",
+        "Email Forwarding (50 addresses)",
+        "Domain Lock Protection",
+        "Bulk Domain Management",
+        "Priority Email Support",
+        "API Access (100 req/min)"
+      ],
+      "addon_price": 15.00,
+      "target": "Small Business"
+    },
+    "enterprise": {
+      "name": "Enterprise Domain",
+      "price": 84.99,
+      "features": [
+        "All Business Features",
+        "Premium DNS with Global Anycast",
+        "Advanced Analytics & Reports",
+        "Unlimited Email Forwarding",
+        "Advanced Security Suite",
+        "DDoS Protection",
+        "API Access (1000 req/min)",
+        "24/7 Priority Support",
+        "Dedicated Account Manager",
+        "99.9% Uptime SLA"
+      ],
+      "addon_price": 84.99,
+      "target": "Growing Companies"
+    }
+  },
+  
+  "quantum_addons": {
+    "standard": { "price": 0, "layers": 0, "name": "No Quantum Layers" },
+    "business": { "price": 50, "layers": 8, "name": "Business Quantum" },
+    "enterprise": { "price": 250, "layers": 32, "name": "Enterprise Quantum" },
+    "enterprise_plus": { "price": 1000, "layers": 64, "name": "Enterprise Plus Quantum" },
+    "quantum": { "price": 5000, "layers": 128, "name": "Quantum Enterprise" },
+    "sovereign": { "price": 15000, "layers": 256, "name": "Sovereign Enterprise" },
+    "planetary": { "price": 50000, "layers": 512, "name": "Planetary Enterprise" },
+    "galactic": { "price": 250000, "layers": 1024, "name": "Galactic Enterprise" }
+  },
+  
+  "discounts": {
+    "multi_year": {
+      "2_years": 5,
+      "3_years": 8,
+      "5_years": 12,
+      "10_years": 20
+    },
+    "volume": {
+      "5_domains": 5,
+      "10_domains": 10,
+      "25_domains": 15,
+      "50_domains": 20,
+      "100_domains": 25
+    },
+    "promo_codes": {
+      "WELCOME10": { "discount": 10, "type": "percentage", "minPurchase": 0 },
+      "SUPREME20": { "discount": 20, "type": "percentage", "minPurchase": 50 },
+      "QUANTUM25": { "discount": 25, "type": "percentage", "minPurchase": 250 },
+      "ENTERPRISE50": { "discount": 50, "type": "percentage", "minPurchase": 1000 }
+    }
+  }
+}
