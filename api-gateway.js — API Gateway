@@ -1,0 +1,209 @@
+// ============================================================
+// 🚦 src/gateway/api-gateway.js
+// API Gateway — Rate Limiting, Auth, Routing, Logging
+// ============================================================
+const express = require('express');
+const rateLimit = require('express-rate-limit');
+const RedisStore = require('rate-limit-redis');
+const jwt = require('jsonwebtoken');
+const secretsManager = require('../security/secrets');
+
+class APIGateway {
+    constructor() {
+        this.app = express();
+        this.routes = new Map();
+        this.setupMiddleware();
+    }
+
+    /**
+     * Setup gateway middleware
+     */
+    setupMiddleware() {
+        // Request logging
+        this.app.use((req, res, next) => {
+            const start = Date.now();
+            
+            res.on('finish', () => {
+                const duration = Date.now() - start;
+                console.log(`${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
+                
+                // Log to metrics
+                this.recordMetric('request', {
+                    method: req.method,
+                    path: req.path,
+                    status: res.statusCode,
+                    duration
+                });
+            });
+            
+            next();
+        });
+
+        // Rate limiting
+        this.app.use(this.createRateLimiter());
+
+        // Authentication
+        this.app.use(this.authenticate.bind(this));
+
+        // Request validation
+        this.app.use(this.validateRequest.bind(this));
+    }
+
+    /**
+     * Create rate limiter
+     */
+    createRateLimiter() {
+        return rateLimit({
+            store: new RedisStore({
+                sendCommand: (...args) => global.redisService.client.call(...args)
+            }),
+            windowMs: 15 * 60 * 1000, // 15 minutes
+            max: 100, // Limit each IP to 100 requests per window
+            message: {
+                error: 'Rate limit exceeded',
+                retryAfter: '15 minutes'
+            },
+            keyGenerator: (req) => {
+                // Use API key or IP
+                return req.headers['x-api-key'] || req.ip;
+            },
+            skip: (req) => {
+                // Skip rate limiting for health checks
+                return req.path === '/api/health';
+            }
+        });
+    }
+
+    /**
+     * Authenticate request
+     */
+    async authenticate(req, res, next) {
+        // Skip auth for public routes
+        const publicRoutes = ['/api/health', '/api/status/public', '/api/auth/signin', '/api/auth/signup'];
+        if (publicRoutes.includes(req.path)) {
+            return next();
+        }
+
+        try {
+            // Check API key first
+            const apiKey = req.headers['x-api-key'];
+            if (apiKey) {
+                const user = await this.validateAPIKey(apiKey);
+                if (user) {
+                    req.user = user;
+                    return next();
+                }
+            }
+
+            // Check JWT token
+            const authHeader = req.headers.authorization;
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                const token = authHeader.split(' ')[1];
+                const jwtSecret = await secretsManager.get('JWT_SECRET');
+                const decoded = jwt.verify(token, jwtSecret);
+                req.userId = decoded.userId;
+                req.user = decoded;
+                return next();
+            }
+
+            return res.status(401).json({ error: 'Authentication required' });
+
+        } catch (error) {
+            return res.status(401).json({ error: 'Invalid authentication' });
+        }
+    }
+
+    /**
+     * Validate API key
+     */
+    async validateAPIKey(apiKey) {
+        const User = require('../models/User');
+        const user = await User.findOne({ apiKey, status: 'active' });
+        return user;
+    }
+
+    /**
+     * Validate request
+     */
+    validateRequest(req, res, next) {
+        // Content-Type validation
+        if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+            const contentType = req.headers['content-type'];
+            if (contentType && !contentType.includes('application/json') && 
+                !contentType.includes('multipart/form-data')) {
+                return res.status(415).json({ error: 'Unsupported Media Type' });
+            }
+        }
+
+        // Request size validation
+        const maxSize = req.path.includes('upload') ? '50mb' : '10mb';
+        const contentLength = parseInt(req.headers['content-length'] || 0);
+        const maxBytes = req.path.includes('upload') ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+        
+        if (contentLength > maxBytes) {
+            return res.status(413).json({ error: 'Request too large' });
+        }
+
+        next();
+    }
+
+    /**
+     * Register a route
+     */
+    registerRoute(path, router, options = {}) {
+        const routeConfig = {
+            path,
+            router,
+            authRequired: options.authRequired !== false,
+            rateLimit: options.rateLimit || 100,
+            methods: options.methods || ['GET', 'POST', 'PUT', 'DELETE']
+        };
+
+        this.routes.set(path, routeConfig);
+        
+        // Apply middleware based on config
+        if (routeConfig.authRequired) {
+            this.app.use(path, this.authenticate.bind(this));
+        }
+        
+        this.app.use(path, router);
+    }
+
+    /**
+     * Record metric
+     */
+    recordMetric(name, data) {
+        // Send to Prometheus or monitoring system
+        if (global.metricsService) {
+            global.metricsService.record(name, data);
+        }
+    }
+
+    /**
+     * Get gateway stats
+     */
+    getStats() {
+        return {
+            routes: this.routes.size,
+            uptime: process.uptime(),
+            memory: process.memoryUsage(),
+            activeConnections: this.getActiveConnections()
+        };
+    }
+
+    getActiveConnections() {
+        // Track active WebSocket/SSE connections
+        return 0;
+    }
+
+    /**
+     * Start gateway
+     */
+    start(port = 3000) {
+        this.app.listen(port, () => {
+            console.log(`🚦 API Gateway running on port ${port}`);
+        });
+    }
+}
+
+module.exports = new APIGateway();
