@@ -1,0 +1,264 @@
+// ============================================================
+// 🔍 src/services/search/opensearch.service.js
+// SUPREME Search Engine — OpenSearch/Elasticsearch
+// ============================================================
+const { Client } = require('@opensearch-project/opensearch');
+
+class SearchService {
+    constructor() {
+        this.client = new Client({
+            node: process.env.OPENSEARCH_URL || 'http://localhost:9200',
+            auth: {
+                username: process.env.OPENSEARCH_USER || 'admin',
+                password: process.env.OPENSEARCH_PASS || 'admin'
+            },
+            ssl: {
+                rejectUnauthorized: process.env.NODE_ENV === 'production'
+            }
+        });
+
+        this.indices = {
+            domains: 'supreme-domains',
+            users: 'supreme-users',
+            invoices: 'supreme-invoices',
+            activities: 'supreme-activities',
+            knowledge: 'supreme-knowledge'
+        };
+    }
+
+    /**
+     * Initialize indices
+     */
+    async initialize() {
+        for (const [name, index] of Object.entries(this.indices)) {
+            await this.createIndex(index, this.getMapping(name));
+        }
+        console.log(`🔍 Search engine initialized: ${Object.keys(this.indices).length} indices`);
+    }
+
+    /**
+     * Create index with mapping
+     */
+    async createIndex(index, mapping) {
+        const exists = await this.client.indices.exists({ index });
+        
+        if (!exists.body) {
+            await this.client.indices.create({
+                index,
+                body: {
+                    settings: {
+                        number_of_shards: 3,
+                        number_of_replicas: 2,
+                        analysis: {
+                            analyzer: {
+                                supreme_analyzer: {
+                                    type: 'custom',
+                                    tokenizer: 'standard',
+                                    filter: ['lowercase', 'stop', 'snowball']
+                                }
+                            }
+                        }
+                    },
+                    mappings: mapping
+                }
+            });
+        }
+    }
+
+    /**
+     * Get mapping for index
+     */
+    getMapping(name) {
+        const mappings = {
+            'supreme-domains': {
+                properties: {
+                    domain: { type: 'keyword' },
+                    tld: { type: 'keyword' },
+                    fullDomain: { type: 'text', analyzer: 'supreme_analyzer' },
+                    status: { type: 'keyword' },
+                    userId: { type: 'keyword' },
+                    createdAt: { type: 'date' },
+                    expiryDate: { type: 'date' },
+                    price: { type: 'float' }
+                }
+            },
+            'supreme-users': {
+                properties: {
+                    email: { type: 'keyword' },
+                    name: { type: 'text', analyzer: 'supreme_analyzer' },
+                    plan: { type: 'keyword' },
+                    status: { type: 'keyword' },
+                    createdAt: { type: 'date' }
+                }
+            },
+            'supreme-knowledge': {
+                properties: {
+                    title: { type: 'text', analyzer: 'supreme_analyzer' },
+                    content: { type: 'text', analyzer: 'supreme_analyzer' },
+                    embedding: { type: 'knn_vector', dimension: 1536 },
+                    category: { type: 'keyword' },
+                    tags: { type: 'keyword' },
+                    createdAt: { type: 'date' }
+                }
+            }
+        };
+
+        return mappings[name] || { properties: {} };
+    }
+
+    /**
+     * Index document
+     */
+    async index(index, id, document) {
+        return this.client.index({
+            index: this.indices[index] || index,
+            id,
+            body: document,
+            refresh: true
+        });
+    }
+
+    /**
+     * Search documents
+     */
+    async search(index, query, options = {}) {
+        const { from = 0, size = 10, filters = {}, sort = {} } = options;
+
+        const body = {
+            from,
+            size,
+            query: {
+                bool: {
+                    must: query ? {
+                        multi_match: {
+                            query,
+                            fields: ['*'],
+                            fuzziness: 'AUTO'
+                        }
+                    } : { match_all: {} },
+                    filter: Object.entries(filters).map(([field, value]) => ({
+                        term: { [field]: value }
+                    }))
+                }
+            },
+            sort: Object.keys(sort).length > 0 
+                ? Object.entries(sort).map(([field, order]) => ({ [field]: order }))
+                : [{ _score: 'desc' }],
+            highlight: {
+                fields: {
+                    '*': { number_of_fragments: 3, fragment_size: 150 }
+                }
+            }
+        };
+
+        const result = await this.client.search({
+            index: this.indices[index] || index,
+            body
+        });
+
+        return {
+            total: result.body.hits.total.value,
+            hits: result.body.hits.hits.map(hit => ({
+                id: hit._id,
+                score: hit._score,
+                ...hit._source,
+                highlights: hit.highlight
+            })),
+            took: result.body.took
+        };
+    }
+
+    /**
+     * Vector search (semantic)
+     */
+    async vectorSearch(index, embedding, k = 10) {
+        const result = await this.client.search({
+            index: this.indices[index] || index,
+            body: {
+                size: k,
+                query: {
+                    knn: {
+                        embedding: {
+                            vector: embedding,
+                            k
+                        }
+                    }
+                }
+            }
+        });
+
+        return result.body.hits.hits.map(hit => ({
+            id: hit._id,
+            score: hit._score,
+            ...hit._source
+        }));
+    }
+
+    /**
+     * Universal search (across all indices)
+     */
+    async universalSearch(query, userId = null) {
+        const indices = Object.values(this.indices);
+        
+        const result = await this.client.search({
+            index: indices.join(','),
+            body: {
+                size: 20,
+                query: {
+                    bool: {
+                        must: {
+                            multi_match: {
+                                query,
+                                fields: ['*'],
+                                type: 'best_fields'
+                            }
+                        },
+                        filter: userId ? [
+                            { term: { userId } }
+                        ] : []
+                    }
+                }
+            }
+        });
+
+        return {
+            total: result.body.hits.total.value,
+            results: result.body.hits.hits.map(hit => ({
+                index: hit._index,
+                id: hit._id,
+                score: hit._score,
+                ...hit._source
+            }))
+        };
+    }
+
+    /**
+     * Delete document
+     */
+    async delete(index, id) {
+        return this.client.delete({
+            index: this.indices[index] || index,
+            id
+        });
+    }
+
+    /**
+     * Get stats
+     */
+    async getStats() {
+        const stats = {};
+        
+        for (const [name, index] of Object.entries(this.indices)) {
+            try {
+                const count = await this.client.count({ index });
+                stats[name] = { documents: count.body.count };
+            } catch (error) {
+                stats[name] = { error: error.message };
+            }
+        }
+
+        return stats;
+    }
+}
+
+module.exports = new SearchService();
