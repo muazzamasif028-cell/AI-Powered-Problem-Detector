@@ -1,0 +1,195 @@
+// ============================================================
+// 📊 src/routes/admin.js — Admin Dashboard API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const auth = require('../middleware/auth');
+const Invoice = require('../models/Invoice');
+const Domain = require('../models/Domain');
+const User = require('../models/User');
+const Activity = require('../models/Activity');
+const metricsService = require('../monitoring/metrics');
+const healthService = require('../services/observability/health.service');
+
+// Admin middleware
+router.use(auth);
+router.use(async (req, res, next) => {
+    const user = await User.findById(req.userId);
+    if (user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+    }
+    next();
+});
+
+// =============================================
+// 📊 DASHBOARD OVERVIEW
+// =============================================
+router.get('/dashboard', async (req, res) => {
+    const [
+        totalUsers,
+        totalDomains,
+        totalRevenue,
+        recentActivity,
+        systemHealth,
+        metricsSummary
+    ] = await Promise.all([
+        User.countDocuments({ status: 'active' }),
+        Domain.countDocuments({ status: 'active' }),
+        Invoice.aggregate([
+            { $match: { status: 'paid' } },
+            { $group: { _id: null, total: { $sum: '$total' } } }
+        ]),
+        Activity.find().sort({ createdAt: -1 }).limit(10),
+        healthService.checkAllServices(),
+        metricsService.getSummary()
+    ]);
+
+    res.json({
+        success: true,
+        overview: {
+            totalUsers,
+            totalDomains,
+            totalRevenue: totalRevenue[0]?.total || 0,
+            mrr: await calculateMRR(),
+            activeUsers24h: await User.countDocuments({
+                lastLoginAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+            })
+        },
+        recentActivity,
+        systemHealth,
+        metrics: metricsSummary
+    });
+});
+
+// =============================================
+// 💰 REVENUE ANALYTICS
+// =============================================
+router.get('/revenue', async (req, res) => {
+    const { period = '30d' } = req.query;
+    const days = parseInt(period) || 30;
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const revenueData = await Invoice.aggregate([
+        { $match: { status: 'paid', paidAt: { $gte: startDate } } },
+        { $group: {
+            _id: {
+                year: { $year: '$paidAt' },
+                month: { $month: '$paidAt' },
+                day: { $dayOfMonth: '$paidAt' }
+            },
+            revenue: { $sum: '$total' },
+            count: { $sum: 1 }
+        }},
+        { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } }
+    ]);
+
+    const byCurrency = await Invoice.aggregate([
+        { $match: { status: 'paid', paidAt: { $gte: startDate } } },
+        { $group: {
+            _id: '$currency',
+            total: { $sum: '$total' },
+            count: { $sum: 1 },
+            average: { $avg: '$total' }
+        }}
+    ]);
+
+    res.json({
+        success: true,
+        period: `${days} days`,
+        revenueData,
+        byCurrency,
+        totalRevenue: revenueData.reduce((sum, d) => sum + d.revenue, 0)
+    });
+});
+
+// =============================================
+// 👥 USER MANAGEMENT
+// =============================================
+router.get('/users', async (req, res) => {
+    const { page = 1, limit = 50, search } = req.query;
+    
+    const query = {};
+    if (search) {
+        query.$or = [
+            { email: { $regex: search, $options: 'i' } },
+            { name: { $regex: search, $options: 'i' } }
+        ];
+    }
+
+    const users = await User.find(query)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .select('-password');
+
+    const total = await User.countDocuments(query);
+
+    res.json({
+        success: true,
+        users,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / limit)
+        }
+    });
+});
+
+// =============================================
+// 🎚️ FEATURE FLAGS MANAGEMENT
+// =============================================
+router.get('/features', async (req, res) => {
+    const featureFlagService = require('../services/deployment/feature-flag.service');
+    const flags = featureFlagService.getAllFlags();
+    res.json({ success: true, flags });
+});
+
+router.put('/features/:name', async (req, res) => {
+    const featureFlagService = require('../services/deployment/feature-flag.service');
+    const flag = await featureFlagService.setFlag(req.params.name, req.body);
+    res.json({ success: true, flag });
+});
+
+// =============================================
+// 🚀 DEPLOYMENT MANAGEMENT
+// =============================================
+router.post('/deploy', async (req, res) => {
+    const { version, services } = req.body;
+    const deploymentService = require('../services/deployment/blue-green.service');
+    
+    // Start deployment in background
+    deploymentService.deploy(version, services)
+        .then(result => console.log('Deployment complete:', result))
+        .catch(error => console.error('Deployment failed:', error));
+
+    res.json({ 
+        success: true, 
+        message: `Deployment v${version} started. Check status for updates.` 
+    });
+});
+
+router.get('/deploy/status', (req, res) => {
+    const deploymentService = require('../services/deployment/blue-green.service');
+    res.json({ success: true, status: deploymentService.getStatus() });
+});
+
+// =============================================
+// 📊 QUEUE STATS
+// =============================================
+router.get('/queues', async (req, res) => {
+    const invoiceWorker = require('../workers/invoice.worker');
+    const stats = await invoiceWorker.getStats();
+    res.json({ success: true, stats });
+});
+
+// Helper
+async function calculateMRR() {
+    const result = await Invoice.aggregate([
+        { $match: { status: 'paid', type: 'subscription' } },
+        { $group: { _id: null, mrr: { $sum: '$total' } } }
+    ]);
+    return result[0]?.mrr || 0;
+}
+
+module.exports = router;
