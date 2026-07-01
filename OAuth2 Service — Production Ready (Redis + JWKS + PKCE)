@@ -1,0 +1,420 @@
+// ============================================================
+// 🔐 src/services/identity/oauth2.production.service.js
+// SUPREME OAuth2/OIDC Provider — Production Ready
+// ============================================================
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const jose = require('jose'); // For JWKS
+const redisService = require('../cache/redis.service');
+
+class OAuth2ProductionService {
+    constructor() {
+        this.codeExpiry = 10 * 60; // 10 minutes (seconds)
+        this.accessTokenExpiry = 3600; // 1 hour
+        this.refreshTokenExpiry = 30 * 24 * 3600; // 30 days
+        this.idTokenExpiry = 3600;
+
+        // Generate RSA key pair for JWT signing
+        this.generateKeys();
+    }
+
+    /**
+     * Generate RSA key pair for RS256 signing
+     */
+    async generateKeys() {
+        const { publicKey, privateKey } = await jose.generateKeyPair('RS256', {
+            modulusLength: 2048
+        });
+
+        this.privateKey = privateKey;
+        this.publicKey = publicKey;
+        this.kid = crypto.randomBytes(16).toString('hex');
+    }
+
+    /**
+     * Store authorization code in Redis
+     */
+    async storeAuthCode(code, data) {
+        const key = `oauth:code:${code}`;
+        await redisService.set(key, JSON.stringify(data), this.codeExpiry);
+    }
+
+    /**
+     * Get and delete authorization code
+     */
+    async consumeAuthCode(code) {
+        const key = `oauth:code:${code}`;
+        const data = await redisService.get(key);
+        
+        if (data) {
+            await redisService.delete(key);
+            return typeof data === 'string' ? JSON.parse(data) : data;
+        }
+        
+        return null;
+    }
+
+    /**
+     * Store tokens in Redis
+     */
+    async storeTokens(userId, clientId, tokens) {
+        // Store access token
+        await redisService.set(
+            `oauth:access_token:${tokens.accessTokenId}`,
+            JSON.stringify({ userId, clientId, scope: tokens.scope }),
+            this.accessTokenExpiry
+        );
+
+        // Store refresh token
+        await redisService.set(
+            `oauth:refresh_token:${tokens.refreshToken}`,
+            JSON.stringify({ 
+                userId, 
+                clientId, 
+                scope: tokens.scope,
+                accessTokenId: tokens.accessTokenId 
+            }),
+            this.refreshTokenExpiry
+        );
+    }
+
+    /**
+     * Authorization endpoint — with PKCE
+     */
+    async authorize(req, res) {
+        try {
+            const {
+                client_id, redirect_uri, response_type = 'code',
+                scope = 'openid profile', state, nonce,
+                code_challenge, code_challenge_method = 'S256'
+            } = req.query;
+
+            // Validate client
+            const client = await this.getClient(client_id);
+            if (!client) {
+                return this.redirectError(redirect_uri, 'invalid_client', state);
+            }
+
+            // Validate redirect URI
+            if (!client.redirectUris.includes(redirect_uri)) {
+                return this.redirectError(redirect_uri, 'invalid_redirect_uri', state);
+            }
+
+            // Validate PKCE for public clients
+            if (client.isPublic && !code_challenge) {
+                return this.redirectError(redirect_uri, 'invalid_request', state, 
+                    'PKCE code_challenge required for public clients');
+            }
+
+            // Validate scopes
+            const requestedScopes = scope.split(' ');
+            const invalidScopes = requestedScopes.filter(s => !this.isValidScope(s, client));
+            
+            if (invalidScopes.length > 0) {
+                return this.redirectError(redirect_uri, 'invalid_scope', state);
+            }
+
+            // Generate authorization code (48 bytes = 96 hex chars)
+            const code = crypto.randomBytes(48).toString('hex');
+
+            // Store code data in Redis
+            await this.storeAuthCode(code, {
+                clientId: client_id,
+                userId: req.user.id,
+                scope: requestedScopes,
+                redirectUri: redirect_uri,
+                codeChallenge: code_challenge,
+                codeChallengeMethod: code_challenge_method,
+                nonce: nonce,
+                createdAt: Date.now()
+            });
+
+            // Build redirect URL
+            const params = new URLSearchParams({ code });
+            if (state) params.append('state', state);
+
+            return res.redirect(`${redirect_uri}?${params.toString()}`);
+
+        } catch (error) {
+            console.error('Authorization error:', error);
+            return res.status(500).json({ error: 'server_error' });
+        }
+    }
+
+    /**
+     * Token endpoint — with PKCE validation
+     */
+    async token(req, res) {
+        try {
+            const { 
+                grant_type, code, redirect_uri, client_id, client_secret,
+                refresh_token, code_verifier
+            } = req.body;
+
+            // Validate client authentication
+            const client = await this.getClient(client_id);
+            if (!client) {
+                return res.status(401).json({ error: 'invalid_client' });
+            }
+
+            // Authenticate client (except for public clients using PKCE)
+            if (!client.isPublic && client.clientSecret !== client_secret) {
+                return res.status(401).json({ error: 'invalid_client' });
+            }
+
+            switch (grant_type) {
+                case 'authorization_code':
+                    return this.handleAuthorizationCodeGrant(
+                        res, code, redirect_uri, client, code_verifier
+                    );
+
+                case 'refresh_token':
+                    return this.handleRefreshTokenGrant(res, refresh_token, client);
+
+                default:
+                    return res.status(400).json({ error: 'unsupported_grant_type' });
+            }
+
+        } catch (error) {
+            console.error('Token error:', error);
+            return res.status(500).json({ error: 'server_error' });
+        }
+    }
+
+    /**
+     * Handle authorization code grant with PKCE
+     */
+    async handleAuthorizationCodeGrant(res, code, redirectUri, client, codeVerifier) {
+        // Consume code from Redis (one-time use)
+        const authData = await this.consumeAuthCode(code);
+        
+        if (!authData) {
+            return res.status(400).json({ error: 'invalid_grant', message: 'Invalid or expired code' });
+        }
+
+        // Verify client
+        if (authData.clientId !== client.clientId) {
+            return res.status(400).json({ error: 'invalid_grant' });
+        }
+
+        // Verify redirect URI
+        if (authData.redirectUri !== redirectUri) {
+            return res.status(400).json({ error: 'invalid_grant' });
+        }
+
+        // PKCE validation (for public clients)
+        if (authData.codeChallenge) {
+            if (!codeVerifier) {
+                return res.status(400).json({ error: 'invalid_grant', message: 'code_verifier required' });
+            }
+
+            const expectedChallenge = authData.codeChallengeMethod === 'S256'
+                ? this.generateS256Challenge(codeVerifier)
+                : codeVerifier;
+
+            if (expectedChallenge !== authData.codeChallenge) {
+                return res.status(400).json({ error: 'invalid_grant', message: 'PKCE validation failed' });
+            }
+        }
+
+        // Generate tokens
+        const tokens = await this.issueTokens(authData.userId, authData.clientId, authData.scope, authData.nonce);
+
+        return res.json(tokens);
+    }
+
+    /**
+     * Handle refresh token grant
+     */
+    async handleRefreshTokenGrant(res, refreshToken, client) {
+        // Get refresh token data from Redis
+        const key = `oauth:refresh_token:${refreshToken}`;
+        const tokenData = await redisService.get(key);
+        
+        if (!tokenData) {
+            return res.status(400).json({ error: 'invalid_grant', message: 'Invalid refresh token' });
+        }
+
+        const data = typeof tokenData === 'string' ? JSON.parse(tokenData) : tokenData;
+
+        // Verify client
+        if (data.clientId !== client.clientId) {
+            return res.status(400).json({ error: 'invalid_grant' });
+        }
+
+        // Revoke old tokens
+        await this.revokeToken(refreshToken, 'refresh_token');
+        if (data.accessTokenId) {
+            await this.revokeToken(data.accessTokenId, 'access_token');
+        }
+
+        // Issue new tokens (token rotation)
+        const tokens = await this.issueTokens(data.userId, data.clientId, data.scope);
+
+        return res.json(tokens);
+    }
+
+    /**
+     * Issue new tokens
+     */
+    async issueTokens(userId, clientId, scope, nonce = null) {
+        const accessTokenId = crypto.randomBytes(16).toString('hex');
+        const refreshTokenValue = crypto.randomBytes(48).toString('hex');
+
+        // Create access token (JWT signed with RS256)
+        const accessToken = await new jose.SignJWT({
+            sub: userId,
+            client_id: clientId,
+            scope: Array.isArray(scope) ? scope.join(' ') : scope,
+            jti: accessTokenId
+        })
+            .setProtectedHeader({ alg: 'RS256', kid: this.kid })
+            .setIssuer('https://supreme-os.com')
+            .setAudience(clientId)
+            .setIssuedAt()
+            .setExpirationTime(`${this.accessTokenExpiry}s`)
+            .sign(this.privateKey);
+
+        // Create ID token (if openid scope)
+        let idToken = null;
+        if (Array.isArray(scope) && scope.includes('openid')) {
+            const idTokenPayload = {
+                sub: userId,
+                aud: clientId
+            };
+            if (nonce) idTokenPayload.nonce = nonce;
+
+            idToken = await new jose.SignJWT(idTokenPayload)
+                .setProtectedHeader({ alg: 'RS256', kid: this.kid })
+                .setIssuer('https://supreme-os.com')
+                .setAudience(clientId)
+                .setIssuedAt()
+                .setExpirationTime(`${this.idTokenExpiry}s`)
+                .sign(this.privateKey);
+        }
+
+        // Store tokens in Redis
+        await this.storeTokens(userId, clientId, {
+            accessTokenId,
+            refreshToken: refreshTokenValue,
+            scope: Array.isArray(scope) ? scope.join(' ') : scope
+        });
+
+        const response = {
+            access_token: accessToken,
+            refresh_token: refreshTokenValue,
+            token_type: 'Bearer',
+            expires_in: this.accessTokenExpiry,
+            scope: Array.isArray(scope) ? scope.join(' ') : scope
+        };
+
+        if (idToken) response.id_token = idToken;
+
+        return response;
+    }
+
+    /**
+     * Revoke token
+     */
+    async revokeToken(token, type) {
+        const key = `oauth:${type}:${token}`;
+        await redisService.delete(key);
+    }
+
+    /**
+     * JWKS endpoint — Public key discovery
+     */
+    async jwks(req, res) {
+        const publicJWK = await jose.exportJWK(this.publicKey);
+        
+        res.json({
+            keys: [{
+                ...publicJWK,
+                kid: this.kid,
+                use: 'sig',
+                alg: 'RS256'
+            }]
+        });
+    }
+
+    /**
+     * OIDC Discovery endpoint
+     */
+    discovery(req, res) {
+        res.json({
+            issuer: 'https://supreme-os.com',
+            authorization_endpoint: 'https://supreme-os.com/oauth/authorize',
+            token_endpoint: 'https://supreme-os.com/oauth/token',
+            userinfo_endpoint: 'https://supreme-os.com/oauth/userinfo',
+            jwks_uri: 'https://supreme-os.com/oauth/jwks',
+            revocation_endpoint: 'https://supreme-os.com/oauth/revoke',
+            introspection_endpoint: 'https://supreme-os.com/oauth/introspect',
+            scopes_supported: ['openid', 'profile', 'email', 'offline_access', 'domain:read', 'domain:write'],
+            response_types_supported: ['code'],
+            grant_types_supported: ['authorization_code', 'refresh_token'],
+            subject_types_supported: ['public'],
+            id_token_signing_alg_values_supported: ['RS256'],
+            token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
+            code_challenge_methods_supported: ['S256', 'plain']
+        });
+    }
+
+    /**
+     * Generate PKCE S256 challenge
+     */
+    generateS256Challenge(verifier) {
+        return crypto.createHash('sha256')
+            .update(verifier)
+            .digest('base64url');
+    }
+
+    /**
+     * Get client from database
+     */
+    async getClient(clientId) {
+        // Production: fetch from database
+        const clients = {
+            'supreme-dashboard': {
+                clientId: 'supreme-dashboard',
+                clientSecret: process.env.DASHBOARD_CLIENT_SECRET,
+                name: 'SUPREME Dashboard',
+                redirectUris: [
+                    process.env.FRONTEND_URL + '/auth/callback'
+                ],
+                scopes: ['openid', 'profile', 'email', 'offline_access'],
+                isPublic: false
+            },
+            'supreme-cli': {
+                clientId: 'supreme-cli',
+                clientSecret: null,
+                name: 'SUPREME CLI',
+                redirectUris: ['http://localhost:8080/callback'],
+                scopes: ['openid', 'profile', 'domain:read', 'domain:write'],
+                isPublic: true
+            }
+        };
+
+        return clients[clientId] || null;
+    }
+
+    /**
+     * Validate scope
+     */
+    isValidScope(scope, client) {
+        const allowedScopes = client.scopes || [];
+        return allowedScopes.includes(scope);
+    }
+
+    /**
+     * Redirect with error
+     */
+    redirectError(redirectUri, error, state, description = null) {
+        const params = new URLSearchParams({ error });
+        if (state) params.append('state', state);
+        if (description) params.append('error_description', description);
+        
+        return { redirect: `${redirectUri}?${params.toString()}` };
+    }
+}
+
+module.exports = new OAuth2ProductionService();
