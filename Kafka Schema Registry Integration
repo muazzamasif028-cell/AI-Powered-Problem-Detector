@@ -1,0 +1,88 @@
+// ============================================================
+// 📊 src/services/streaming/schema-registry.service.js
+// SUPREME Schema Registry Service
+// ============================================================
+const axios = require('axios');
+
+class SchemaRegistryService {
+    constructor() {
+        this.baseURL = process.env.SCHEMA_REGISTRY_URL || 'http://localhost:8081';
+        this.subjectCache = new Map();
+    }
+
+    /**
+     * Register schema
+     */
+    async registerSchema(subject, schema) {
+        try {
+            const response = await axios.post(
+                `${this.baseURL}/subjects/${subject}/versions`,
+                { schema: JSON.stringify(schema) },
+                { headers: { 'Content-Type': 'application/vnd.schemaregistry.v1+json' } }
+            );
+            
+            console.log(`📋 Schema registered: ${subject} v${response.data.id}`);
+            return response.data;
+        } catch (error) {
+            if (error.response?.status === 409) {
+                console.log(`Schema ${subject} already exists`);
+                return this.getLatestSchema(subject);
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Get latest schema
+     */
+    async getLatestSchema(subject) {
+        const response = await axios.get(
+            `${this.baseURL}/subjects/${subject}/versions/latest`
+        );
+        
+        const schema = JSON.parse(response.data.schema);
+        return { id: response.data.id, schema, version: response.data.version };
+    }
+
+    /**
+     * Validate event against schema
+     */
+    async validateEvent(subject, event) {
+        try {
+            const response = await axios.post(
+                `${this.baseURL}/compatibility/subjects/${subject}/versions/latest`,
+                { schema: JSON.stringify(event) },
+                { headers: { 'Content-Type': 'application/vnd.schemaregistry.v1+json' } }
+            );
+            
+            return response.data.is_compatible;
+        } catch (error) {
+            console.error('Schema validation error:', error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Register domain event schemas
+     */
+    async registerDomainSchemas() {
+        const domainRegisteredSchema = {
+            type: 'record',
+            name: 'DomainRegistered',
+            namespace: 'com.supreme.domain',
+            fields: [
+                { name: 'domainId', type: 'string' },
+                { name: 'domainName', type: 'string' },
+                { name: 'tld', type: 'string' },
+                { name: 'userId', type: 'string' },
+                { name: 'price', type: 'double' },
+                { name: 'currency', type: 'string', default: 'USD' },
+                { name: 'timestamp', type: 'string' }
+            ]
+        };
+
+        await this.registerSchema('domain-registered-value', domainRegisteredSchema);
+    }
+}
+
+module.exports = new SchemaRegistryService();
