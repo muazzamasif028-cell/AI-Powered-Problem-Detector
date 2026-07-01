@@ -1,0 +1,265 @@
+// ============================================================
+// 🔐 src/services/identity/oauth2.service.js
+// SUPREME Identity Platform — OAuth2/OIDC Provider
+// ============================================================
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+
+class OAuth2Service {
+    constructor() {
+        this.clients = new Map(); // In production: database
+        this.authCodes = new Map();
+        this.accessTokens = new Map();
+        this.refreshTokens = new Map();
+        
+        this.supportedScopes = [
+            'openid', 'profile', 'email', 'phone', 'address',
+            'offline_access',
+            'domain:read', 'domain:write',
+            'ai:read', 'ai:write',
+            'billing:read', 'billing:write',
+            'admin'
+        ];
+        
+        this.supportedGrants = [
+            'authorization_code',
+            'client_credentials',
+            'refresh_token',
+            'password',
+            'device_code'
+        ];
+
+        // Register default client
+        this.registerClient({
+            clientId: 'supreme-dashboard',
+            clientSecret: process.env.DASHBOARD_CLIENT_SECRET,
+            name: 'SUPREME Dashboard',
+            redirectUris: [
+                process.env.FRONTEND_URL + '/auth/callback',
+                'http://localhost:3000/auth/callback'
+            ],
+            grants: ['authorization_code', 'refresh_token'],
+            scopes: ['openid', 'profile', 'email', 'offline_access']
+        });
+    }
+
+    /**
+     * Register OAuth2 client
+     */
+    registerClient(clientData) {
+        const client = {
+            clientId: clientData.clientId,
+            clientSecret: clientData.clientSecret,
+            name: clientData.name,
+            redirectUris: clientData.redirectUris || [],
+            grants: clientData.grants || ['authorization_code'],
+            scopes: clientData.scopes || ['openid', 'profile'],
+            isPublic: clientData.isPublic || false,
+            createdAt: new Date()
+        };
+
+        this.clients.set(client.clientId, client);
+        return client;
+    }
+
+    /**
+     * Authorization endpoint
+     */
+    async authorize(req, res) {
+        const {
+            client_id,
+            redirect_uri,
+            response_type = 'code',
+            scope = 'openid profile',
+            state,
+            nonce,
+            code_challenge,
+            code_challenge_method = 'S256'
+        } = req.query;
+
+        // Validate client
+        const client = this.clients.get(client_id);
+        if (!client) {
+            return res.status(400).json({ error: 'invalid_client' });
+        }
+
+        // Validate redirect URI
+        if (!client.redirectUris.includes(redirect_uri)) {
+            return res.status(400).json({ error: 'invalid_redirect_uri' });
+        }
+
+        // Validate scopes
+        const requestedScopes = scope.split(' ');
+        for (const s of requestedScopes) {
+            if (!this.supportedScopes.includes(s)) {
+                return res.status(400).json({ error: 'invalid_scope', scope: s });
+            }
+        }
+
+        // Generate authorization code
+        const code = crypto.randomBytes(32).toString('hex');
+        
+        this.authCodes.set(code, {
+            clientId: client_id,
+            userId: req.user.id,
+            scope: requestedScopes,
+            redirectUri: redirect_uri,
+            codeChallenge: code_challenge,
+            codeChallengeMethod: code_challenge_method,
+            nonce,
+            expiresAt: Date.now() + 10 * 60 * 1000 // 10 minutes
+        });
+
+        // Redirect with code
+        const params = new URLSearchParams({ code, state });
+        return res.redirect(`${redirect_uri}?${params.toString()}`);
+    }
+
+    /**
+     * Token endpoint
+     */
+    async token(req, res) {
+        const { grant_type, code, redirect_uri, client_id, client_secret, refresh_token } = req.body;
+
+        // Validate client (except for public clients)
+        if (client_secret) {
+            const client = this.clients.get(client_id);
+            if (!client || client.clientSecret !== client_secret) {
+                return res.status(401).json({ error: 'invalid_client' });
+            }
+        }
+
+        try {
+            switch (grant_type) {
+                case 'authorization_code':
+                    return this.handleAuthorizationCode(code, redirect_uri, client_id);
+                    
+                case 'refresh_token':
+                    return this.handleRefreshToken(refresh_token);
+                    
+                case 'client_credentials':
+                    return this.handleClientCredentials(client_id, client_secret, req.body.scope);
+                    
+                case 'password':
+                    return this.handlePasswordGrant(req.body.username, req.body.password, req.body.scope);
+                    
+                default:
+                    return res.status(400).json({ error: 'unsupported_grant_type' });
+            }
+        } catch (error) {
+            return res.status(400).json({ error: 'invalid_grant', message: error.message });
+        }
+    }
+
+    /**
+     * Handle authorization code grant
+     */
+    async handleAuthorizationCode(code, redirectUri, clientId) {
+        const authCode = this.authCodes.get(code);
+        
+        if (!authCode || authCode.expiresAt < Date.now()) {
+            throw new Error('Invalid or expired authorization code');
+        }
+
+        if (authCode.clientId !== clientId) {
+            throw new Error('Client mismatch');
+        }
+
+        // Generate tokens
+        const tokens = this.generateTokens(authCode.userId, authCode.scope, clientId);
+        
+        // Clean up used code
+        this.authCodes.delete(code);
+        
+        return res.json(tokens);
+    }
+
+    /**
+     * Handle refresh token grant
+     */
+    async handleRefreshToken(refreshToken) {
+        const stored = this.refreshTokens.get(refreshToken);
+        
+        if (!stored || stored.expiresAt < Date.now()) {
+            throw new Error('Invalid or expired refresh token');
+        }
+
+        // Rotate refresh token
+        this.refreshTokens.delete(refreshToken);
+        
+        const tokens = this.generateTokens(stored.userId, stored.scope, stored.clientId);
+        
+        return res.json(tokens);
+    }
+
+    /**
+     * Generate tokens
+     */
+    generateTokens(userId, scope, clientId) {
+        const accessToken = jwt.sign(
+            {
+                sub: userId,
+                scope: Array.isArray(scope) ? scope.join(' ') : scope,
+                client_id: clientId,
+                iss: 'https://supreme-os.com',
+                aud: clientId,
+                iat: Math.floor(Date.now() / 1000),
+                exp: Math.floor(Date.now() / 1000) + 3600 // 1 hour
+            },
+            process.env.JWT_SECRET,
+            { algorithm: 'RS256' }
+        );
+
+        const refreshToken = crypto.randomBytes(48).toString('hex');
+        
+        this.refreshTokens.set(refreshToken, {
+            userId,
+            scope,
+            clientId,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
+        });
+
+        const idToken = jwt.sign(
+            {
+                sub: userId,
+                aud: clientId,
+                iss: 'https://supreme-os.com',
+                iat: Math.floor(Date.now() / 1000),
+                exp: Math.floor(Date.now() / 1000) + 3600
+            },
+            process.env.JWT_SECRET,
+            { algorithm: 'RS256' }
+        );
+
+        return {
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            id_token: idToken,
+            token_type: 'Bearer',
+            expires_in: 3600,
+            scope: Array.isArray(scope) ? scope.join(' ') : scope
+        };
+    }
+
+    /**
+     * OIDC Discovery endpoint
+     */
+    discovery() {
+        return {
+            issuer: 'https://supreme-os.com',
+            authorization_endpoint: 'https://supreme-os.com/oauth/authorize',
+            token_endpoint: 'https://supreme-os.com/oauth/token',
+            userinfo_endpoint: 'https://supreme-os.com/oauth/userinfo',
+            jwks_uri: 'https://supreme-os.com/oauth/jwks',
+            scopes_supported: this.supportedScopes,
+            response_types_supported: ['code', 'token', 'id_token'],
+            grant_types_supported: this.supportedGrants,
+            subject_types_supported: ['public'],
+            id_token_signing_alg_values_supported: ['RS256'],
+            token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post']
+        };
+    }
+}
+
+module.exports = new OAuth2Service();
