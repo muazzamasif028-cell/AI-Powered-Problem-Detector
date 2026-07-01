@@ -1,0 +1,57 @@
+// src/routes/payment.js — Add to your app
+const express = require('express');
+const router = express.Router();
+const paymentService = require('../services/payment');
+const auth = require('../middleware/auth');
+
+// Create checkout/payment
+router.post('/checkout', auth, async (req, res) => {
+    try {
+        const { domainName, tld, years, plan } = req.body;
+        
+        const result = await paymentService.createCheckout(req.userId, {
+            domainName,
+            tld,
+            years,
+            plan
+        });
+
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PayPal return URL
+router.get('/paypal/success', async (req, res) => {
+    try {
+        const { paymentId, PayerID } = req.query;
+        const result = await paymentService.payment.executePayment(paymentId, PayerID);
+        res.redirect(`${process.env.FRONTEND_URL}/domains?success=true`);
+    } catch (error) {
+        res.redirect(`${process.env.FRONTEND_URL}/domains?error=payment_failed`);
+    }
+});
+
+// PayPal cancel URL
+router.get('/paypal/cancel', (req, res) => {
+    res.redirect(`${process.env.FRONTEND_URL}/domains?cancelled=true`);
+});
+
+// Supported countries
+router.get('/countries', (req, res) => {
+    res.json({
+        countries: paymentService.getSupportedCountries(),
+        provider: process.env.PAYMENT_PROVIDER
+    });
+});
+
+// Payment methods for country
+router.get('/methods/:country', (req, res) => {
+    res.json({
+        country: req.params.country,
+        methods: paymentService.getPaymentMethods(req.params.country)
+    });
+});
+
+module.exports = router;
