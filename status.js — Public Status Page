@@ -1,0 +1,99 @@
+// ============================================================
+// 🛣️ src/routes/status.js
+// Public Status & Health Routes
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const healthService = require('../services/observability/health.service');
+const activityService = require('../services/observability/activity.service');
+
+// =============================================
+// 🏥 HEALTH CHECK (Public)
+// =============================================
+router.get('/health', async (req, res) => {
+    const health = await healthService.checkAllServices();
+    
+    res.status(health.status === 'HEALTHY' ? 200 : 503).json({
+        status: health.status,
+        timestamp: health.timestamp,
+        uptime: health.uptime,
+        services: health.services.map(s => ({
+            name: s.service,
+            status: s.status,
+            responseTime: s.responseTime
+        }))
+    });
+});
+
+// =============================================
+// 📊 DETAILED HEALTH (Authenticated)
+// =============================================
+router.get('/health/detailed', async (req, res) => {
+    const health = await healthService.checkAllServices();
+    res.json(health);
+});
+
+// =============================================
+// 📈 UPTIME STATS
+// =============================================
+router.get('/uptime', async (req, res) => {
+    const { days = 30 } = req.query;
+    const stats = await healthService.getUptimeStats(parseInt(days));
+    res.json(stats);
+});
+
+// =============================================
+// 📝 LIVE ACTIVITY FEED
+// =============================================
+router.get('/activity/live', (req, res) => {
+    const feed = activityService.getLiveFeed();
+    res.json({ activities: feed, timestamp: new Date().toISOString() });
+});
+
+// =============================================
+// 🔔 SERVICE STATUS (Public Status Page)
+// =============================================
+router.get('/public', async (req, res) => {
+    const health = await healthService.checkAllServices();
+    
+    // Simplified for public status page
+    const publicStatus = {
+        overall: health.status,
+        lastUpdated: health.timestamp,
+        uptime: await healthService.getUptimeStats(7),
+        services: health.services.map(s => ({
+            name: s.service,
+            status: s.status,
+            icon: getServiceIcon(s.service)
+        })),
+        recentIncidents: [] // Fetch recent resolved incidents
+    };
+    
+    res.json(publicStatus);
+});
+
+// =============================================
+// 🎯 INCIDENT MANAGEMENT
+// =============================================
+router.post('/incidents', async (req, res) => {
+    const { service, severity, description } = req.body;
+    const incident = await healthService.createIncident(service, severity, description);
+    res.json({ success: true, incident });
+});
+
+router.put('/incidents/:service/resolve', async (req, res) => {
+    const { incidentIndex } = req.body;
+    await healthService.resolveIncident(req.params.service, incidentIndex);
+    res.json({ success: true });
+});
+
+function getServiceIcon(service) {
+    const icons = {
+        api: '🔌', dashboard: '📊', ai: '🤖', storage: '💾',
+        dns: '🌐', billing: '💰', domain: '🏠', auth: '🔐',
+        database: '🗄️', redis: '🔴', cdn: '🌍'
+    };
+    return icons[service] || '⚙️';
+}
+
+module.exports = router;
