@@ -1,0 +1,86 @@
+<!-- ============================================================ -->
+<!-- 🎨 Status & Activity Dashboard Widget -->
+<!-- ============================================================ -->
+<div id="status-widget" style="background:#1a1a2e;border-radius:12px;padding:20px;color:#fff;font-family:sans-serif;max-width:400px;">
+    
+    <!-- Overall Status -->
+    <div id="overall-status" style="margin-bottom:20px;">
+        <h3 style="margin:0 0 15px 0;">System Status</h3>
+        <div id="status-indicator" style="display:flex;align-items:center;gap:10px;padding:10px;background:#0a0a1a;border-radius:8px;">
+            <span id="status-dot" style="width:12px;height:12px;border-radius:50%;background:#3fb950;"></span>
+            <span id="status-text" style="font-weight:bold;">All Systems Operational</span>
+        </div>
+    </div>
+
+    <!-- Service Status -->
+    <div id="services" style="margin-bottom:20px;">
+        <h4 style="margin:0 0 10px 0;color:#888;">Services</h4>
+        <div id="service-list"></div>
+    </div>
+
+    <!-- Live Activity -->
+    <div id="activity">
+        <h4 style="margin:0 0 10px 0;color:#888;">Live Activity</h4>
+        <div id="activity-feed" style="max-height:200px;overflow-y:auto;"></div>
+    </div>
+
+</div>
+
+<script>
+// =============================================
+// 🔄 REAL-TIME STATUS UPDATES
+// =============================================
+async function updateStatus() {
+    try {
+        // Fetch health status
+        const healthRes = await fetch('/api/status/health');
+        const health = await healthRes.json();
+        
+        // Update overall status
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        
+        const statusColors = { HEALTHY: '#3fb950', DEGRADED: '#d29922', DOWN: '#f85149' };
+        const statusMessages = { HEALTHY: 'All Systems Operational', DEGRADED: 'Some Services Degraded', DOWN: 'Service Disruption' };
+        
+        statusDot.style.background = statusColors[health.status] || '#888';
+        statusText.textContent = statusMessages[health.status] || 'Unknown';
+        
+        // Update service list
+        const serviceList = document.getElementById('service-list');
+        serviceList.innerHTML = health.services.map(s => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #333;">
+                <span>${getServiceIcon(s.name)} ${s.name}</span>
+                <span style="color:${s.status === 'healthy' ? '#3fb950' : '#f85149'}">
+                    ${s.status === 'healthy' ? '✅' : '❌'}
+                </span>
+                <span style="color:#888;font-size:0.8em;">${s.responseTime}</span>
+            </div>
+        `).join('');
+        
+        // Fetch live activity
+        const activityRes = await fetch('/api/status/activity/live');
+        const activity = await activityRes.json();
+        
+        const activityFeed = document.getElementById('activity-feed');
+        activityFeed.innerHTML = activity.activities.map(a => `
+            <div style="padding:6px 0;font-size:0.85em;color:#aaa;">
+                <span style="color:#888;">${a.time}</span>
+                ${a.icon} ${a.description}
+            </div>
+        `).join('');
+        
+    } catch (error) {
+        console.error('Status update failed:', error);
+    }
+}
+
+function getServiceIcon(name) {
+    const icons = { api: '🔌', ai: '🤖', storage: '💾', dns: '🌐', billing: '💰', domain: '🏠', auth: '🔐' };
+    return icons[name] || '⚙️';
+}
+
+// Update every 10 seconds
+setInterval(updateStatus, 10000);
+updateStatus(); // Initial load
+</script>
