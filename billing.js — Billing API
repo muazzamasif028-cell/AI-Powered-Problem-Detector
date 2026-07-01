@@ -1,0 +1,119 @@
+// ============================================================
+// 🛣️ src/routes/billing.js
+// SUPREME Billing API Routes
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const auth = require('../middleware/auth');
+const invoiceService = require('../services/billing/invoice.service');
+const taxService = require('../services/billing/tax.service');
+const currencyService = require('../services/billing/currency.service');
+const Invoice = require('../models/Invoice');
+
+// All routes require auth
+router.use(auth);
+
+// =============================================
+// 📊 INVOICES
+// =============================================
+router.get('/invoices', async (req, res) => {
+    const invoices = await Invoice.find({ userId: req.userId })
+        .sort({ createdAt: -1 })
+        .limit(50);
+    
+    res.json({ success: true, invoices });
+});
+
+router.get('/invoices/:id', async (req, res) => {
+    const invoice = await Invoice.findOne({ _id: req.params.id, userId: req.userId });
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    res.json({ success: true, invoice });
+});
+
+router.get('/invoices/:id/pdf', async (req, res) => {
+    const pdfPath = await invoiceService.generatePDF(req.params.id);
+    res.download(pdfPath);
+});
+
+router.post('/invoices/:id/send', async (req, res) => {
+    const result = await invoiceService.sendInvoice(req.params.id);
+    res.json(result);
+});
+
+// =============================================
+// 💰 PAYMENT
+// =============================================
+router.post('/pay/:invoiceId', async (req, res) => {
+    const invoice = await Invoice.findOne({ 
+        _id: req.params.invoiceId, 
+        userId: req.userId 
+    });
+    
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    
+    const paymentService = require('../services/payment');
+    const checkout = await paymentService.createCheckout(req.userId, {
+        domainName: 'invoice-payment',
+        tld: 'payment',
+        price: invoice.amountDue,
+        currency: invoice.currency
+    });
+    
+    res.json(checkout);
+});
+
+// =============================================
+// 🌍 TAX
+// =============================================
+router.post('/tax/calculate', async (req, res) => {
+    const { amount, country, state, customerType, taxId } = req.body;
+    
+    const result = state 
+        ? taxService.calculateUSTax(amount, state)
+        : taxService.calculateTax(amount, country, customerType, false, taxId);
+    
+    res.json({ success: true, ...result });
+});
+
+router.get('/tax/countries', (req, res) => {
+    res.json({ countries: taxService.getSupportedCountries() });
+});
+
+// =============================================
+// 💱 CURRENCY
+// =============================================
+router.post('/currency/convert', (req, res) => {
+    const { amount, from, to } = req.body;
+    const converted = currencyService.convert(amount, from, to);
+    
+    res.json({
+        success: true,
+        from: { amount, currency: from },
+        to: { amount: converted, currency: to },
+        rate: currencyService.rates[to] / currencyService.rates[from],
+        formatted: currencyService.format(converted, to)
+    });
+});
+
+router.get('/currency/supported', (req, res) => {
+    res.json({ currencies: currencyService.getSupportedCurrencies() });
+});
+
+router.get('/currency/for-country/:country', (req, res) => {
+    const currency = currencyService.getCustomerCurrency(req.params.country);
+    res.json({ country: req.params.country, currency });
+});
+
+// =============================================
+// 📊 REVENUE
+// =============================================
+router.get('/revenue', async (req, res) => {
+    const { startDate, endDate } = req.query;
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date();
+    
+    const report = await invoiceService.getRevenueReport(start, end);
+    res.json({ success: true, report });
+});
+
+module.exports = router;
