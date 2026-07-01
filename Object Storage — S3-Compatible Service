@@ -1,0 +1,237 @@
+// ============================================================
+// 💾 src/services/storage/s3.service.js
+// SUPREME Object Storage — S3 Compatible
+// ============================================================
+const AWS = require('aws-sdk');
+const crypto = require('crypto');
+
+class S3StorageService {
+    constructor() {
+        this.s3 = new AWS.S3({
+            endpoint: process.env.S3_ENDPOINT,
+            accessKeyId: process.env.S3_ACCESS_KEY,
+            secretAccessKey: process.env.S3_SECRET_KEY,
+            region: process.env.S3_REGION || 'auto',
+            signatureVersion: 'v4',
+            s3ForcePathStyle: true // Required for MinIO
+        });
+
+        this.buckets = {
+            'user-uploads': { public: true, cdn: true },
+            'user-backups': { public: false, encrypted: true },
+            'ai-models': { public: false, encrypted: true },
+            'static-assets': { public: true, cdn: true },
+            'invoice-pdfs': { public: false, encrypted: true }
+        };
+
+        this.cdnDomain = process.env.CDN_DOMAIN || 'cdn.supreme-os.com';
+    }
+
+    /**
+     * Initialize buckets
+     */
+    async initialize() {
+        for (const [bucketName, config] of Object.entries(this.buckets)) {
+            await this.ensureBucket(bucketName, config);
+        }
+        console.log(`💾 S3 Storage initialized: ${Object.keys(this.buckets).length} buckets`);
+    }
+
+    /**
+     * Ensure bucket exists
+     */
+    async ensureBucket(name, config) {
+        try {
+            await this.s3.headBucket({ Bucket: name }).promise();
+        } catch (error) {
+            if (error.statusCode === 404) {
+                await this.s3.createBucket({ Bucket: name }).promise();
+                
+                // Enable versioning
+                await this.s3.putBucketVersioning({
+                    Bucket: name,
+                    VersioningConfiguration: { Status: 'Enabled' }
+                }).promise();
+
+                // Enable encryption
+                if (config.encrypted) {
+                    await this.s3.putBucketEncryption({
+                        Bucket: name,
+                        ServerSideEncryptionConfiguration: {
+                            Rules: [{
+                                ApplyServerSideEncryptionByDefault: {
+                                    SSEAlgorithm: 'AES256'
+                                }
+                            }]
+                        }
+                    }).promise();
+                }
+            }
+        }
+    }
+
+    /**
+     * Upload file
+     */
+    async upload(bucket, key, body, options = {}) {
+        const params = {
+            Bucket: bucket,
+            Key: key,
+            Body: body,
+            ContentType: options.contentType || 'application/octet-stream',
+            Metadata: options.metadata || {},
+            ACL: options.public ? 'public-read' : 'private',
+            ServerSideEncryption: 'AES256',
+            StorageClass: options.storageClass || 'STANDARD'
+        };
+
+        const result = await this.s3.upload(params).promise();
+
+        return {
+            bucket: result.Bucket,
+            key: result.Key,
+            location: result.Location,
+            etag: result.ETag,
+            versionId: result.VersionId,
+            cdnUrl: options.public ? `https://${this.cdnDomain}/${key}` : null,
+            signedUrl: options.public ? null : this.generateSignedUrl(bucket, key, 3600)
+        };
+    }
+
+    /**
+     * Generate signed URL
+     */
+    generateSignedUrl(bucket, key, expiresIn = 3600) {
+        return this.s3.getSignedUrl('getObject', {
+            Bucket: bucket,
+            Key: key,
+            Expires: expiresIn
+        });
+    }
+
+    /**
+     * Upload with presigned URL (for direct browser uploads)
+     */
+    generateUploadUrl(bucket, key, contentType, expiresIn = 300) {
+        return this.s3.getSignedUrl('putObject', {
+            Bucket: bucket,
+            Key: key,
+            ContentType: contentType,
+            Expires: expiresIn,
+            ACL: 'private'
+        });
+    }
+
+    /**
+     * Download file
+     */
+    async download(bucket, key) {
+        const params = { Bucket: bucket, Key: key };
+        const result = await this.s3.getObject(params).promise();
+        
+        return {
+            body: result.Body,
+            contentType: result.ContentType,
+            metadata: result.Metadata,
+            etag: result.ETag,
+            versionId: result.VersionId
+        };
+    }
+
+    /**
+     * Delete file
+     */
+    async delete(bucket, key) {
+        return this.s3.deleteObject({
+            Bucket: bucket,
+            Key: key
+        }).promise();
+    }
+
+    /**
+     * List files
+     */
+    async list(bucket, prefix = '', maxKeys = 1000) {
+        const params = {
+            Bucket: bucket,
+            Prefix: prefix,
+            MaxKeys: maxKeys
+        };
+
+        const result = await this.s3.listObjectsV2(params).promise();
+
+        return {
+            files: result.Contents?.map(item => ({
+                key: item.Key,
+                size: item.Size,
+                lastModified: item.LastModified,
+                etag: item.ETag,
+                storageClass: item.StorageClass
+            })) || [],
+            isTruncated: result.IsTruncated,
+            nextContinuationToken: result.NextContinuationToken,
+            totalCount: result.KeyCount
+        };
+    }
+
+    /**
+     * Copy file
+     */
+    async copy(sourceBucket, sourceKey, destBucket, destKey) {
+        return this.s3.copyObject({
+            Bucket: destBucket,
+            Key: destKey,
+            CopySource: `/${sourceBucket}/${sourceKey}`,
+            ServerSideEncryption: 'AES256'
+        }).promise();
+    }
+
+    /**
+     * Set lifecycle policy
+     */
+    async setLifecyclePolicy(bucket, rules) {
+        return this.s3.putBucketLifecycleConfiguration({
+            Bucket: bucket,
+            LifecycleConfiguration: {
+                Rules: rules.map(rule => ({
+                    ID: rule.id,
+                    Status: 'Enabled',
+                    Filter: { Prefix: rule.prefix || '' },
+                    Transitions: rule.transitionToIA ? [{
+                        Days: rule.transitionToIA,
+                        StorageClass: 'STANDARD_IA'
+                    }] : undefined,
+                    Expiration: rule.expireDays ? {
+                        Days: rule.expireDays
+                    } : undefined
+                }))
+            }
+        }).promise();
+    }
+
+    /**
+     * Get storage stats
+     */
+    async getStats() {
+        const stats = {};
+
+        for (const bucketName of Object.keys(this.buckets)) {
+            try {
+                const objects = await this.s3.listObjectsV2({
+                    Bucket: bucketName
+                }).promise();
+
+                stats[bucketName] = {
+                    objectCount: objects.KeyCount,
+                    totalSize: objects.Contents?.reduce((sum, obj) => sum + obj.Size, 0) || 0
+                };
+            } catch (error) {
+                stats[bucketName] = { error: error.message };
+            }
+        }
+
+        return stats;
+    }
+}
+
+module.exports = new S3StorageService();
