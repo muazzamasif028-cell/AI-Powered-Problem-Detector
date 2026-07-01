@@ -1,0 +1,81 @@
+// ============================================================
+// 💳 src/services/payment/index.js
+// Payment Provider Factory — Stripe-free
+// ============================================================
+
+const PROVIDERS = {
+    paddle: require('./paddle.provider'),
+    lemonsqueezy: require('./lemonsqueezy.provider'),
+    paypal: require('./paypal.provider')
+};
+
+class PaymentService {
+    constructor() {
+        this.provider = process.env.PAYMENT_PROVIDER || 'paddle';
+        this.payment = PROVIDERS[this.provider];
+        
+        if (!this.payment) {
+            throw new Error(`Unknown payment provider: ${this.provider}`);
+        }
+        
+        console.log(`💳 Payment provider: ${this.provider.toUpperCase()}`);
+    }
+
+    /**
+     * Create checkout/payment link
+     */
+    async createCheckout(userId, domainData) {
+        return this.payment.createCheckout(userId, domainData);
+    }
+
+    /**
+     * Handle webhook
+     */
+    async handleWebhook(req, res) {
+        return this.payment.handleWebhook(req, res);
+    }
+
+    /**
+     * Get payment link for domain purchase
+     */
+    async getPaymentUrl(userId, domainData) {
+        return this.payment.getPaymentUrl(userId, domainData);
+    }
+
+    /**
+     * Verify payment
+     */
+    async verifyPayment(transactionId) {
+        return this.payment.verifyPayment(transactionId);
+    }
+
+    /**
+     * Create subscription
+     */
+    async createSubscription(userId, planData) {
+        return this.payment.createSubscription(userId, planData);
+    }
+
+    /**
+     * Cancel subscription
+     */
+    async cancelSubscription(subscriptionId) {
+        return this.payment.cancelSubscription(subscriptionId);
+    }
+
+    /**
+     * Get available countries
+     */
+    getSupportedCountries() {
+        return this.payment.supportedCountries;
+    }
+
+    /**
+     * Get payment methods for country
+     */
+    getPaymentMethods(country) {
+        return this.payment.getPaymentMethods(country);
+    }
+}
+
+module.exports = new PaymentService();
