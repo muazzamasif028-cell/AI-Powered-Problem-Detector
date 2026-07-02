@@ -1,0 +1,176 @@
+// ============================================================
+// 💳 src/services/payment/index.js
+// SUPREME Payment Orchestrator — Paddle | Lemon Squeezy | PayPal
+// ============================================================
+
+const paddleProvider = require('./paddle.provider');
+const lemonSqueezyProvider = require('./lemonsqueezy.provider');
+const paypalProvider = require('./paypal.provider');
+
+class PaymentOrchestrator {
+    constructor() {
+        this.providers = {
+            paddle: paddleProvider,
+            lemonsqueezy: lemonSqueezyProvider,
+            paypal: paypalProvider
+        };
+
+        this.defaultProvider = process.env.DEFAULT_PAYMENT_PROVIDER || 'paddle';
+        
+        // Provider capabilities
+        this.capabilities = {
+            paddle: {
+                type: 'MoR',
+                countries: 200,
+                handlesTax: true,
+                crypto: false,
+                bnpl: false,
+                currencies: ['USD', 'EUR', 'GBP', 'CAD', 'AUD'],
+                fees: '5% + $0.50',
+                payoutTime: 'Monthly',
+                bestFor: 'Global SaaS'
+            },
+            lemonsqueezy: {
+                type: 'MoR',
+                countries: 100,
+                handlesTax: true,
+                crypto: true,
+                bnpl: true,
+                currencies: ['USD'],
+                fees: '5% + $0.50',
+                payoutTime: 'Monthly',
+                bestFor: 'Modern SaaS + Crypto'
+            },
+            paypal: {
+                type: 'Payment Processor',
+                countries: 200,
+                handlesTax: false,
+                crypto: true,
+                bnpl: true,
+                currencies: ['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'JPY', 'AED', 'SAR', 'PKR', 'INR'],
+                fees: '2.9% + $0.30',
+                payoutTime: 'Instant',
+                bestFor: 'Traditional + Global Reach'
+            }
+        };
+    }
+
+    /**
+     * Get provider instance
+     */
+    getProvider(providerName = null) {
+        const name = providerName || this.defaultProvider;
+        const provider = this.providers[name];
+        
+        if (!provider) {
+            throw new Error(`Payment provider not found: ${name}`);
+        }
+        
+        return provider;
+    }
+
+    /**
+     * Create checkout/payment
+     */
+    async createCheckout(userId, paymentData, providerName = null) {
+        const provider = this.getProvider(providerName);
+        return provider.createCheckout(userId, paymentData);
+    }
+
+    /**
+     * Handle webhook
+     */
+    async handleWebhook(providerName, req, res) {
+        const provider = this.getProvider(providerName);
+        return provider.handleWebhook(req, res);
+    }
+
+    /**
+     * Create subscription
+     */
+    async createSubscription(userId, planData, providerName = null) {
+        const provider = this.getProvider(providerName);
+        return provider.createSubscription(userId, planData);
+    }
+
+    /**
+     * Cancel subscription
+     */
+    async cancelSubscription(subscriptionId, providerName = null) {
+        const provider = this.getProvider(providerName);
+        return provider.cancelSubscription(subscriptionId);
+    }
+
+    /**
+     * Verify payment
+     */
+    async verifyPayment(transactionId, providerName = null) {
+        const provider = this.getProvider(providerName);
+        return provider.verifyPayment(transactionId);
+    }
+
+    /**
+     * Get best provider for user's country
+     */
+    getBestProvider(country, amount = 0) {
+        // Paddle — Best for US/EU with tax handling
+        if (['US', 'UK', 'DE', 'FR', 'CA', 'AU'].includes(country)) {
+            return 'paddle';
+        }
+
+        // Lemon Squeezy — Best for crypto users
+        if (amount > 100) {
+            return 'lemonsqueezy';
+        }
+
+        // PayPal — Best for Asia, Middle East, developing countries
+        if (['PK', 'IN', 'BD', 'AE', 'SA', 'EG', 'NG', 'PH', 'ID'].includes(country)) {
+            return 'paypal';
+        }
+
+        return this.defaultProvider;
+    }
+
+    /**
+     * Get all providers with capabilities
+     */
+    getAllProviders() {
+        return Object.entries(this.providers).map(([name, provider]) => ({
+            name,
+            ...this.capabilities[name],
+            status: provider.status || 'active'
+        }));
+    }
+
+    /**
+     * Get provider capabilities
+     */
+    getCapabilities(providerName) {
+        return this.capabilities[providerName] || null;
+    }
+
+    /**
+     * Compare providers
+     */
+    compareProviders() {
+        return this.capabilities;
+    }
+
+    /**
+     * Get supported countries for a provider
+     */
+    getSupportedCountries(providerName) {
+        const provider = this.getProvider(providerName);
+        return provider.supportedCountries || [];
+    }
+
+    /**
+     * Get payment methods available for country
+     */
+    getPaymentMethods(providerName, country) {
+        const provider = this.getProvider(providerName);
+        return provider.getPaymentMethods?.(country) || ['card'];
+    }
+}
+
+module.exports = new PaymentOrchestrator();
