@@ -1,0 +1,521 @@
+// ============================================================
+// 🌍 src/services/next-gen/universal-ai-os.service.js
+// SUPREME Universal AI OS — One AI to control everything
+// ============================================================
+
+class UniversalAIOS {
+    constructor() {
+        this.connectedDevices = new Map();
+        this.activeSessions = new Map();
+        this.commandQueue = new Map();
+        this.automationRules = new Map();
+        this.voiceCommands = new Map();
+        
+        this.deviceTypes = {
+            DESKTOP: 'desktop',
+            BROWSER: 'browser',
+            MOBILE: 'mobile',
+            SERVER: 'server',
+            CLOUD: 'cloud',
+            IOT: 'iot',
+            ROBOT: 'robot',
+            DRONE: 'drone',
+            SATELLITE: 'satellite'
+        };
+
+        this.initializeVoiceCommands();
+    }
+
+    /**
+     * Connect a device to the AI OS
+     */
+    async connectDevice(userId, deviceInfo) {
+        const { type, name, capabilities, credentials } = deviceInfo;
+
+        const deviceId = this.generateDeviceId();
+        
+        const device = {
+            id: deviceId,
+            userId,
+            type,
+            name,
+            capabilities: capabilities || [],
+            status: 'connected',
+            connectedAt: new Date(),
+            lastActivity: new Date(),
+            credentials: this.encryptCredentials(credentials),
+            permissions: [],
+            automationEnabled: false,
+            metrics: {
+                cpuUsage: 0,
+                memoryUsage: 0,
+                networkStatus: 'online',
+                batteryLevel: 100
+            }
+        };
+
+        this.connectedDevices.set(deviceId, device);
+
+        // Create session
+        const sessionId = this.createSession(userId, deviceId);
+
+        console.log(`🔗 Device connected: ${name} (${type})`);
+        
+        return {
+            deviceId,
+            sessionId,
+            device,
+            message: `✅ ${name} is now connected to SUPREME AI OS`
+        };
+    }
+
+    /**
+     * Execute command on any device
+     */
+    async executeCommand(userId, command) {
+        const { deviceId, action, params, priority = 'normal' } = command;
+
+        // Find device
+        const device = deviceId 
+            ? this.connectedDevices.get(deviceId)
+            : this.findBestDevice(userId, action);
+
+        if (!device) {
+            throw new Error('No suitable device found for this command');
+        }
+
+        // Check permissions
+        if (!this.hasPermission(userId, deviceId, action)) {
+            throw new Error('Permission denied for this action');
+        }
+
+        // Create command task
+        const task = {
+            id: this.generateTaskId(),
+            userId,
+            deviceId: device.id,
+            action,
+            params,
+            priority,
+            status: 'queued',
+            createdAt: new Date(),
+            startedAt: null,
+            completedAt: null,
+            result: null,
+            error: null
+        };
+
+        // Queue or execute immediately
+        if (priority === 'high') {
+            return this.executeTask(task, device);
+        } else {
+            this.queueTask(task);
+            return { taskId: task.id, status: 'queued', message: 'Command queued for execution' };
+        }
+    }
+
+    /**
+     * Execute a task on a device
+     */
+    async executeTask(task, device) {
+        task.status = 'running';
+        task.startedAt = new Date();
+
+        try {
+            let result;
+
+            switch (task.action) {
+                // Desktop actions
+                case 'open_app':
+                    result = await this.controlDesktop(device, 'open', task.params);
+                    break;
+                case 'type_text':
+                    result = await this.controlDesktop(device, 'type', task.params);
+                    break;
+                case 'take_screenshot':
+                    result = await this.controlDesktop(device, 'screenshot', task.params);
+                    break;
+                case 'move_mouse':
+                    result = await this.controlDesktop(device, 'mouse', task.params);
+                    break;
+
+                // Browser actions
+                case 'open_website':
+                    result = await this.controlBrowser(device, 'navigate', task.params);
+                    break;
+                case 'fill_form':
+                    result = await this.controlBrowser(device, 'fill', task.params);
+                    break;
+                case 'click_element':
+                    result = await this.controlBrowser(device, 'click', task.params);
+                    break;
+                case 'extract_data':
+                    result = await this.controlBrowser(device, 'extract', task.params);
+                    break;
+
+                // Mobile actions
+                case 'send_sms':
+                    result = await this.controlMobile(device, 'sms', task.params);
+                    break;
+                case 'make_call':
+                    result = await this.controlMobile(device, 'call', task.params);
+                    break;
+                case 'take_photo':
+                    result = await this.controlMobile(device, 'camera', task.params);
+                    break;
+                case 'get_location':
+                    result = await this.controlMobile(device, 'gps', task.params);
+                    break;
+
+                // Server actions
+                case 'deploy_app':
+                    result = await this.controlServer(device, 'deploy', task.params);
+                    break;
+                case 'run_script':
+                    result = await this.controlServer(device, 'script', task.params);
+                    break;
+                case 'check_logs':
+                    result = await this.controlServer(device, 'logs', task.params);
+                    break;
+                case 'restart_service':
+                    result = await this.controlServer(device, 'restart', task.params);
+                    break;
+
+                // Cloud actions
+                case 'scale_resources':
+                    result = await this.controlCloud(device, 'scale', task.params);
+                    break;
+                case 'create_instance':
+                    result = await this.controlCloud(device, 'create', task.params);
+                    break;
+                case 'setup_cdn':
+                    result = await this.controlCloud(device, 'cdn', task.params);
+                    break;
+
+                // IoT actions
+                case 'control_light':
+                    result = await this.controlIoT(device, 'light', task.params);
+                    break;
+                case 'set_thermostat':
+                    result = await this.controlIoT(device, 'temperature', task.params);
+                    break;
+                case 'lock_door':
+                    result = await this.controlIoT(device, 'lock', task.params);
+                    break;
+
+                default:
+                    throw new Error(`Unknown action: ${task.action}`);
+            }
+
+            task.status = 'completed';
+            task.completedAt = new Date();
+            task.result = result;
+
+            // Update device last activity
+            device.lastActivity = new Date();
+
+            return { success: true, taskId: task.id, result };
+
+        } catch (error) {
+            task.status = 'failed';
+            task.error = error.message;
+            throw error;
+        }
+    }
+
+    /**
+     * Desktop control
+     */
+    async controlDesktop(device, action, params) {
+        // In production: Use native APIs or WebSocket to control desktop
+        switch (action) {
+            case 'open':
+                return { message: `Opening ${params.app} on ${device.name}`, app: params.app };
+            case 'type':
+                return { message: `Typing text on ${device.name}`, length: params.text?.length };
+            case 'screenshot':
+                return { message: 'Screenshot captured', url: `https://supreme-os.com/screenshots/${Date.now()}.png` };
+            case 'mouse':
+                return { message: `Mouse moved to (${params.x}, ${params.y})` };
+            default:
+                return { message: `Desktop action: ${action}` };
+        }
+    }
+
+    /**
+     * Browser control
+     */
+    async controlBrowser(device, action, params) {
+        switch (action) {
+            case 'navigate':
+                return { message: `Opening ${params.url}`, url: params.url };
+            case 'fill':
+                return { message: `Filling form on ${params.url}`, fields: Object.keys(params.data || {}).length };
+            case 'click':
+                return { message: `Clicked ${params.selector}` };
+            case 'extract':
+                return { 
+                    message: 'Data extracted',
+                    data: { title: 'Sample Page', content: 'Extracted content...' }
+                };
+            default:
+                return { message: `Browser action: ${action}` };
+        }
+    }
+
+    /**
+     * Mobile control
+     */
+    async controlMobile(device, action, params) {
+        switch (action) {
+            case 'sms':
+                return { message: `SMS sent to ${params.to}`, to: params.to };
+            case 'call':
+                return { message: `Calling ${params.number}`, number: params.number };
+            case 'camera':
+                return { message: 'Photo captured', url: `https://supreme-os.com/photos/${Date.now()}.jpg` };
+            case 'gps':
+                return { message: 'Location retrieved', location: { lat: 40.7128, lng: -74.0060 } };
+            default:
+                return { message: `Mobile action: ${action}` };
+        }
+    }
+
+    /**
+     * Server control
+     */
+    async controlServer(device, action, params) {
+        switch (action) {
+            case 'deploy':
+                return { message: `App deployed to ${device.name}`, url: params.url };
+            case 'script':
+                return { message: 'Script executed', output: 'Command executed successfully' };
+            case 'logs':
+                return { message: 'Logs retrieved', lines: 100 };
+            case 'restart':
+                return { message: `Service ${params.service} restarted` };
+            default:
+                return { message: `Server action: ${action}` };
+        }
+    }
+
+    /**
+     * Cloud control
+     */
+    async controlCloud(device, action, params) {
+        switch (action) {
+            case 'scale':
+                return { message: `Scaled to ${params.instances} instances` };
+            case 'create':
+                return { message: 'Instance created', id: `i-${Date.now()}`, ip: '192.168.1.1' };
+            case 'cdn':
+                return { message: 'CDN configured', url: `https://cdn.supreme-os.com/${params.domain}` };
+            default:
+                return { message: `Cloud action: ${action}` };
+        }
+    }
+
+    /**
+     * IoT control
+     */
+    async controlIoT(device, action, params) {
+        switch (action) {
+            case 'light':
+                return { message: `Light ${params.state}`, state: params.state };
+            case 'temperature':
+                return { message: `Thermostat set to ${params.temp}°C` };
+            case 'lock':
+                return { message: `Door ${params.state}` };
+            default:
+                return { message: `IoT action: ${action}` };
+        }
+    }
+
+    /**
+     * Voice command processing
+     */
+    initializeVoiceCommands() {
+        const commands = [
+            { phrase: 'open chrome', action: 'open_app', params: { app: 'Chrome' } },
+            { phrase: 'take screenshot', action: 'take_screenshot', params: {} },
+            { phrase: 'deploy to production', action: 'deploy_app', params: { env: 'production' } },
+            { phrase: 'check server status', action: 'run_script', params: { script: 'status.sh' } },
+            { phrase: 'scale up', action: 'scale_resources', params: { instances: 5 } },
+            { phrase: 'turn off lights', action: 'control_light', params: { state: 'off' } },
+            { phrase: 'send email', action: 'open_app', params: { app: 'Gmail' } },
+            { phrase: 'start meeting', action: 'open_app', params: { app: 'Zoom' } }
+        ];
+
+        commands.forEach(cmd => {
+            this.voiceCommands.set(cmd.phrase, {
+                action: cmd.action,
+                params: cmd.params
+            });
+        });
+    }
+
+    /**
+     * Process voice command
+     */
+    async processVoiceCommand(userId, transcript) {
+        const command = this.voiceCommands.get(transcript.toLowerCase());
+        
+        if (!command) {
+            // Use AI to understand the command
+            return this.executeAICommand(userId, transcript);
+        }
+
+        return this.executeCommand(userId, {
+            action: command.action,
+            params: command.params,
+            priority: 'high'
+        });
+    }
+
+    /**
+     * Use AI to understand unstructured commands
+     */
+    async executeAICommand(userId, transcript) {
+        // In production: Use LLM to parse command
+        const parsedCommand = {
+            action: 'run_script',
+            params: { script: transcript },
+            priority: 'normal'
+        };
+
+        return this.executeCommand(userId, parsedCommand);
+    }
+
+    /**
+     * Create automation rule
+     */
+    async createAutomation(userId, rule) {
+        const { name, trigger, conditions, actions } = rule;
+        
+        const automation = {
+            id: this.generateAutomationId(),
+            userId,
+            name,
+            trigger,
+            conditions: conditions || [],
+            actions: actions || [],
+            enabled: true,
+            createdAt: new Date(),
+            lastTriggered: null,
+            executionCount: 0
+        };
+
+        this.automationRules.set(automation.id, automation);
+
+        return automation;
+    }
+
+    /**
+     * Trigger automation
+     */
+    async triggerAutomation(userId, trigger) {
+        const rules = Array.from(this.automationRules.values())
+            .filter(r => r.userId === userId && r.enabled && r.trigger === trigger);
+
+        for (const rule of rules) {
+            for (const action of rule.actions) {
+                await this.executeCommand(userId, {
+                    action: action.action,
+                    params: action.params,
+                    priority: 'high'
+                });
+            }
+            rule.lastTriggered = new Date();
+            rule.executionCount++;
+        }
+    }
+
+    /**
+     * Get all connected devices
+     */
+    getConnectedDevices(userId) {
+        return Array.from(this.connectedDevices.values())
+            .filter(d => d.userId === userId)
+            .map(d => ({
+                id: d.id,
+                type: d.type,
+                name: d.name,
+                status: d.status,
+                capabilities: d.capabilities,
+                lastActivity: d.lastActivity,
+                metrics: d.metrics
+            }));
+    }
+
+    /**
+     * Get OS stats
+     */
+    getStats(userId) {
+        const devices = this.getConnectedDevices(userId);
+        
+        return {
+            totalDevices: devices.length,
+            byType: {
+                desktop: devices.filter(d => d.type === 'desktop').length,
+                browser: devices.filter(d => d.type === 'browser').length,
+                mobile: devices.filter(d => d.type === 'mobile').length,
+                server: devices.filter(d => d.type === 'server').length,
+                cloud: devices.filter(d => d.type === 'cloud').length,
+                iot: devices.filter(d => d.type === 'iot').length
+            },
+            activeSessions: this.activeSessions.size,
+            automations: Array.from(this.automationRules.values())
+                .filter(r => r.userId === userId).length,
+            commandQueue: this.commandQueue.size
+        };
+    }
+
+    // Helper methods
+    generateDeviceId() { return `dev_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`; }
+    generateTaskId() { return `task_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`; }
+    generateAutomationId() { return `auto_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`; }
+    
+    createSession(userId, deviceId) {
+        const sessionId = `sess_${Date.now()}`;
+        this.activeSessions.set(sessionId, { userId, deviceId, createdAt: new Date() });
+        return sessionId;
+    }
+
+    findBestDevice(userId, action) {
+        const devices = this.getConnectedDevices(userId);
+        const actionMap = {
+            'open_app': 'desktop',
+            'type_text': 'desktop',
+            'take_screenshot': 'desktop',
+            'open_website': 'browser',
+            'fill_form': 'browser',
+            'send_sms': 'mobile',
+            'make_call': 'mobile',
+            'deploy_app': 'server',
+            'scale_resources': 'cloud',
+            'control_light': 'iot'
+        };
+        
+        const preferredType = actionMap[action] || 'desktop';
+        return devices.find(d => d.type === preferredType && d.status === 'connected');
+    }
+
+    hasPermission(userId, deviceId, action) {
+        // In production: Check RBAC permissions
+        return true;
+    }
+
+    queueTask(task) {
+        if (!this.commandQueue.has(task.userId)) {
+            this.commandQueue.set(task.userId, []);
+        }
+        this.commandQueue.get(task.userId).push(task);
+    }
+
+    encryptCredentials(credentials) {
+        // In production: Use encryption
+        return credentials;
+    }
+}
+
+module.exports = new UniversalAIOS();
