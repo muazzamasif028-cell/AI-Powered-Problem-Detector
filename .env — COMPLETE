@@ -1,118 +1,85 @@
-# ============================================================
-# 🤫 SUPREME PLATFORM v7.0 — ENVIRONMENT CONFIG
-# ============================================================
+# Server
+PORT=3000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:5173
 
-# SERVER
-NODE_ENV=production
-PORT=5000
-HOST=0.0.0.0
+# Database
+MONGODB_URI=mongodb://localhost:27017/supreme-auth
 
-# SESSION
-SESSION_SECRET=supreme-quantum-session-key-v7-ultra-secure-2024
-
-# ALLOWED ORIGINS
-ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,https://supreme-platform.com
-
-# INTERNAL SECRET (Hidden — Never Expose)
-INTERNAL_SECRET=supreme-internal-master-key-7.0-quantum-safe-hidden
-
-# ============================================================
-# SCALE (Hidden Architecture)
-# ============================================================
-TOTAL_LANGUAGES=7128
-TOTAL_NODES=2500000000000
-TOTAL_LAYERS=5900000000
-TOTAL_COMPONENTS=500000000000
-
-# ============================================================
-# DATABASE
-# ============================================================
-MONGODB_URI=mongodb://localhost:27017/supreme-platform
-MONGODB_USER=supreme_admin
-MONGODB_PASS=supreme-db-password-2024
-
-# REDIS
-REDIS_URL=redis://localhost:6379
-REDIS_PASSWORD=supreme-redis-password-2024
-
-# ============================================================
 # JWT
-# ============================================================
-JWT_SECRET=supreme-jwt-quantum-secret-v7
-JWT_EXPIRES_IN=24h
-JWT_REFRESH_EXPIRES_IN=7d
+JWT_SECRET=your-super-secret-key-change-in-production-min-32-chars
+JWT_EXPIRY=15m
+JWT_REFRESH_EXPIRY=7d
+JWT_ISSUER=supreme-os
 
-# ============================================================
-# ENCRYPTION (Quantum-Safe)
-# ============================================================
-ENCRYPTION_KEY=supreme-quantum-encryption-key-1024-bit-pq
-ENCRYPTION_ALGORITHM=CRYSTALS-Kyber-1024
+# OAuth - Google
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_CALLBACK_URL=http://localhost:3000/api/auth/google/callback
 
-# ============================================================
-# EMAIL
-# ============================================================
-SMTP_HOST=smtp.supreme-platform.com
+# OAuth - GitHub
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+GITHUB_CALLBACK_URL=http://localhost:3000/api/auth/github/callback
+
+# OAuth - Microsoft
+MICROSOFT_CLIENT_ID=your-microsoft-client-id
+MICROSOFT_CLIENT_SECRET=your-microsoft-client-secret
+MICROSOFT_CALLBACK_URL=http://localhost:3000/api/auth/microsoft/callback
+
+# Email
+SMTP_HOST=smtp.resend.com
 SMTP_PORT=587
-SMTP_USER=noreply@supreme-platform.com
-SMTP_PASS=supreme-email-password-2024
-SMTP_FROM=Supreme Platform <noreply@supreme-platform.com>
+SMTP_USER=resend
+SMTP_PASS=your-smtp-password
+FROM_EMAIL=noreply@supreme-os.com
+FROM_NAME=SUPREME OS
 
-# ============================================================
-# STRIPE (Payments)
-# ============================================================
-STRIPE_SECRET_KEY=sk_live_supreme_stripe_secret_key_2024
-STRIPE_WEBHOOK_SECRET=whsec_supreme_webhook_secret_2024
+# 2FA
+TWO_FACTOR_APP_NAME=SUPREME OS
 
-# ============================================================
-# SATELLITE CONTROL
-# ============================================================
-SATELLITE_API_KEY=sat-supreme-control-key-v7
-SATELLITE_GROUND_STATIONS=Houston,Moscow,Beijing,Kourou,Canberra,Svalbard,Singapore,Dubai
+# Rate Limiting
+LOGIN_RATE_LIMIT=5
+LOGIN_RATE_WINDOW=15# Server
+PORT=3000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:5173
 
-# ============================================================
-# EXTERNAL APIs
-# ============================================================
-OPENAI_API_KEY=sk-supreme-openai-integration-key
-WEATHER_API_KEY=supreme-weather-api-key
-MAPS_API_KEY=supreme-maps-api-key
+# Database
+MONGODB_URI=mongodb://localhost:27017/supreme-auth
 
-# ============================================================
-# MONITORING
-# ============================================================
-SENTRY_DSN=https://supreme@sentry.io/1234567
-LOG_LEVEL=info
-LOG_FILE=/var/log/supreme-platform/app.log
+# JWT
+JWT_SECRET=your-super-secret-key-change-in-production-min-32-chars
+JWT_EXPIRY=15m
+JWT_REFRESH_EXPIRY=7d
+JWT_ISSUER=supreme-os
 
-# ============================================================
-# FEATURE FLAGS
-# ============================================================
-FEATURE_SATELLITE_CONTROL=true
-FEATURE_QUANTUM_SAFE=true
-FEATURE_SELF_LEARNING=true
-FEATURE_AUTO_FIX=true
-FEATURE_REAL_TIME_MONITORING=true
+# OAuth - Google
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_CALLBACK_URL=http://localhost:3000/api/auth/google/callback
 
-# ============================================================
-# RATE LIMITING
-# ============================================================
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=1000
-AUTH_RATE_LIMIT_MAX=20
-API_RATE_LIMIT_MAX=100
+# OAuth - GitHub
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+GITHUB_CALLBACK_URL=http://localhost:3000/api/auth/github/callback
 
-# ============================================================
-# CACHE
-# ============================================================
-CACHE_TTL=3600
-CACHE_MAX_SIZE=10000
+# OAuth - Microsoft
+MICROSOFT_CLIENT_ID=your-microsoft-client-id
+MICROSOFT_CLIENT_SECRET=your-microsoft-client-secret
+MICROSOFT_CALLBACK_URL=http://localhost:3000/api/auth/microsoft/callback
 
-# ============================================================
-# PERFORMANCE
-# ============================================================
-MAX_PAYLOAD_SIZE=10mb
-COMPRESSION_LEVEL=6
-WORKER_THREADS=8
+# Email
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=587
+SMTP_USER=resend
+SMTP_PASS=your-smtp-password
+FROM_EMAIL=noreply@supreme-os.com
+FROM_NAME=SUPREME OS
 
-# ============================================================
-# 🤫 END OF ENV CONFIG
-# ============================================================
+# 2FA
+TWO_FACTOR_APP_NAME=SUPREME OS
+
+# Rate Limiting
+LOGIN_RATE_LIMIT=5
+LOGIN_RATE_WINDOW=15
