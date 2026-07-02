@@ -1,0 +1,306 @@
+// ============================================================
+// 🔌 src/integrations/index.js
+// SUPREME OS — 120 AI Tools Integration Hub
+// ============================================================
+
+class IntegrationHub {
+    constructor() {
+        this.providers = new Map();
+        this.categories = new Map();
+        this.activeConnections = new Map();
+        
+        this.initializeProviders();
+    }
+
+    /**
+     * Initialize all AI tool providers
+     */
+    initializeProviders() {
+        // 💬 CHATBOT (8 tools)
+        this.registerProvider('chatgpt', 'openai', require('./chatbot/openai.provider'));
+        this.registerProvider('claude', 'anthropic', require('./chatbot/anthropic.provider'));
+        this.registerProvider('gemini', 'google', require('./chatbot/google.provider'));
+        this.registerProvider('perplexity', 'perplexity', require('./chatbot/perplexity.provider'));
+        this.registerProvider('copilot', 'microsoft', require('./chatbot/copilot.provider'));
+        this.registerProvider('character-ai', 'character', require('./chatbot/character.provider'));
+        this.registerProvider('pi', 'inflection', require('./chatbot/pi.provider'));
+        this.registerProvider('poe', 'quora', require('./chatbot/poe.provider'));
+
+        // 💻 CODE (8 tools)
+        this.registerProvider('github-copilot', 'github', require('./code/github-copilot'));
+        this.registerProvider('codeium', 'codeium', require('./code/codeium.provider'));
+        this.registerProvider('replit', 'replit', require('./code/replit.provider'));
+        this.registerProvider('codewhisperer', 'aws', require('./code/codewhisperer.provider'));
+        this.registerProvider('tabnine', 'tabnine', require('./code/tabnine.provider'));
+        this.registerProvider('cursor', 'cursor', require('./code/cursor.provider'));
+        this.registerProvider('mintlify', 'mintlify', require('./code/mintlify.provider'));
+        this.registerProvider('pieces', 'pieces', require('./code/pieces.provider'));
+
+        // 🎨 DESIGN (8 tools)
+        this.registerProvider('canva', 'canva', require('./design/canva.provider'));
+        this.registerProvider('midjourney', 'midjourney', require('./design/midjourney.provider'));
+        this.registerProvider('dalle', 'openai', require('./design/dalle.provider'));
+        this.registerProvider('stable-diffusion', 'stability', require('./design/stable-diffusion.provider'));
+        this.registerProvider('adobe-firefly', 'adobe', require('./design/adobe-firefly.provider'));
+        this.registerProvider('figma-ai', 'figma', require('./design/figma.provider'));
+        this.registerProvider('runway', 'runway', require('./design/runway.provider'));
+        this.registerProvider('artbreeder', 'artbreeder', require('./design/artbreeder.provider'));
+
+        // 🎬 VIDEO (8 tools)
+        this.registerProvider('sora', 'openai', require('./video/sora.provider'));
+        this.registerProvider('heygen', 'heygen', require('./video/heygen.provider'));
+        this.registerProvider('synthesia', 'synthesia', require('./video/synthesia.provider'));
+        this.registerProvider('descript', 'descript', require('./video/descript.provider'));
+        this.registerProvider('pika', 'pika', require('./video/pika.provider'));
+        this.registerProvider('invideo', 'invideo', require('./video/invideo.provider'));
+        this.registerProvider('capcut', 'bytedance', require('./video/capcut.provider'));
+        this.registerProvider('filmora', 'wondershare', require('./video/filmora.provider'));
+
+        // ✍️ WRITING (8 tools)
+        this.registerProvider('jasper', 'jasper', require('./writing/jasper.provider'));
+        this.registerProvider('grammarly', 'grammarly', require('./writing/grammarly.provider'));
+        this.registerProvider('copyai', 'copyai', require('./writing/copyai.provider'));
+        this.registerProvider('wordtune', 'wordtune', require('./writing/wordtune.provider'));
+        this.registerProvider('quillbot', 'quillbot', require('./writing/quillbot.provider'));
+        this.registerProvider('rytr', 'rytr', require('./writing/rytr.provider'));
+        this.registerProvider('simplified', 'simplified', require('./writing/simplified.provider'));
+        this.registerProvider('anyword', 'anyword', require('./writing/anyword.provider'));
+
+        // 🗣️ SPEECH (8 tools)
+        this.registerProvider('elevenlabs', 'elevenlabs', require('./speech/elevenlabs.provider'));
+        this.registerProvider('murf', 'murf', require('./speech/murf.provider'));
+        this.registerProvider('speechify', 'speechify', require('./speech/speechify.provider'));
+        this.registerProvider('lovo', 'lovo', require('./speech/lovo.provider'));
+        this.registerProvider('resemble', 'resemble', require('./speech/resemble.provider'));
+        this.registerProvider('wellsaid', 'wellsaid', require('./speech/wellsaid.provider'));
+        this.registerProvider('playht', 'playht', require('./speech/playht.provider'));
+        this.registerProvider('replica', 'replica', require('./speech/replica.provider'));
+
+        // 🎵 MUSIC (8 tools)
+        this.registerProvider('suno', 'suno', require('./music/suno.provider'));
+        this.registerProvider('udio', 'udio', require('./music/udio.provider'));
+        this.registerProvider('soundraw', 'soundraw', require('./music/soundraw.provider'));
+        this.registerProvider('amper', 'amper', require('./music/amper.provider'));
+        this.registerProvider('aiva', 'aiva', require('./music/aiva.provider'));
+        this.registerProvider('ecrett', 'ecrett', require('./music/ecrett.provider'));
+        this.registerProvider('soundful', 'soundful', require('./music/soundful.provider'));
+        this.registerProvider('mubert', 'mubert', require('./music/mubert.provider'));
+
+        // 🧠 RESEARCH (8 tools)
+        this.registerProvider('consensus', 'consensus', require('./research/consensus.provider'));
+        this.registerProvider('elicit', 'elicit', require('./research/elicit.provider'));
+        this.registerProvider('scite', 'scite', require('./research/scite.provider'));
+        this.registerProvider('semantic-scholar', 'semantic', require('./research/semantic-scholar.provider'));
+        this.registerProvider('paperpal', 'paperpal', require('./research/paperpal.provider'));
+        this.registerProvider('gptzero', 'gptzero', require('./research/gptzero.provider'));
+        this.registerProvider('scispace', 'scispace', require('./research/scispace.provider'));
+        this.registerProvider('deepl', 'deepl', require('./research/deepl.provider'));
+
+        // 🤖 AUTOMATION (8 tools)
+        this.registerProvider('zapier', 'zapier', require('./automation/zapier.provider'));
+        this.registerProvider('make', 'make', require('./automation/make.provider'));
+        this.registerProvider('n8n', 'n8n', require('./automation/n8n.provider'));
+        this.registerProvider('ifttt', 'ifttt', require('./automation/ifttt.provider'));
+        this.registerProvider('power-automate', 'microsoft', require('./automation/power-automate.provider'));
+        this.registerProvider('bardeen', 'bardeen', require('./automation/bardeen.provider'));
+        this.registerProvider('automate-io', 'automate', require('./automation/automate-io.provider'));
+        this.registerProvider('albato', 'albato', require('./automation/albato.provider'));
+
+        // 💼 BUSINESS (8 tools)
+        this.registerProvider('hubspot', 'hubspot', require('./business/hubspot.provider'));
+        this.registerProvider('salesforce', 'salesforce', require('./business/salesforce.provider'));
+        this.registerProvider('otter', 'otter', require('./business/otter.provider'));
+        this.registerProvider('fireflies', 'fireflies', require('./business/fireflies.provider'));
+        this.registerProvider('gong', 'gong', require('./business/gong.provider'));
+        this.registerProvider('loom', 'loom', require('./business/loom.provider'));
+        this.registerProvider('hoppy-copy', 'hoppy', require('./business/hoppy-copy.provider'));
+        this.registerProvider('tome', 'tome', require('./business/tome.provider'));
+
+        // 🔬 DATA & ANALYTICS (8 tools)
+        this.registerProvider('tableau', 'tableau', require('./data/tableau.provider'));
+        this.registerProvider('powerbi', 'microsoft', require('./data/powerbi.provider'));
+        this.registerProvider('ibm-watson', 'ibm', require('./data/ibm-watson.provider'));
+        this.registerProvider('rapidminer', 'rapidminer', require('./data/rapidminer.provider'));
+        this.registerProvider('datarobot', 'datarobot', require('./data/datarobot.provider'));
+        this.registerProvider('h2o', 'h2o', require('./data/h2o.provider'));
+        this.registerProvider('qlik', 'qlik', require('./data/qlik.provider'));
+        this.registerProvider('alteryx', 'alteryx', require('./data/alteryx.provider'));
+
+        // 🔒 SECURITY (8 tools)
+        this.registerProvider('darktrace', 'darktrace', require('./security/darktrace.provider'));
+        this.registerProvider('crowdstrike', 'crowdstrike', require('./security/crowdstrike.provider'));
+        this.registerProvider('sentinelone', 'sentinelone', require('./security/sentinelone.provider'));
+        this.registerProvider('vectra', 'vectra', require('./security/vectra.provider'));
+        this.registerProvider('trend-micro', 'trendmicro', require('./security/trend-micro.provider'));
+        this.registerProvider('palo-alto', 'paloalto', require('./security/palo-alto.provider'));
+        this.registerProvider('sophos', 'sophos', require('./security/sophos.provider'));
+        this.registerProvider('check-point', 'checkpoint', require('./security/check-point.provider'));
+
+        console.log(`🔌 Integration Hub initialized: ${this.providers.size} AI tools across ${this.getCategoryCount()} categories`);
+    }
+
+    /**
+     * Register a provider
+     */
+    registerProvider(name, vendor, provider) {
+        this.providers.set(name, {
+            name,
+            vendor,
+            provider,
+            status: 'registered',
+            connectedAt: null,
+            usageCount: 0
+        });
+
+        // Track by category
+        const category = this.getCategoryForProvider(name);
+        if (!this.categories.has(category)) {
+            this.categories.set(category, []);
+        }
+        this.categories.get(category).push(name);
+    }
+
+    /**
+     * Connect to a provider
+     */
+    async connect(name, credentials) {
+        const provider = this.providers.get(name);
+        if (!provider) throw new Error(`Provider not found: ${name}`);
+
+        try {
+            await provider.provider.connect(credentials);
+            provider.status = 'connected';
+            provider.connectedAt = new Date();
+            this.activeConnections.set(name, provider);
+            
+            console.log(`✅ Connected: ${name}`);
+            return { success: true, provider: name };
+        } catch (error) {
+            provider.status = 'error';
+            throw error;
+        }
+    }
+
+    /**
+     * Execute AI operation
+     */
+    async execute(providerName, action, params) {
+        const provider = this.providers.get(providerName);
+        if (!provider) throw new Error(`Provider not found: ${providerName}`);
+        if (provider.status !== 'connected') throw new Error(`Provider not connected: ${providerName}`);
+
+        const startTime = Date.now();
+        
+        try {
+            const result = await provider.provider[action](params);
+            provider.usageCount++;
+            
+            // Log usage
+            this.logUsage(providerName, action, Date.now() - startTime);
+            
+            return result;
+        } catch (error) {
+            console.error(`Provider ${providerName} error:`, error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Get category for provider
+     */
+    getCategoryForProvider(name) {
+        const categoryMap = {
+            'chatgpt': 'chatbot', 'claude': 'chatbot', 'gemini': 'chatbot',
+            'github-copilot': 'code', 'codeium': 'code', 'replit': 'code',
+            'canva': 'design', 'midjourney': 'design', 'dalle': 'design',
+            'sora': 'video', 'heygen': 'video', 'synthesia': 'video',
+            'jasper': 'writing', 'grammarly': 'writing',
+            'elevenlabs': 'speech', 'murf': 'speech',
+            'suno': 'music', 'udio': 'music',
+            'consensus': 'research', 'elicit': 'research',
+            'zapier': 'automation', 'make': 'automation',
+            'hubspot': 'business', 'salesforce': 'business',
+            'tableau': 'data', 'powerbi': 'data',
+            'darktrace': 'security', 'crowdstrike': 'security'
+        };
+        return categoryMap[name] || 'other';
+    }
+
+    /**
+     * Get all providers by category
+     */
+    getByCategory(category) {
+        const providers = this.categories.get(category) || [];
+        return providers.map(name => this.providers.get(name));
+    }
+
+    /**
+     * Get all categories
+     */
+    getCategories() {
+        return Array.from(this.categories.keys());
+    }
+
+    /**
+     * Get category count
+     */
+    getCategoryCount() {
+        return this.categories.size;
+    }
+
+    /**
+     * Get all connected providers
+     */
+    getConnected() {
+        return Array.from(this.activeConnections.values());
+    }
+
+    /**
+     * Get provider stats
+     */
+    getStats() {
+        const total = this.providers.size;
+        const connected = this.activeConnections.size;
+        const categories = this.categories.size;
+
+        const byCategory = {};
+        for (const [category, providers] of this.categories) {
+            byCategory[category] = {
+                total: providers.length,
+                connected: providers.filter(p => this.providers.get(p).status === 'connected').length
+            };
+        }
+
+        return { total, connected, categories, byCategory };
+    }
+
+    /**
+     * Log usage
+     */
+    logUsage(provider, action, duration) {
+        // In production: save to analytics database
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`📊 ${provider}.${action} — ${duration}ms`);
+        }
+    }
+
+    /**
+     * Disconnect all
+     */
+    async disconnectAll() {
+        for (const [name, provider] of this.activeConnections) {
+            try {
+                await provider.provider.disconnect();
+                provider.status = 'disconnected';
+            } catch (error) {
+                console.error(`Disconnect ${name} failed:`, error.message);
+            }
+        }
+        this.activeConnections.clear();
+    }
+}
+
+// Singleton
+const integrationHub = new IntegrationHub();
+
+module.exports = integrationHub;
