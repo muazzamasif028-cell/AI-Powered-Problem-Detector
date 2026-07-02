@@ -1,0 +1,245 @@
+// ============================================================
+// 🧠 src/services/planetary/confidence-consensus.service.js
+// SUPREME Confidence Consensus Engine
+// ============================================================
+
+class ConfidenceConsensusEngine {
+    constructor() {
+        this.thresholds = {
+            HIGH: 0.90,
+            MEDIUM: 0.75,
+            LOW: 0.60
+        };
+        
+        this.models = ['gpt-4o', 'claude-3-opus', 'gemini-1.5-pro', 'perplexity-sonar'];
+        this.weights = {
+            'gpt-4o': 1.0,
+            'claude-3-opus': 1.0,
+            'gemini-1.5-pro': 0.95,
+            'perplexity-sonar': 0.90
+        };
+    }
+
+    /**
+     * Get consensus from multiple models
+     */
+    async getConsensus(query, options = {}) {
+        const {
+            models = this.models,
+            threshold = this.thresholds.HIGH,
+            requireUnanimous = false,
+            detailedReport = true
+        } = options;
+
+        const startTime = Date.now();
+        const responses = await this.gatherResponses(query, models);
+        
+        // Calculate confidence for each model
+        const scored = responses.map(r => ({
+            ...r,
+            confidence: this.calculateConfidence(r.response, query),
+            weight: this.weights[r.model] || 1.0
+        }));
+
+        // Weighted consensus
+        const consensus = this.buildConsensus(scored, threshold, requireUnanimous);
+
+        return {
+            query,
+            consensus: consensus.response,
+            confidence: consensus.overallConfidence,
+            verdict: this.getVerdict(consensus.overallConfidence),
+            agreementRate: consensus.agreementRate,
+            models: scored.map(s => ({
+                model: s.model,
+                response: s.response.substring(0, 200) + '...',
+                confidence: s.confidence,
+                agrees: s.confidence >= threshold
+            })),
+            disagreements: consensus.disagreements,
+            timeTaken: Date.now() - startTime,
+            recommendation: this.getRecommendation(consensus)
+        };
+    }
+
+    /**
+     * Gather responses from multiple models
+     */
+    async gatherResponses(query, models) {
+        const results = await Promise.allSettled(
+            models.map(async (model) => {
+                const startTime = Date.now();
+                try {
+                    const aiRouter = require('../integrations/core/ai-router');
+                    const result = await aiRouter.route('chatbot', 'chat', {
+                        messages: [{ role: 'user', content: query }],
+                        model: model
+                    });
+                    
+                    return {
+                        model,
+                        response: result?.content || '',
+                        latency: Date.now() - startTime,
+                        success: true
+                    };
+                } catch (error) {
+                    return {
+                        model,
+                        response: null,
+                        latency: Date.now() - startTime,
+                        success: false,
+                        error: error.message
+                    };
+                }
+            })
+        );
+
+        return results
+            .filter(r => r.status === 'fulfilled' && r.value.success)
+            .map(r => r.value);
+    }
+
+    /**
+     * Calculate confidence score for a response
+     */
+    calculateConfidence(response, query) {
+        if (!response) return 0;
+
+        let score = 0.5;
+
+        // Length score (too short = low confidence)
+        if (response.length > 100) score += 0.1;
+        if (response.length > 500) score += 0.05;
+
+        // Specificity score
+        const hasNumbers = /\d+/.test(response);
+        const hasPercentages = /\d+%/.test(response);
+        const hasDates = /\d{4}/.test(response);
+        const hasSources = /according to|source:|reference:/i.test(response);
+        
+        if (hasNumbers) score += 0.05;
+        if (hasPercentages) score += 0.05;
+        if (hasDates) score += 0.05;
+        if (hasSources) score += 0.1;
+
+        // Relevance score
+        const queryWords = query.toLowerCase().split(/\s+/);
+        const responseWords = response.toLowerCase().split(/\s+/);
+        const overlap = queryWords.filter(w => responseWords.includes(w)).length;
+        const relevance = overlap / Math.max(queryWords.length, 1);
+        score += relevance * 0.1;
+
+        // Uncertainty indicators (reduce confidence)
+        const uncertaintyWords = ['maybe', 'perhaps', 'might', 'could', 'possibly', 'unsure', 'unclear'];
+        const hasUncertainty = uncertaintyWords.some(w => response.toLowerCase().includes(w));
+        if (hasUncertainty) score -= 0.1;
+
+        // Self-awareness
+        const hasLimitations = /I don't know|I cannot|I'm not sure|limited knowledge/i.test(response);
+        if (hasLimitations) score += 0.05; // Honesty increases confidence
+
+        return Math.max(0, Math.min(1, score));
+    }
+
+    /**
+     * Build consensus from scored responses
+     */
+    buildConsensus(scored, threshold, requireUnanimous) {
+        const agreeingModels = scored.filter(s => s.confidence >= threshold);
+        const disagreeingModels = scored.filter(s => s.confidence < threshold);
+        
+        const agreementRate = scored.length > 0 
+            ? agreeingModels.length / scored.length 
+            : 0;
+
+        // Check if consensus is possible
+        const hasConsensus = requireUnanimous 
+            ? agreeingModels.length === scored.length
+            : agreementRate >= 0.66;
+
+        let response;
+        let overallConfidence;
+
+        if (hasConsensus) {
+            // Use highest confidence response
+            const best = agreeingModels.sort((a, b) => b.confidence - a.confidence)[0];
+            response = best.response;
+            overallConfidence = agreeingModels.reduce((sum, m) => sum + m.confidence, 0) / agreeingModels.length;
+        } else {
+            // Mark as needs review
+            response = `⚠️ Models disagree on this answer.\n\n`;
+            
+            for (const model of scored) {
+                response += `**${model.model}** (${(model.confidence * 100).toFixed(0)}% confident):\n${model.response?.substring(0, 200)}...\n\n`;
+            }
+            
+            response += `\n_Recommendation: Please review the responses above. ${agreeingModels.length}/${scored.length} models agree._`;
+            overallConfidence = agreementRate;
+        }
+
+        return {
+            response,
+            overallConfidence,
+            agreementRate,
+            agreeingModels: agreeingModels.length,
+            totalModels: scored.length,
+            disagreements: disagreeingModels.map(m => ({
+                model: m.model,
+                confidence: m.confidence,
+                reason: this.analyzeDisagreement(m, scored)
+            }))
+        };
+    }
+
+    /**
+     * Analyze why a model disagrees
+     */
+    analyzeDisagreement(model, allModels) {
+        const reasons = [];
+        
+        if (model.confidence < 0.5) reasons.push('Low confidence in response');
+        if (model.latency > 5000) reasons.push('High latency may indicate uncertainty');
+        if (model.response?.length < 100) reasons.push('Response too brief — possibly incomplete');
+        
+        return reasons.length > 0 ? reasons : ['Unknown reason'];
+    }
+
+    /**
+     * Get verdict based on confidence
+     */
+    getVerdict(confidence) {
+        if (confidence >= 0.95) return { level: 'HIGH', color: '#3fb950', icon: '✅', label: 'Highly Reliable' };
+        if (confidence >= 0.85) return { level: 'GOOD', color: '#38bdf8', icon: '👍', label: 'Reliable' };
+        if (confidence >= 0.70) return { level: 'MEDIUM', color: '#d29922', icon: '⚠️', label: 'Needs Review' };
+        if (confidence >= 0.50) return { level: 'LOW', color: '#f85149', icon: '❌', label: 'Uncertain' };
+        return { level: 'UNRELIABLE', color: '#ff0000', icon: '🚫', label: 'Do Not Use' };
+    }
+
+    /**
+     * Get recommendation based on consensus
+     */
+    getRecommendation(consensus) {
+        if (consensus.overallConfidence >= 0.90) {
+            return '✅ Response is reliable. Safe to use.';
+        } else if (consensus.overallConfidence >= 0.75) {
+            return '👍 Response is likely accurate but verify key facts.';
+        } else if (consensus.overallConfidence >= 0.60) {
+            return '⚠️ Multiple models disagree. Human review recommended.';
+        } else {
+            return '❌ Low confidence. Do not use without verification.';
+        }
+    }
+
+    /**
+     * Get model performance stats
+     */
+    getModelStats() {
+        return this.models.map(model => ({
+            model,
+            weight: this.weights[model] || 1.0,
+            threshold: this.thresholds.HIGH
+        }));
+    }
+}
+
+module.exports = new ConfidenceConsensusEngine();
