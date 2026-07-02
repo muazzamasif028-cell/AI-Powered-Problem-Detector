@@ -1,0 +1,131 @@
+// ============================================================
+// 🛣️ src/routes/killer-features.routes.js
+// SUPREME Killer Features API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const authMiddleware = require('../middleware/auth.middleware');
+const memoryLayer = require('../services/memory/universal-memory.service');
+const optimizer = require('../services/optimizer/self-improving.service');
+const marketplace = require('../services/marketplace/agent-marketplace.service');
+
+router.use(authMiddleware.authenticate());
+
+// =============================================
+// 🧠 UNIVERSAL MEMORY
+// =============================================
+router.post('/memory/store', async (req, res) => {
+    const memoryId = await memoryLayer.store(req.user.sub, req.body.content, req.body.options);
+    res.json({ success: true, memoryId });
+});
+
+router.post('/memory/retrieve', async (req, res) => {
+    const memories = await memoryLayer.retrieve(req.user.sub, req.body.query, req.body.options);
+    res.json({ success: true, ...memories });
+});
+
+router.get('/memory/context/:provider', async (req, res) => {
+    const context = await memoryLayer.getContextForProvider(req.user.sub, req.params.provider);
+    res.json({ success: true, context });
+});
+
+router.post('/memory/transfer', async (req, res) => {
+    const context = await memoryLayer.transferContext(req.body.from, req.body.to, req.user.sub);
+    res.json({ success: true, context });
+});
+
+router.get('/memory/stats', (req, res) => {
+    const stats = memoryLayer.getStats(req.user.sub);
+    res.json({ success: true, stats });
+});
+
+// =============================================
+// 🔄 SELF-IMPROVING PLATFORM
+// =============================================
+router.get('/optimize/analyze', async (req, res) => {
+    const analysis = await optimizer.analyze();
+    res.json({ success: true, analysis });
+});
+
+router.post('/optimize/apply', async (req, res) => {
+    await optimizer.autoOptimize();
+    res.json({ success: true, message: 'Optimization cycle complete' });
+});
+
+router.get('/optimize/history', (req, res) => {
+    const history = optimizer.getHistory();
+    res.json({ success: true, history });
+});
+
+router.get('/optimize/health', (req, res) => {
+    const health = optimizer.getHealthScore();
+    res.json({ success: true, health });
+});
+
+router.post('/optimize/experiment', async (req, res) => {
+    const experimentId = await optimizer.runExperiment(
+        req.body.name,
+        req.body.variants,
+        req.body.duration
+    );
+    res.json({ success: true, experimentId });
+});
+
+// =============================================
+// 🛒 AGENT MARKETPLACE
+// =============================================
+router.get('/marketplace/search', (req, res) => {
+    const results = marketplace.searchAgents(req.query.q, req.query);
+    res.json({ success: true, ...results });
+});
+
+router.get('/marketplace/top', (req, res) => {
+    const agents = marketplace.getTopAgents(10);
+    res.json({ success: true, agents });
+});
+
+router.get('/marketplace/trending', (req, res) => {
+    const agents = marketplace.getTrendingAgents(10);
+    res.json({ success: true, agents });
+});
+
+router.post('/marketplace/agents', async (req, res) => {
+    const agent = await marketplace.publishAgent(req.body);
+    res.status(201).json({ success: true, agent });
+});
+
+router.post('/marketplace/install/:agentId', async (req, res) => {
+    const installation = await marketplace.installAgent(req.user.sub, req.params.agentId);
+    res.json({ success: true, installation });
+});
+
+router.delete('/marketplace/uninstall/:agentId', async (req, res) => {
+    const result = await marketplace.uninstallAgent(req.user.sub, req.params.agentId);
+    res.json(result);
+});
+
+router.post('/marketplace/review/:agentId', async (req, res) => {
+    const review = await marketplace.addReview(
+        req.user.sub,
+        req.params.agentId,
+        req.body.rating,
+        req.body.comment
+    );
+    res.json({ success: true, review });
+});
+
+router.get('/marketplace/developer/:name', (req, res) => {
+    const dashboard = marketplace.getDeveloperDashboard(req.params.name);
+    res.json({ success: true, dashboard });
+});
+
+router.get('/marketplace/stats', (req, res) => {
+    const stats = marketplace.getStats();
+    res.json({ success: true, stats });
+});
+
+router.get('/marketplace/categories', (req, res) => {
+    res.json({ success: true, categories: marketplace.categories });
+});
+
+module.exports = router;
