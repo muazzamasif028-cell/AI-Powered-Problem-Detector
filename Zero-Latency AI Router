@@ -1,0 +1,245 @@
+// ============================================================
+// ⚡ src/services/planetary-core/zero-latency-router.service.js
+// SUPREME Zero-Latency Router — Fastest + Cheapest AI routing
+// ============================================================
+
+class ZeroLatencyRouter {
+    constructor() {
+        this.models = new Map();
+        this.latencyCache = new Map();
+        this.costCache = new Map();
+        this.routingTable = new Map();
+        this.predictionModel = null;
+
+        this.initializeModels();
+    }
+
+    /**
+     * Initialize model registry
+     */
+    initializeModels() {
+        const models = [
+            // Ultra-fast models (simple queries)
+            { name: 'gpt-3.5-turbo', tier: 'fast', avgLatency: 200, costPer1k: 0.0015, capability: 'general' },
+            { name: 'claude-3-haiku', tier: 'fast', avgLatency: 180, costPer1k: 0.00125, capability: 'general' },
+            { name: 'gemini-1.5-flash', tier: 'fast', avgLatency: 150, costPer1k: 0.0003, capability: 'general' },
+            { name: 'llama-3-8b', tier: 'fast', avgLatency: 100, costPer1k: 0.0001, capability: 'simple' },
+
+            // Balanced models (medium complexity)
+            { name: 'gpt-4o', tier: 'balanced', avgLatency: 800, costPer1k: 0.015, capability: 'advanced' },
+            { name: 'claude-3-sonnet', tier: 'balanced', avgLatency: 700, costPer1k: 0.015, capability: 'advanced' },
+            { name: 'gemini-1.5-pro', tier: 'balanced', avgLatency: 900, costPer1k: 0.0105, capability: 'advanced' },
+
+            // Heavy-duty models (complex tasks)
+            { name: 'gpt-4-turbo', tier: 'heavy', avgLatency: 2000, costPer1k: 0.03, capability: 'expert' },
+            { name: 'claude-3-opus', tier: 'heavy', avgLatency: 2500, costPer1k: 0.075, capability: 'expert' },
+            { name: 'gemini-ultra', tier: 'heavy', avgLatency: 3000, costPer1k: 0.05, capability: 'expert' },
+
+            // Specialized models
+            { name: 'perplexity-sonar', tier: 'specialized', avgLatency: 1200, costPer1k: 0.001, capability: 'research' },
+            { name: 'code-llama-34b', tier: 'specialized', avgLatency: 600, costPer1k: 0.0005, capability: 'coding' },
+            { name: 'dall-e-3', tier: 'specialized', avgLatency: 5000, costPer1k: 40, capability: 'image' }
+        ];
+
+        models.forEach(m => this.models.set(m.name, m));
+    }
+
+    /**
+     * Route query to optimal model
+     */
+    async route(query, options = {}) {
+        const startTime = Date.now();
+        
+        // 1. Analyze query complexity
+        const complexity = this.analyzeComplexity(query);
+        
+        // 2. Determine required capability
+        const requiredCapability = this.determineCapability(query);
+        
+        // 3. Get user preferences
+        const preference = options.preference || 'balanced'; // fastest | cheapest | balanced
+        
+        // 4. Find matching models
+        const candidates = this.findCandidates(complexity, requiredCapability, preference);
+        
+        // 5. Select best model
+        const selected = this.selectBestModel(candidates, preference, options);
+        
+        // 6. Update routing table
+        this.updateRoutingTable(selected.name, complexity.level, Date.now() - startTime);
+
+        return {
+            model: selected.name,
+            tier: selected.tier,
+            capability: selected.capability,
+            estimatedLatency: selected.avgLatency,
+            estimatedCost: selected.costPer1k,
+            complexity: complexity,
+            reason: `Selected for ${complexity.level} complexity ${requiredCapability} task (${preference} preference)`,
+            alternatives: candidates.slice(0, 3).map(c => c.name)
+        };
+    }
+
+    /**
+     * Analyze query complexity
+     */
+    analyzeComplexity(query) {
+        const factors = {
+            length: query.length,
+            wordCount: query.split(/\s+/).length,
+            hasCode: /```|function |class |const |let |var |import |export |require\(/.test(query),
+            hasMath: /[+\-*/=<>]/.test(query) && /\d+/.test(query),
+            hasMultipleQuestions: (query.match(/\?/g) || []).length > 1,
+            hasContext: query.length > 200,
+            hasInstructions: /(?:explain|analyze|compare|create|build|design|optimize|debug|refactor)/i.test(query),
+            hasResearch: /(?:research|study|paper|latest|recent|news|trends)/i.test(query),
+            hasCreative: /(?:story|poem|song|write|creative|imagine|design)/i.test(query)
+        };
+
+        let complexityScore = 0;
+        if (factors.length > 50) complexityScore += 2;
+        if (factors.wordCount > 30) complexityScore += 2;
+        if (factors.hasCode) complexityScore += 4;
+        if (factors.hasMath) complexityScore += 2;
+        if (factors.hasMultipleQuestions) complexityScore += 3;
+        if (factors.hasContext) complexityScore += 1;
+        if (factors.hasInstructions) complexityScore += 3;
+        if (factors.hasResearch) complexityScore += 2;
+        if (factors.hasCreative) complexityScore += 1;
+
+        let level;
+        if (complexityScore <= 3) level = 'simple';
+        else if (complexityScore <= 7) level = 'medium';
+        else if (complexityScore <= 12) level = 'complex';
+        else level = 'expert';
+
+        return {
+            score: complexityScore,
+            level,
+            factors
+        };
+    }
+
+    /**
+     * Determine required capability
+     */
+    determineCapability(query) {
+        const lower = query.toLowerCase();
+        
+        if (/```|function |class |const |debug|refactor|optimize/i.test(lower)) return 'coding';
+        if (/research|paper|study|latest|news|trends|statistics/i.test(lower)) return 'research';
+        if (/image|picture|photo|draw|illustrate/i.test(lower)) return 'image';
+        if (/translate|language|spanish|french|german/i.test(lower)) return 'translation';
+        if (/math|calculate|equation|formula/i.test(lower)) return 'math';
+        if (/story|poem|creative|write|imagine/i.test(lower)) return 'creative';
+        
+        return 'general';
+    }
+
+    /**
+     * Find candidate models
+     */
+    findCandidates(complexity, capability, preference) {
+        const candidates = Array.from(this.models.values());
+
+        // Filter by capability
+        const capabilityFiltered = candidates.filter(m => {
+            if (capability === 'general') return true;
+            if (capability === m.capability) return true;
+            if (m.capability === 'advanced' || m.capability === 'expert') return true;
+            return false;
+        });
+
+        // Filter by complexity tier
+        const tierMap = {
+            'simple': ['fast'],
+            'medium': ['fast', 'balanced'],
+            'complex': ['balanced', 'heavy'],
+            'expert': ['heavy', 'specialized']
+        };
+
+        const allowedTiers = tierMap[complexity.level] || ['balanced'];
+        const tierFiltered = capabilityFiltered.filter(m => allowedTiers.includes(m.tier));
+
+        // Sort by preference
+        switch (preference) {
+            case 'fastest':
+                tierFiltered.sort((a, b) => a.avgLatency - b.avgLatency);
+                break;
+            case 'cheapest':
+                tierFiltered.sort((a, b) => a.costPer1k - b.costPer1k);
+                break;
+            case 'balanced':
+            default:
+                tierFiltered.sort((a, b) => {
+                    const scoreA = (a.avgLatency / 1000) * 0.4 + (a.costPer1k * 10) * 0.6;
+                    const scoreB = (b.avgLatency / 1000) * 0.4 + (b.costPer1k * 10) * 0.6;
+                    return scoreA - scoreB;
+                });
+                break;
+        }
+
+        return tierFiltered;
+    }
+
+    /**
+     * Select best model from candidates
+     */
+    selectBestModel(candidates, preference, options) {
+        if (candidates.length === 0) {
+            // Fallback to GPT-4o
+            return this.models.get('gpt-4o');
+        }
+
+        // Check latency cache for recent performance
+        for (const candidate of candidates) {
+            const recentLatency = this.latencyCache.get(candidate.name);
+            if (recentLatency && recentLatency > candidate.avgLatency * 2) {
+                continue; // Skip models with recent latency spikes
+            }
+            return candidate;
+        }
+
+        return candidates[0];
+    }
+
+    /**
+     * Update routing table with actual performance
+     */
+    updateRoutingTable(modelName, complexityLevel, actualLatency) {
+        // Update latency cache
+        this.latencyCache.set(modelName, actualLatency);
+
+        // Update model stats
+        const model = this.models.get(modelName);
+        if (model) {
+            model.avgLatency = (model.avgLatency * 0.9) + (actualLatency * 0.1);
+        }
+    }
+
+    /**
+     * Get routing stats
+     */
+    getStats() {
+        const models = Array.from(this.models.values());
+
+        return {
+            totalModels: models.length,
+            byTier: {
+                fast: models.filter(m => m.tier === 'fast').length,
+                balanced: models.filter(m => m.tier === 'balanced').length,
+                heavy: models.filter(m => m.tier === 'heavy').length,
+                specialized: models.filter(m => m.tier === 'specialized').length
+            },
+            averageLatency: models.reduce((sum, m) => sum + m.avgLatency, 0) / models.length,
+            models: models.map(m => ({
+                name: m.name,
+                tier: m.tier,
+                avgLatency: `${Math.round(m.avgLatency)}ms`,
+                cost: `$${m.costPer1k}/1k tokens`
+            }))
+        };
+    }
+}
+
+module.exports = new ZeroLatencyRouter();
