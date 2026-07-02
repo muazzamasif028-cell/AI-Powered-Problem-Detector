@@ -1,0 +1,241 @@
+// ============================================================
+// 🏓 Paddle Provider — Merchant of Record
+// Handles: Global taxes, 200+ countries, PayPal + Cards
+// ============================================================
+const axios = require('axios');
+const Domain = require('../../models/Domain');
+const User = require('../../models/User');
+const Invoice = require('../../models/Invoice');
+
+class PaddleProvider {
+    constructor() {
+        this.apiKey = process.env.PADDLE_API_KEY;
+        this.clientToken = process.env.PADDLE_CLIENT_TOKEN;
+        this.webhookSecret = process.env.PADDLE_WEBHOOK_SECRET;
+        this.baseURL = process.env.PADDLE_SANDBOX === 'true' 
+            ? 'https://sandbox-api.paddle.com' 
+            : 'https://api.paddle.com';
+        this.status = 'active';
+
+        this.supportedCountries = [
+            'US', 'UK', 'CA', 'AU', 'DE', 'FR', 'IT', 'ES', 'NL', 'BE',
+            'AT', 'CH', 'SE', 'NO', 'DK', 'FI', 'IE', 'PT', 'PL', 'CZ',
+            'JP', 'KR', 'SG', 'HK', 'IN', 'BR', 'MX', 'AE', 'SA', 'ZA',
+            'PK', 'NG', 'KE', 'EG', 'TR', 'ID', 'PH', 'VN', 'TH', 'MY'
+        ];
+    }
+
+    async createCheckout(userId, paymentData) {
+        const { domainName, tld, years = 1, plan = 'starter', currency = 'USD' } = paymentData;
+        const user = await User.findById(userId);
+        const price = this.getDomainPrice(tld, years, plan);
+
+        try {
+            const response = await axios.post(`${this.baseURL}/transactions`, {
+                items: [{
+                    price: {
+                        description: `Domain: ${domainName}.${tld}`,
+                        unit_price: { amount: (price * 100).toString(), currency_code: currency },
+                        product: {
+                            name: `${domainName}.${tld}`,
+                            description: `${years} year(s) domain registration on SUPREME OS`,
+                            tax_category: 'digital-goods'
+                        },
+                        quantity: 1
+                    }
+                }],
+                customer: {
+                    email: user.email,
+                    name: user.name
+                },
+                custom_data: {
+                    userId,
+                    domainName,
+                    tld,
+                    years: years.toString(),
+                    plan
+                },
+                status: 'draft'
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            return {
+                success: true,
+                provider: 'paddle',
+                checkoutUrl: response.data.data.checkout?.url,
+                transactionId: response.data.data.id,
+                price,
+                currency,
+                fees: this.calculateFees(price)
+            };
+
+        } catch (error) {
+            console.error('Paddle error:', error.response?.data || error.message);
+            throw new Error(`Paddle checkout failed: ${error.message}`);
+        }
+    }
+
+    async createSubscription(userId, planData) {
+        const { plan, currency = 'USD' } = planData;
+        const user = await User.findById(userId);
+        const prices = {
+            pro: { monthly: 19, yearly: 190 },
+            business: { monthly: 49, yearly: 490 },
+            enterprise: { monthly: 99, yearly: 990 }
+        };
+
+        const response = await axios.post(`${this.baseURL}/subscriptions`, {
+            customer: { email: user.email, name: user.name },
+            items: [{
+                price: {
+                    description: `SUPREME OS ${plan.toUpperCase()} Plan`,
+                    unit_price: { amount: (prices[plan].yearly * 100).toString(), currency_code: currency },
+                    product: {
+                        name: `SUPREME ${plan.toUpperCase()}`,
+                        tax_category: 'saas'
+                    },
+                    billing_cycle: { interval: 'year', frequency: 1 }
+                }
+            }],
+            custom_data: { userId, plan }
+        }, {
+            headers: { 'Authorization': `Bearer ${this.apiKey}` }
+        });
+
+        return {
+            success: true,
+            provider: 'paddle',
+            subscriptionId: response.data.data.id,
+            checkoutUrl: response.data.data.checkout?.url,
+            plan,
+            price: prices[plan].yearly
+        };
+    }
+
+    async handleWebhook(req, res) {
+        const signature = req.headers['paddle-signature'];
+        
+        if (!this.verifySignature(req.body, signature)) {
+            return res.status(401).json({ error: 'Invalid signature' });
+        }
+
+        const event = JSON.parse(req.body.toString());
+
+        switch (event.event_type) {
+            case 'transaction.completed':
+                await this.handleTransactionCompleted(event.data);
+                break;
+            case 'transaction.payment_failed':
+                console.error('Paddle payment failed:', event.data.id);
+                break;
+            case 'transaction.refunded':
+                await this.handleRefund(event.data);
+                break;
+            case 'subscription.created':
+                console.log('Paddle subscription created:', event.data.id);
+                break;
+            case 'subscription.cancelled':
+                console.log('Paddle subscription cancelled:', event.data.id);
+                break;
+        }
+
+        res.json({ received: true });
+    }
+
+    async handleTransactionCompleted(data) {
+        const { userId, domainName, tld, years, plan } = data.custom_data;
+
+        const domain = await Domain.create({
+            userId,
+            domainName: domainName.toLowerCase(),
+            tld: tld.toLowerCase(),
+            years: parseInt(years),
+            status: 'active',
+            price: parseFloat(data.totals.total) / 100,
+            paymentProvider: 'paddle',
+            paymentTransactionId: data.id,
+            expiryDate: new Date(Date.now() + parseInt(years) * 365 * 24 * 60 * 60 * 1000),
+            websiteUrl: `https://${domainName}.${tld}`,
+            websiteDeployed: true
+        });
+
+        await User.findByIdAndUpdate(userId, { $push: { domains: domain._id } });
+
+        // Generate invoice
+        await Invoice.create({
+            userId,
+            invoiceNumber: `INV-PDL-${Date.now()}`,
+            customer: { name: 'Customer', email: 'customer@email.com' },
+            items: [{ description: `Domain: ${domainName}.${tld}`, type: 'domain', quantity: parseInt(years), unitPrice: domain.price, amount: domain.price }],
+            currency: data.totals.currency_code || 'USD',
+            subtotal: domain.price,
+            total: parseFloat(data.totals.total) / 100,
+            status: 'paid',
+            paymentStatus: 'paid',
+            paidAt: new Date(),
+            payment: { provider: 'paddle', transactionId: data.id }
+        });
+
+        console.log(`✅ Paddle: Domain ${domainName}.${tld} registered`);
+    }
+
+    async handleRefund(data) {
+        const domain = await Domain.findOne({ paymentTransactionId: data.id, paymentProvider: 'paddle' });
+        if (domain) {
+            domain.status = 'deleted';
+            await domain.save();
+        }
+    }
+
+    verifySignature(payload, signature) {
+        if (!this.webhookSecret) return true;
+        const crypto = require('crypto');
+        const hmac = crypto.createHmac('sha256', this.webhookSecret);
+        const computed = hmac.update(payload).digest('hex');
+        return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(computed));
+    }
+
+    async cancelSubscription(subscriptionId) {
+        await axios.patch(`${this.baseURL}/subscriptions/${subscriptionId}`, 
+            { status: 'canceled' },
+            { headers: { 'Authorization': `Bearer ${this.apiKey}` } }
+        );
+        return { success: true };
+    }
+
+    async verifyPayment(transactionId) {
+        const response = await axios.get(`${this.baseURL}/transactions/${transactionId}`, {
+            headers: { 'Authorization': `Bearer ${this.apiKey}` }
+        });
+        return { success: response.data.data.status === 'completed', data: response.data.data };
+    }
+
+    getDomainPrice(tld, years, plan) {
+        const prices = { 'com': 12.99, 'net': 14.99, 'org': 13.99, 'io': 45, 'ai': 79, 'co': 25, 'app': 18, 'dev': 15 };
+        const planAddons = { starter: 0, pro: 10, business: 25, enterprise: 50 };
+        return ((prices[tld] || 14.99) + (planAddons[plan] || 0)) * years;
+    }
+
+    calculateFees(amount) {
+        return { percentage: '5%', fixed: '$0.50', total: (amount * 0.05 + 0.50).toFixed(2) };
+    }
+
+    getPaymentMethods(country) {
+        const methods = {
+            US: ['card', 'paypal', 'apple_pay', 'google_pay'],
+            UK: ['card', 'paypal', 'apple_pay', 'google_pay'],
+            IN: ['card', 'upi', 'netbanking', 'paypal'],
+            PK: ['card', 'paypal'],
+            AE: ['card', 'paypal', 'apple_pay'],
+            SA: ['card', 'mada', 'paypal', 'apple_pay'],
+            default: ['card', 'paypal']
+        };
+        return methods[country] || methods.default;
+    }
+}
+
+module.exports = new PaddleProvider();
