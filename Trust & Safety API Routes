@@ -1,0 +1,68 @@
+// ============================================================
+// 🛣️ src/routes/trust-safety.routes.js
+// SUPREME Trust & Safety API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const authMiddleware = require('../middleware/auth.middleware');
+const trustOrchestrator = require('../services/trust-safety/trust-orchestrator.service');
+const safetyEngine = require('../services/trust-safety/safety-engine.service');
+const aiJudge = require('../services/trust-safety/ai-judge.service');
+
+router.use(authMiddleware.authenticate());
+
+// Full trust verification
+router.post('/verify', async (req, res) => {
+    const result = await trustOrchestrator.verify(
+        req.user.sub,
+        req.body.query,
+        req.body.response,
+        req.body.provider,
+        req.body.context
+    );
+    res.json({ success: true, verification: result });
+});
+
+// Quick verification (critical layers only)
+router.post('/verify/quick', async (req, res) => {
+    const result = await trustOrchestrator.quickVerify(
+        req.body.query,
+        req.body.response,
+        req.body.provider
+    );
+    res.json({ success: true, ...result });
+});
+
+// Safety check before executing action
+router.post('/safety/check', async (req, res) => {
+    const result = await safetyEngine.evaluate(
+        req.body.query,
+        req.body.response || '',
+        req.body.context
+    );
+    res.json({ success: true, safety: result });
+});
+
+// Quick safety check
+router.post('/safety/quick', (req, res) => {
+    const result = safetyEngine.quickCheck(req.body.action);
+    res.json({ success: true, ...result });
+});
+
+// AI Judge evaluation
+router.post('/judge', async (req, res) => {
+    const result = await aiJudge.evaluate(
+        req.body.query,
+        req.body.response,
+        req.body.context
+    );
+    res.json({ success: true, judgment: result });
+});
+
+// Get provider trust score
+router.get('/provider/:provider/trust', async (req, res) => {
+    const score = await trustOrchestrator.getProviderTrustScore(req.params.provider);
+    res.json({ success: true, ...score });
+});
+
+module.exports = router;
