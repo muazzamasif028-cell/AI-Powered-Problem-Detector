@@ -1,0 +1,309 @@
+// ============================================================
+// 🧠 src/services/planetary/memory-graph.service.js
+// SUPREME AI Memory Graph — Graph-based memory storage
+// ============================================================
+
+class MemoryGraph {
+    constructor() {
+        this.nodes = new Map();    // Memory nodes
+        this.edges = new Map();    // Relationships
+        this.graphIndex = new Map(); // Search index
+    }
+
+    /**
+     * Add a node to memory graph
+     */
+    addNode(userId, data) {
+        const nodeId = this.generateNodeId();
+        
+        const node = {
+            id: nodeId,
+            userId,
+            type: data.type || 'memory',
+            content: data.content,
+            metadata: data.metadata || {},
+            tags: data.tags || [],
+            embedding: data.embedding || null,
+            createdAt: new Date(),
+            lastAccessed: new Date(),
+            accessCount: 0,
+            importance: data.importance || 0.5,
+            connections: []
+        };
+
+        this.nodes.set(nodeId, node);
+
+        // Auto-connect to related nodes
+        this.autoConnect(nodeId);
+
+        return node;
+    }
+
+    /**
+     * Add relationship between nodes
+     */
+    addEdge(sourceId, targetId, relationship, metadata = {}) {
+        const edgeId = `${sourceId}->${targetId}`;
+        
+        const edge = {
+            id: edgeId,
+            source: sourceId,
+            target: targetId,
+            relationship,
+            metadata,
+            strength: metadata.strength || 0.5,
+            createdAt: new Date(),
+            bidirectional: metadata.bidirectional || false
+        };
+
+        this.edges.set(edgeId, edge);
+
+        // Update node connections
+        const sourceNode = this.nodes.get(sourceId);
+        const targetNode = this.nodes.get(targetId);
+
+        if (sourceNode) {
+            sourceNode.connections.push({ nodeId: targetId, relationship, strength: edge.strength });
+        }
+        if (targetNode && edge.bidirectional) {
+            targetNode.connections.push({ nodeId: sourceId, relationship: `inverse_${relationship}`, strength: edge.strength });
+        }
+
+        return edge;
+    }
+
+    /**
+     * Query memory graph
+     */
+    query(userId, searchParams) {
+        const {
+            query,
+            type,
+            tags = [],
+            minImportance = 0,
+            maxResults = 20,
+            includeConnections = true,
+            depth = 2
+        } = searchParams;
+
+        // Find matching nodes
+        let results = Array.from(this.nodes.values())
+            .filter(n => n.userId === userId);
+
+        // Filter by type
+        if (type) {
+            results = results.filter(n => n.type === type);
+        }
+
+        // Filter by tags
+        if (tags.length > 0) {
+            results = results.filter(n => 
+                tags.some(t => n.tags?.includes(t))
+            );
+        }
+
+        // Filter by importance
+        if (minImportance > 0) {
+            results = results.filter(n => n.importance >= minImportance);
+        }
+
+        // Text search
+        if (query) {
+            const q = query.toLowerCase();
+            results = results.filter(n => 
+                n.content?.toLowerCase().includes(q) ||
+                n.metadata?.title?.toLowerCase().includes(q) ||
+                n.tags?.some(t => t.toLowerCase().includes(q))
+            );
+        }
+
+        // Sort by importance and recency
+        results.sort((a, b) => {
+            const scoreA = a.importance * 0.5 + (1 / (Date.now() - a.createdAt.getTime())) * 0.3 + a.accessCount * 0.2;
+            const scoreB = b.importance * 0.5 + (1 / (Date.now() - b.createdAt.getTime())) * 0.3 + b.accessCount * 0.2;
+            return scoreB - scoreA;
+        });
+
+        // Limit results
+        const limited = results.slice(0, maxResults);
+
+        // Include connected nodes
+        if (includeConnections && depth > 0) {
+            return this.enrichWithConnections(limited, depth);
+        }
+
+        return {
+            query: searchParams,
+            nodes: limited.map(n => this.formatNode(n)),
+            totalFound: results.length
+        };
+    }
+
+    /**
+     * Enrich results with connected nodes
+     */
+    enrichWithConnections(nodes, depth) {
+        const enriched = [];
+        const visited = new Set();
+
+        for (const node of nodes) {
+            const connections = this.getConnections(node.id, depth, visited);
+            enriched.push({
+                ...this.formatNode(node),
+                connections: connections.map(c => ({
+                    ...this.formatNode(c.node),
+                    relationship: c.relationship,
+                    strength: c.strength,
+                    depth: c.depth
+                }))
+            });
+            visited.add(node.id);
+        }
+
+        return { nodes: enriched };
+    }
+
+    /**
+     * Get connected nodes up to depth
+     */
+    getConnections(nodeId, maxDepth, visited = new Set(), currentDepth = 1) {
+        if (currentDepth > maxDepth) return [];
+        
+        const connections = [];
+        const node = this.nodes.get(nodeId);
+        
+        if (!node) return connections;
+
+        for (const conn of node.connections || []) {
+            if (visited.has(conn.nodeId)) continue;
+            
+            const connectedNode = this.nodes.get(conn.nodeId);
+            if (connectedNode) {
+                connections.push({
+                    node: connectedNode,
+                    relationship: conn.relationship,
+                    strength: conn.strength,
+                    depth: currentDepth
+                });
+                
+                visited.add(conn.nodeId);
+                
+                // Recurse
+                const subConnections = this.getConnections(conn.nodeId, maxDepth, visited, currentDepth + 1);
+                connections.push(...subConnections);
+            }
+        }
+
+        return connections;
+    }
+
+    /**
+     * Auto-connect to related nodes
+     */
+    autoConnect(nodeId) {
+        const node = this.nodes.get(nodeId);
+        if (!node) return;
+
+        const related = this.findRelatedNodes(node);
+        
+        for (const relatedNode of related) {
+            const relationship = this.determineRelationship(node, relatedNode);
+            const strength = this.calculateConnectionStrength(node, relatedNode);
+            
+            this.addEdge(nodeId, relatedNode.id, relationship, {
+                strength,
+                bidirectional: true,
+                autoGenerated: true
+            });
+        }
+    }
+
+    /**
+     * Find related nodes
+     */
+    findRelatedNodes(node) {
+        const candidates = Array.from(this.nodes.values())
+            .filter(n => n.id !== node.id && n.userId === node.userId);
+
+        // Score candidates
+        const scored = candidates.map(c => ({
+            node: c,
+            score: this.scoreRelationship(node, c)
+        }));
+
+        return scored
+            .filter(s => s.score > 0.3)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .map(s => s.node);
+    }
+
+    /**
+     * Score potential relationship
+     */
+    scoreRelationship(node1, node2) {
+        let score = 0;
+
+        // Tag overlap
+        const tagOverlap = (node1.tags || []).filter(t => (node2.tags || []).includes(t)).length;
+        score += tagOverlap * 0.3;
+
+        // Content similarity
+        if (node1.embedding && node2.embedding) {
+            const similarity = this.cosineSimilarity(node1.embedding, node2.embedding);
+            score += similarity * 0.4;
+        }
+
+        // Type match
+        if (node1.type === node2.type) score += 0.1;
+
+        // Temporal proximity
+        const timeDiff = Math.abs(node1.createdAt - node2.createdAt) / (1000 * 60 * 60); // Hours
+        if (timeDiff < 24) score += 0.2;
+        else if (timeDiff < 168) score += 0.1;
+
+        return Math.min(1, score);
+    }
+
+    /**
+     * Determine relationship type
+     */
+    determineRelationship(node1, node2) {
+        if (node1.type === node2.type) return 'same_type';
+        if ((node1.tags || []).some(t => (node2.tags || []).includes(t))) return 'shared_tags';
+        if (node1.metadata?.parent === node2.id) return 'parent_child';
+        if (node1.metadata?.project === node2.metadata?.project) return 'same_project';
+        return 'related';
+    }
+
+    calculateConnectionStrength(node1, node2) {
+        return this.scoreRelationship(node1, node2);
+    }
+
+    formatNode(node) {
+        return {
+            id: node.id,
+            type: node.type,
+            content: node.content?.substring(0, 200),
+            tags: node.tags,
+            importance: node.importance,
+            createdAt: node.createdAt,
+            accessCount: node.accessCount
+        };
+    }
+
+    cosineSimilarity(vecA, vecB) {
+        if (!vecA || !vecB) return 0;
+        let dot = 0, normA = 0, normB = 0;
+        for (let i = 0; i < vecA.length; i++) {
+            dot += vecA[i] * vecB[i];
+            normA += vecA[i] ** 2;
+            normB += vecB[i] ** 2;
+        }
+        return normA && normB ? dot / (Math.sqrt(normA) * Math.sqrt(normB)) : 0;
+    }
+
+    generateNodeId() { return `node_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`; }
+}
+
+module.exports = new MemoryGraph();
