@@ -1,0 +1,66 @@
+// ============================================================
+// 🛣️ src/routes/planetary.routes.js
+// SUPREME Planetary Features API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const authMiddleware = require('../middleware/auth.middleware');
+const truthEngine = require('../services/planetary/truth-engine.service');
+const consensusEngine = require('../services/planetary/confidence-consensus.service');
+const memoryGraph = require('../services/planetary/memory-graph.service');
+
+router.use(authMiddleware.authenticate());
+
+// =============================================
+// 🔍 TRUTH ENGINE
+// =============================================
+router.post('/verify', async (req, res) => {
+    const result = await truthEngine.verify(
+        req.user.sub,
+        req.body.query,
+        req.body.response,
+        req.body.provider
+    );
+    res.json({ success: true, verification: result });
+});
+
+// =============================================
+// 🧠 CONFIDENCE CONSENSUS
+// =============================================
+router.post('/consensus', async (req, res) => {
+    const result = await consensusEngine.getConsensus(
+        req.body.query,
+        req.body.options || {}
+    );
+    res.json({ success: true, consensus: result });
+});
+
+router.get('/consensus/models', (req, res) => {
+    const stats = consensusEngine.getModelStats();
+    res.json({ success: true, models: stats });
+});
+
+// =============================================
+// 🧠 MEMORY GRAPH
+// =============================================
+router.post('/memory-graph/node', async (req, res) => {
+    const node = memoryGraph.addNode(req.user.sub, req.body);
+    res.json({ success: true, node });
+});
+
+router.post('/memory-graph/edge', async (req, res) => {
+    const edge = memoryGraph.addEdge(
+        req.body.sourceId,
+        req.body.targetId,
+        req.body.relationship,
+        req.body.metadata
+    );
+    res.json({ success: true, edge });
+});
+
+router.post('/memory-graph/query', (req, res) => {
+    const results = memoryGraph.query(req.user.sub, req.body);
+    res.json({ success: true, ...results });
+});
+
+module.exports = router;
