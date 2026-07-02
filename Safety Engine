@@ -1,0 +1,177 @@
+// ============================================================
+// 🛡️ src/services/trust-safety/safety-engine.service.js
+// SUPREME Safety Engine — Risk analysis before execution
+// ============================================================
+
+class SafetyEngine {
+    constructor() {
+        this.riskLevels = {
+            CRITICAL: { threshold: 80, action: 'block', color: '#ff0000' },
+            HIGH: { threshold: 60, action: 'require_approval', color: '#f85149' },
+            MEDIUM: { threshold: 30, action: 'warn', color: '#d29922' },
+            LOW: { threshold: 10, action: 'allow', color: '#3fb950' },
+            SAFE: { threshold: 0, action: 'allow', color: '#38bdf8' }
+        };
+
+        this.dangerousActions = [
+            { pattern: /delete|drop|remove|destroy|purge/i, baseRisk: 70, category: 'destructive' },
+            { pattern: /truncate|wipe|clear all/i, baseRisk: 90, category: 'destructive' },
+            { pattern: /drop database|drop table/i, baseRisk: 95, category: 'catastrophic' },
+            { pattern: /rm -rf|format|fdisk/i, baseRisk: 95, category: 'catastrophic' },
+            { pattern: /shutdown|restart|reboot|power off/i, baseRisk: 50, category: 'disruptive' },
+            { pattern: /sudo|root|admin|superuser/i, baseRisk: 40, category: 'privileged' },
+            { pattern: /chmod 777|chown/i, baseRisk: 60, category: 'permission' },
+            { pattern: /production|prod|live environment/i, baseRisk: 30, category: 'environment' },
+            { pattern: /all users|everyone|entire database|all records/i, baseRisk: 50, category: 'scope' },
+            { pattern: /bypass|override|force|skip verification/i, baseRisk: 70, category: 'security_bypass' }
+        ];
+
+        this.protectiveResponses = {
+            'destructive': '⚠️ This action will permanently delete data. Are you absolutely sure?',
+            'catastrophic': '🚫 CRITICAL: This action could cause irreversible damage. Blocked by safety engine.',
+            'disruptive': '⚠️ This will disrupt service. Schedule during maintenance window.',
+            'privileged': '⚠️ This requires elevated privileges. Verify authorization.',
+            'permission': '⚠️ This changes file permissions. Security risk detected.',
+            'security_bypass': '🚫 This bypasses security controls. Blocked by safety engine.'
+        };
+    }
+
+    /**
+     * Evaluate safety of an action
+     */
+    async evaluate(query, response, context = {}) {
+        const evaluation = {
+            passed: true,
+            score: 1.0,
+            details: {
+                riskScore: 0,
+                riskLevel: 'SAFE',
+                detectedActions: [],
+                protectiveResponse: null,
+                requiresApproval: false
+            },
+            warnings: [],
+            recommendations: []
+        };
+
+        // 1. Detect dangerous actions in query
+        const queryActions = this.detectDangerousActions(query);
+        evaluation.details.detectedActions.push(...queryActions);
+
+        // 2. Detect dangerous actions in response
+        const responseActions = this.detectDangerousActions(response);
+        evaluation.details.detectedActions.push(...responseActions);
+
+        // 3. Calculate risk score
+        const allActions = [...queryActions, ...responseActions];
+        evaluation.details.riskScore = this.calculateRiskScore(allActions);
+        evaluation.details.riskLevel = this.getRiskLevel(evaluation.details.riskScore);
+
+        // 4. Determine if action should be blocked
+        if (evaluation.details.riskScore >= this.riskLevels.CRITICAL.threshold) {
+            evaluation.passed = false;
+            evaluation.details.requiresApproval = true;
+            evaluation.warnings.push('🚫 CRITICAL RISK: Action blocked by safety engine');
+            evaluation.recommendations.push({
+                priority: 'critical',
+                message: 'This action has been blocked due to extreme risk'
+            });
+        } else if (evaluation.details.riskScore >= this.riskLevels.HIGH.threshold) {
+            evaluation.passed = false;
+            evaluation.details.requiresApproval = true;
+            evaluation.warnings.push('⚠️ HIGH RISK: Human approval required');
+            evaluation.recommendations.push({
+                priority: 'high',
+                message: 'This action requires explicit human approval before execution'
+            });
+        } else if (evaluation.details.riskScore >= this.riskLevels.MEDIUM.threshold) {
+            evaluation.warnings.push('⚠️ MEDIUM RISK: Proceed with caution');
+        }
+
+        // 5. Generate protective response
+        if (allActions.length > 0) {
+            const highestRiskCategory = allActions.sort((a, b) => b.baseRisk - a.baseRisk)[0].category;
+            evaluation.details.protectiveResponse = this.protectiveResponses[highestRiskCategory];
+        }
+
+        evaluation.score = 1 - (evaluation.details.riskScore / 100);
+
+        return evaluation;
+    }
+
+    /**
+     * Detect dangerous actions in text
+     */
+    detectDangerousActions(text) {
+        const detected = [];
+
+        for (const action of this.dangerousActions) {
+            if (action.pattern.test(text)) {
+                detected.push({
+                    category: action.category,
+                    baseRisk: action.baseRisk,
+                    pattern: action.pattern.source,
+                    matched: text.match(action.pattern)?.[0]
+                });
+            }
+        }
+
+        return detected;
+    }
+
+    /**
+     * Calculate overall risk score
+     */
+    calculateRiskScore(actions) {
+        if (actions.length === 0) return 0;
+
+        // Base risk from highest risk action
+        const baseRisk = Math.max(...actions.map(a => a.baseRisk));
+
+        // Multiplier for multiple dangerous actions
+        const multiplier = 1 + (actions.length - 1) * 0.1;
+
+        // Category multiplier
+        const hasCatastrophic = actions.some(a => a.category === 'catastrophic');
+        const hasDestructive = actions.some(a => a.category === 'destructive');
+        
+        let categoryMultiplier = 1;
+        if (hasCatastrophic) categoryMultiplier = 1.5;
+        else if (hasDestructive) categoryMultiplier = 1.2;
+
+        return Math.min(100, baseRisk * multiplier * categoryMultiplier);
+    }
+
+    /**
+     * Get risk level from score
+     */
+    getRiskLevel(score) {
+        const levels = Object.entries(this.riskLevels)
+            .sort(([, a], [, b]) => b.threshold - a.threshold);
+
+        for (const [level, config] of levels) {
+            if (score >= config.threshold) {
+                return level;
+            }
+        }
+
+        return 'SAFE';
+    }
+
+    /**
+     * Quick safety check
+     */
+    quickCheck(action) {
+        const actions = this.detectDangerousActions(action);
+        const riskScore = this.calculateRiskScore(actions);
+        
+        return {
+            safe: riskScore < this.riskLevels.HIGH.threshold,
+            riskScore,
+            riskLevel: this.getRiskLevel(riskScore),
+            requiresApproval: riskScore >= this.riskLevels.HIGH.threshold
+        };
+    }
+}
+
+module.exports = new SafetyEngine();
