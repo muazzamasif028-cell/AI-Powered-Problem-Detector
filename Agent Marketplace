@@ -1,0 +1,351 @@
+// ============================================================
+// 🛒 src/services/marketplace/agent-marketplace.service.js
+// SUPREME Agent Marketplace — App Store for AI Agents
+// ============================================================
+
+class AgentMarketplace {
+    constructor() {
+        this.agents = new Map();
+        this.developers = new Map();
+        this.installations = new Map();
+        this.reviews = new Map();
+        this.revenueShares = {
+            developer: 0.70,  // 70% to developer
+            platform: 0.30    // 30% to SUPREME OS
+        };
+        
+        this.categories = [
+            'customer-support', 'sales', 'marketing', 'coding',
+            'data-analysis', 'content-creation', 'automation',
+            'finance', 'hr', 'security', 'education', 'healthcare'
+        ];
+
+        this.initializeSampleAgents();
+    }
+
+    /**
+     * Initialize sample agents
+     */
+    initializeSampleAgents() {
+        const sampleAgents = [
+            {
+                name: 'Customer Support Pro',
+                developer: 'supreme-labs',
+                category: 'customer-support',
+                description: 'AI agent that handles customer inquiries 24/7',
+                price: 29.99,
+                rating: 4.8,
+                installs: 1250,
+                features: ['Multi-language', 'Ticket routing', 'Sentiment analysis'],
+                supportedProviders: ['chatgpt', 'claude', 'gemini']
+            },
+            {
+                name: 'Code Review Assistant',
+                developer: 'devtools-ai',
+                category: 'coding',
+                description: 'Automated code review with best practices suggestions',
+                price: 19.99,
+                rating: 4.6,
+                installs: 3400,
+                features: ['PR review', 'Security scan', 'Performance tips'],
+                supportedProviders: ['github-copilot', 'cursor', 'chatgpt']
+            },
+            {
+                name: 'Sales Pipeline Optimizer',
+                developer: 'sales-ai',
+                category: 'sales',
+                description: 'AI-powered sales pipeline management and forecasting',
+                price: 49.99,
+                rating: 4.5,
+                installs: 890,
+                features: ['Lead scoring', 'Follow-up automation', 'Revenue forecasting'],
+                supportedProviders: ['chatgpt', 'claude']
+            }
+        ];
+
+        sampleAgents.forEach(agent => this.publishAgent(agent));
+    }
+
+    /**
+     * Publish an agent to marketplace
+     */
+    async publishAgent(agentData) {
+        const { name, developer, category, description, price, features, supportedProviders } = agentData;
+
+        // Validate
+        if (!name || !developer || !category) {
+            throw new Error('Name, developer, and category are required');
+        }
+
+        if (!this.categories.includes(category)) {
+            throw new Error(`Invalid category. Must be one of: ${this.categories.join(', ')}`);
+        }
+
+        const agentId = this.generateAgentId();
+
+        const agent = {
+            id: agentId,
+            name,
+            developer,
+            category,
+            description,
+            price,
+            features: features || [],
+            supportedProviders: supportedProviders || [],
+            rating: 0,
+            totalReviews: 0,
+            installs: 0,
+            revenue: 0,
+            status: 'published',
+            version: '1.0.0',
+            publishedAt: new Date(),
+            updatedAt: new Date(),
+            verified: false,
+            featured: false
+        };
+
+        this.agents.set(agentId, agent);
+        
+        // Track developer
+        if (!this.developers.has(developer)) {
+            this.developers.set(developer, {
+                name: developer,
+                agents: [],
+                totalInstalls: 0,
+                totalRevenue: 0,
+                joinedAt: new Date()
+            });
+        }
+        this.developers.get(developer).agents.push(agentId);
+
+        console.log(`🛒 Agent published: ${name} by ${developer}`);
+        return agent;
+    }
+
+    /**
+     * Install agent for a user
+     */
+    async installAgent(userId, agentId) {
+        const agent = this.agents.get(agentId);
+        if (!agent) throw new Error('Agent not found');
+
+        if (!this.installations.has(userId)) {
+            this.installations.set(userId, []);
+        }
+
+        const userInstallations = this.installations.get(userId);
+        
+        // Check if already installed
+        if (userInstallations.some(i => i.agentId === agentId)) {
+            throw new Error('Agent already installed');
+        }
+
+        const installation = {
+            id: this.generateInstallationId(),
+            userId,
+            agentId,
+            agentName: agent.name,
+            installedAt: new Date(),
+            status: 'active',
+            autoUpdate: true,
+            configuration: {}
+        };
+
+        userInstallations.push(installation);
+        agent.installs++;
+
+        // Update developer stats
+        const developer = this.developers.get(agent.developer);
+        if (developer) {
+            developer.totalInstalls++;
+        }
+
+        // Track revenue
+        const developerShare = agent.price * this.revenueShares.developer;
+        const platformShare = agent.price * this.revenueShares.platform;
+        
+        agent.revenue += agent.price;
+        if (developer) developer.totalRevenue += developerShare;
+
+        console.log(`📥 Agent installed: ${agent.name} for user ${userId}`);
+        console.log(`💰 Revenue: Developer $${developerShare}, Platform $${platformShare}`);
+
+        return installation;
+    }
+
+    /**
+     * Uninstall agent
+     */
+    async uninstallAgent(userId, agentId) {
+        const userInstallations = this.installations.get(userId) || [];
+        const index = userInstallations.findIndex(i => i.agentId === agentId);
+        
+        if (index === -1) throw new Error('Agent not installed');
+
+        userInstallations.splice(index, 1);
+        const agent = this.agents.get(agentId);
+        if (agent) agent.installs--;
+
+        return { success: true, message: 'Agent uninstalled' };
+    }
+
+    /**
+     * Add review
+     */
+    async addReview(userId, agentId, rating, comment) {
+        const agent = this.agents.get(agentId);
+        if (!agent) throw new Error('Agent not found');
+
+        if (rating < 1 || rating > 5) {
+            throw new Error('Rating must be between 1 and 5');
+        }
+
+        if (!this.reviews.has(agentId)) {
+            this.reviews.set(agentId, []);
+        }
+
+        const review = {
+            id: this.generateReviewId(),
+            userId,
+            agentId,
+            rating,
+            comment,
+            createdAt: new Date()
+        };
+
+        this.reviews.get(agentId).push(review);
+
+        // Update average rating
+        const allReviews = this.reviews.get(agentId);
+        agent.rating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
+        agent.totalReviews = allReviews.length;
+
+        return review;
+    }
+
+    /**
+     * Search agents
+     */
+    searchAgents(query = '', filters = {}) {
+        const { category, maxPrice, minRating, provider } = filters;
+        
+        let results = Array.from(this.agents.values());
+
+        // Text search
+        if (query) {
+            const q = query.toLowerCase();
+            results = results.filter(a => 
+                a.name.toLowerCase().includes(q) ||
+                a.description.toLowerCase().includes(q) ||
+                a.features.some(f => f.toLowerCase().includes(q))
+            );
+        }
+
+        // Category filter
+        if (category) {
+            results = results.filter(a => a.category === category);
+        }
+
+        // Price filter
+        if (maxPrice !== undefined) {
+            results = results.filter(a => a.price <= maxPrice);
+        }
+
+        // Rating filter
+        if (minRating !== undefined) {
+            results = results.filter(a => a.rating >= minRating);
+        }
+
+        // Provider filter
+        if (provider) {
+            results = results.filter(a => a.supportedProviders.includes(provider));
+        }
+
+        return {
+            query,
+            filters,
+            total: results.length,
+            results: results.sort((a, b) => b.installs - a.installs)
+        };
+    }
+
+    /**
+     * Get top agents
+     */
+    getTopAgents(limit = 10) {
+        return Array.from(this.agents.values())
+            .sort((a, b) => b.rating * b.installs - a.rating * a.installs)
+            .slice(0, limit);
+    }
+
+    /**
+     * Get trending agents
+     */
+    getTrendingAgents(limit = 10) {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        
+        return Array.from(this.agents.values())
+            .filter(a => a.publishedAt > thirtyDaysAgo)
+            .sort((a, b) => b.installs - a.installs)
+            .slice(0, limit);
+    }
+
+    /**
+     * Get developer dashboard
+     */
+    getDeveloperDashboard(developerName) {
+        const developer = this.developers.get(developerName);
+        if (!developer) throw new Error('Developer not found');
+
+        const agents = developer.agents
+            .map(id => this.agents.get(id))
+            .filter(Boolean);
+
+        const monthlyRevenue = agents.reduce((sum, a) => sum + a.revenue, 0);
+
+        return {
+            developer: developerName,
+            totalAgents: agents.length,
+            totalInstalls: developer.totalInstalls,
+            totalRevenue: developer.totalRevenue,
+            monthlyRevenue,
+            agents: agents.map(a => ({
+                id: a.id,
+                name: a.name,
+                category: a.category,
+                price: a.price,
+                rating: a.rating,
+                installs: a.installs,
+                revenue: a.revenue
+            }))
+        };
+    }
+
+    /**
+     * Get marketplace statistics
+     */
+    getStats() {
+        const allAgents = Array.from(this.agents.values());
+        
+        return {
+            totalAgents: allAgents.length,
+            totalDevelopers: this.developers.size,
+            totalInstalls: allAgents.reduce((sum, a) => sum + a.installs, 0),
+            totalRevenue: allAgents.reduce((sum, a) => sum + a.revenue, 0),
+            platformRevenue: allAgents.reduce((sum, a) => sum + a.revenue * this.revenueShares.platform, 0),
+            developerRevenue: allAgents.reduce((sum, a) => sum + a.revenue * this.revenueShares.developer, 0),
+            categories: this.categories.map(c => ({
+                name: c,
+                count: allAgents.filter(a => a.category === c).length
+            })),
+            topRated: this.getTopAgents(5),
+            trending: this.getTrendingAgents(5)
+        };
+    }
+
+    generateAgentId() { return `agent_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`; }
+    generateInstallationId() { return `inst_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`; }
+    generateReviewId() { return `rev_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`; }
+}
+
+module.exports = new AgentMarketplace();
