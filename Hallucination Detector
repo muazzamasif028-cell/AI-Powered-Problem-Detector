@@ -1,0 +1,258 @@
+// ============================================================
+// 🚫 src/services/trust-safety/hallucination-detector.service.js
+// SUPREME Hallucination Detector — Detect AI making things up
+// ============================================================
+
+class HallucinationDetector {
+    constructor() {
+        this.hallucinationPatterns = [
+            { pattern: /I (?:am|cannot|don't|will not) (?:able to|can|cannot)/i, risk: 'low' },
+            { pattern: /\b(?:always|never|every|all|none|absolutely|definitely|guaranteed)\b/gi, risk: 'medium' },
+            { pattern: /\b(?:revolutionary|groundbreaking|unprecedented|impossible|perfect)\b/gi, risk: 'high' },
+            { pattern: /\d{10,}/, risk: 'high', label: 'Unusually large number' },
+            { pattern: /https?:\/\/[^\s]+\.(?:xyz|tk|ml|ga|cf)/i, risk: 'high', label: 'Suspicious URL' },
+            { pattern: /according to (?:anonymous|unnamed|unknown|secret) sources/i, risk: 'high' }
+        ];
+
+        this.fabricationIndicators = {
+            'fake_citation': /(?:et al\.|ibid\.|op\. cit\.)/i,
+            'invented_statistic': /\d{2,3}% of (?:all|every|each)/i,
+            'made_up_study': /(?:a recent study|research shows|scientists say|experts agree)(?!.*(?:published|journal|doi|URL))/i,
+            'fake_person': /Dr\. [A-Z][a-z]+ [A-Z][a-z]+ (?:stated|claimed|argued)(?!.*(?:University|Institute|Hospital))/i,
+            'invented_company': /(?:according to) [A-Z][a-z]+ (?:Inc|LLC|Corp|Ltd)(?!.*(?:NASDAQ|NYSE|founded))/i
+        };
+    }
+
+    /**
+     * Evaluate response for hallucinations
+     */
+    async evaluate(query, response, context = {}) {
+        const evaluation = {
+            passed: true,
+            score: 1.0,
+            details: {
+                hallucinationsFound: [],
+                fabricationCount: 0,
+                riskLevel: 'low',
+                hallucinationsByType: {},
+                suspiciousPatterns: []
+            },
+            warnings: [],
+            recommendations: []
+        };
+
+        // 1. Check for known hallucination patterns
+        const patternResults = this.checkPatterns(response);
+        evaluation.details.suspiciousPatterns = patternResults;
+
+        // 2. Check for fabrications
+        const fabricationResults = this.checkFabrications(response);
+        evaluation.details.fabricationCount = fabricationResults.length;
+        evaluation.details.hallucinationsFound.push(...fabricationResults);
+
+        // 3. Cross-reference claims with query
+        const unsupportedClaims = this.checkUnsupportedClaims(query, response);
+        evaluation.details.hallucinationsFound.push(...unsupportedClaims);
+
+        // 4. Check for contradictory statements
+        const contradictions = this.checkInternalContradictions(response);
+        if (contradictions.length > 0) {
+            evaluation.details.hallucinationsFound.push({
+                type: 'contradiction',
+                details: contradictions,
+                severity: 'high'
+            });
+        }
+
+        // 5. Verify factual consistency
+        const consistencyScore = this.checkConsistency(response);
+        
+        // Calculate final score
+        const totalHallucinations = evaluation.details.hallucinationsFound.length;
+        evaluation.score = Math.max(0, 1 - (totalHallucinations * 0.15));
+        
+        // Determine risk level
+        evaluation.details.riskLevel = this.determineRiskLevel(totalHallucinations, evaluation.score);
+        
+        // Pass if score is high enough
+        evaluation.passed = evaluation.score >= 0.7;
+
+        // Generate warnings
+        if (totalHallucinations > 0) {
+            evaluation.warnings.push(`Found ${totalHallucinations} potential hallucinations`);
+            
+            if (evaluation.details.riskLevel === 'high') {
+                evaluation.warnings.push('High risk of fabricated information');
+                evaluation.recommendations.push({
+                    priority: 'critical',
+                    message: 'Response contains likely hallucinations — verify before using'
+                });
+            }
+        }
+
+        if (fabricationResults.length > 0) {
+            evaluation.recommendations.push({
+                priority: 'high',
+                message: 'Remove or verify fabricated citations, studies, or statistics'
+            });
+        }
+
+        return evaluation;
+    }
+
+    /**
+     * Check for hallucination patterns
+     */
+    checkPatterns(text) {
+        const found = [];
+
+        for (const { pattern, risk, label } of this.hallucinationPatterns) {
+            const matches = text.match(pattern);
+            if (matches) {
+                found.push({
+                    pattern: pattern.source,
+                    matches: matches.slice(0, 3),
+                    risk,
+                    label: label || 'Suspicious pattern detected'
+                });
+            }
+        }
+
+        return found;
+    }
+
+    /**
+     * Check for fabrications
+     */
+    checkFabrications(text) {
+        const fabrications = [];
+
+        for (const [type, pattern] of Object.entries(this.fabricationIndicators)) {
+            const matches = text.match(pattern);
+            if (matches) {
+                fabrications.push({
+                    type,
+                    matches: matches.slice(0, 3),
+                    severity: type.includes('fake') || type.includes('invented') ? 'high' : 'medium'
+                });
+            }
+        }
+
+        return fabrications;
+    }
+
+    /**
+     * Check for unsupported claims
+     */
+    checkUnsupportedClaims(query, response) {
+        const unsupported = [];
+
+        // Claims that go beyond the query
+        const queryTopics = new Set(query.toLowerCase().split(/\s+/));
+        const responseClaims = this.extractClaims(response);
+
+        for (const claim of responseClaims) {
+            const claimWords = new Set(claim.toLowerCase().split(/\s+/));
+            const overlap = [...claimWords].filter(w => queryTopics.has(w)).length;
+            const relevance = overlap / claimWords.size;
+
+            if (relevance < 0.2 && claim.length > 50) {
+                unsupported.push({
+                    type: 'unsupported_claim',
+                    claim: claim.substring(0, 100),
+                    relevance,
+                    severity: 'medium'
+                });
+            }
+        }
+
+        return unsupported;
+    }
+
+    /**
+     * Check for internal contradictions
+     */
+    checkInternalContradictions(text) {
+        const contradictions = [];
+        const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+
+        // Check for opposing statements
+        for (let i = 0; i < sentences.length; i++) {
+            for (let j = i + 1; j < sentences.length; j++) {
+                if (this.areContradictory(sentences[i], sentences[j])) {
+                    contradictions.push({
+                        sentence1: sentences[i].trim(),
+                        sentence2: sentences[j].trim(),
+                        type: 'contradiction'
+                    });
+                }
+            }
+        }
+
+        return contradictions;
+    }
+
+    /**
+     * Check if two sentences contradict
+     */
+    areContradictory(s1, s2) {
+        const opposites = [
+            ['increase', 'decrease'],
+            ['more', 'less'],
+            ['higher', 'lower'],
+            ['always', 'never'],
+            ['all', 'none'],
+            ['yes', 'no'],
+            ['true', 'false'],
+            ['positive', 'negative'],
+            ['good', 'bad'],
+            ['fast', 'slow']
+        ];
+
+        const lower1 = s1.toLowerCase();
+        const lower2 = s2.toLowerCase();
+
+        for (const [word1, word2] of opposites) {
+            if (lower1.includes(word1) && lower2.includes(word2)) {
+                return true;
+            }
+            if (lower1.includes(word2) && lower2.includes(word1)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check factual consistency
+     */
+    checkConsistency(text) {
+        let score = 1.0;
+
+        // Check for vague language
+        const vagueWords = ['maybe', 'perhaps', 'might be', 'could be', 'possibly', 'around', 'approximately'];
+        const vagueCount = vagueWords.filter(w => text.toLowerCase().includes(w)).length;
+        score -= vagueCount * 0.05;
+
+        // Check for definitive statements without evidence
+        const definitiveWords = ['definitely', 'absolutely', 'certainly', 'undoubtedly', 'without question'];
+        const definitiveCount = definitiveWords.filter(w => text.toLowerCase().includes(w)).length;
+        score -= definitiveCount * 0.1;
+
+        return Math.max(0, score);
+    }
+
+    extractClaims(text) {
+        return (text.match(/[^.!?]+[.!?]+/g) || [])
+            .filter(s => s.length > 20);
+    }
+
+    determineRiskLevel(count, score) {
+        if (count >= 5 || score < 0.5) return 'high';
+        if (count >= 2 || score < 0.7) return 'medium';
+        return 'low';
+    }
+}
+
+module.exports = new HallucinationDetector();
