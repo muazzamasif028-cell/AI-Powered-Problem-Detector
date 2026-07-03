@@ -1,0 +1,71 @@
+// ============================================================
+// 🛣️ src/routes/workspace.routes.js
+// SUPREME Living Workspace API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const auth = require('../middleware/auth');
+const livingWorkspace = require('../services/workspace/living-workspace.service');
+const snapshotEngine = require('../services/workspace/snapshot-engine.service');
+const restoreEngine = require('../services/workspace/restore-engine.service');
+const backgroundAgent = require('../services/workspace/background-agent.service');
+
+router.use(auth);
+
+// Login — instant restore
+router.post('/login', async (req, res) => {
+    const result = await livingWorkspace.onUserLogin(req.userId);
+    res.json({ success: true, ...result });
+});
+
+// Logout — freeze + background work
+router.post('/logout', async (req, res) => {
+    const result = await livingWorkspace.onUserLogout(req.userId);
+    res.json({ success: true, ...result });
+});
+
+// Get current state
+router.get('/current', async (req, res) => {
+    const Workspace = require('../services/workspace/models/Workspace');
+    const workspace = await Workspace.findOne({ userId: req.userId });
+    res.json({ success: true, workspace: restoreEngine.formatWorkspace(workspace) });
+});
+
+// Force snapshot
+router.post('/snapshot', async (req, res) => {
+    const snapshot = await snapshotEngine.forceSnapshot(req.userId);
+    res.json({ success: true, snapshot });
+});
+
+// Get snapshots
+router.get('/snapshots', async (req, res) => {
+    const stats = await snapshotEngine.getStats(req.userId);
+    res.json({ success: true, ...stats });
+});
+
+// Time Machine — restore from specific time
+router.post('/time-machine', async (req, res) => {
+    const { timestamp } = req.body;
+    const result = await restoreEngine.restoreFromTime(req.userId, timestamp);
+    res.json({ success: true, ...result });
+});
+
+// Restore from specific snapshot
+router.post('/restore/:snapshotId', async (req, res) => {
+    const result = await restoreEngine.restoreFromSnapshot(req.userId, req.params.snapshotId);
+    res.json({ success: true, ...result });
+});
+
+// Get background work status
+router.get('/background-work', async (req, res) => {
+    const status = await backgroundAgent.getBackgroundWorkStatus(req.userId);
+    res.json({ success: true, ...status });
+});
+
+// Get living workspace stats
+router.get('/stats', async (req, res) => {
+    const stats = await livingWorkspace.getStats(req.userId);
+    res.json({ success: true, stats });
+});
+
+module.exports = router;
