@@ -1,0 +1,267 @@
+// ============================================================
+// 💾 services/auto-save.service.js
+// SUPREME Auto-Save — Every 2-5 seconds, compressed, encrypted
+// ============================================================
+const Workspace = require('../models/Workspace');
+const WorkspaceSnapshot = require('../models/WorkspaceSnapshot');
+const crypto = require('crypto');
+const zlib = require('zlib');
+const util = require('util');
+
+const gzip = util.promisify(zlib.gzip);
+const brotliCompress = util.promisify(zlib.brotliCompress);
+
+class AutoSaveService {
+    constructor() {
+        this.saveInterval = 3000; // 3 seconds default
+        this.activeSaves = new Map();
+        this.lastSaveHash = new Map();
+        this.compressionAlgorithm = 'brotli'; // brotli | gzip
+        this.stats = {
+            totalSaves: 0,
+            totalSkipped: 0,
+            totalBytes: 0,
+            compressedBytes: 0,
+            averageLatency: 0
+        };
+    }
+
+    /**
+     * Start auto-saving a workspace
+     */
+    startAutoSave(userId) {
+        if (this.activeSaves.has(userId)) {
+            return; // Already saving
+        }
+
+        console.log(`💾 Starting auto-save for user ${userId} (every ${this.saveInterval}ms)`);
+
+        // Immediate first save
+        this.saveWorkspace(userId);
+
+        // Continuous interval save
+        const interval = setInterval(() => {
+            this.saveWorkspace(userId);
+        }, this.saveInterval);
+
+        this.activeSaves.set(userId, interval);
+    }
+
+    /**
+     * Stop auto-saving
+     */
+    stopAutoSave(userId) {
+        const interval = this.activeSaves.get(userId);
+        if (interval) {
+            clearInterval(interval);
+            this.activeSaves.delete(userId);
+            
+            // Final save
+            this.saveWorkspace(userId, true);
+            
+            console.log(`💾 Stopped auto-save for user ${userId}`);
+        }
+    }
+
+    /**
+     * Save workspace state
+     */
+    async saveWorkspace(userId, isFinal = false) {
+        const startTime = Date.now();
+
+        try {
+            // Get current workspace
+            const workspace = await Workspace.findOne({ userId });
+            if (!workspace) return;
+
+            // Build state object
+            const state = {
+                openTabs: workspace.openTabs,
+                aiContext: workspace.aiContext,
+                codeEditor: workspace.codeEditor,
+                terminal: workspace.terminal,
+                fileSystem: workspace.fileSystem,
+                browser: workspace.browser,
+                layout: workspace.layout,
+                cloudResources: workspace.cloudResources,
+                notifications: workspace.notifications,
+                preferences: workspace.preferences
+            };
+
+            // Serialize
+            const serialized = JSON.stringify(state);
+
+            // Check if state actually changed
+            const hash = crypto.createHash('md5').update(serialized).digest('hex');
+            
+            if (!isFinal && this.lastSaveHash.get(userId) === hash) {
+                this.stats.totalSkipped++;
+                return { saved: false, reason: 'no_changes' };
+            }
+
+            this.lastSaveHash.set(userId, hash);
+
+            // Compress
+            const originalSize = Buffer.byteLength(serialized);
+            let compressed;
+            
+            if (this.compressionAlgorithm === 'brotli') {
+                compressed = await brotliCompress(serialized, {
+                    params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 }
+                });
+            } else {
+                compressed = await gzip(serialized, { level: 6 });
+            }
+
+            const compressedSize = compressed.length;
+            const compressionRatio = ((1 - compressedSize / originalSize) * 100).toFixed(1);
+
+            // Encrypt
+            const encrypted = this.encrypt(compressed);
+
+            // Store snapshot
+            const snapshot = await WorkspaceSnapshot.create({
+                workspaceId: workspace._id,
+                userId,
+                state: encrypted,
+                metadata: {
+                    originalSize,
+                    compressedSize,
+                    compressionRatio: compressionRatio + '%',
+                    algorithm: this.compressionAlgorithm,
+                    checksum: hash,
+                    savedAt: new Date(),
+                    isFinal,
+                    version: workspace.metadata.version
+                }
+            });
+
+            // Update workspace metadata
+            workspace.metadata.lastSnapshotId = snapshot._id;
+            workspace.metadata.lastSnapshotAt = new Date();
+            workspace.metadata.totalSnapshots += 1;
+            workspace.metadata.totalUptime += this.saveInterval / 1000;
+            workspace.metadata.lastActivityAt = new Date();
+            await workspace.save();
+
+            // Update stats
+            const latency = Date.now() - startTime;
+            this.stats.totalSaves++;
+            this.stats.totalBytes += originalSize;
+            this.stats.compressedBytes += compressedSize;
+            this.stats.averageLatency = 
+                (this.stats.averageLatency * (this.stats.totalSaves - 1) + latency) / this.stats.totalSaves;
+
+            // Cleanup old snapshots (keep last 200)
+            if (workspace.metadata.totalSnapshots % 50 === 0) {
+                await this.cleanupOldSnapshots(workspace._id);
+            }
+
+            if (this.stats.totalSaves % 100 === 0) {
+                console.log(`💾 Auto-save stats: ${this.stats.totalSaves} saves, ${this.stats.totalSkipped} skipped, ${this.formatBytes(this.stats.compressedBytes)} saved (${latency}ms avg)`);
+            }
+
+            return {
+                saved: true,
+                snapshotId: snapshot._id,
+                originalSize,
+                compressedSize,
+                compressionRatio: compressionRatio + '%',
+                latency: `${latency}ms`
+            };
+
+        } catch (error) {
+            console.error(`Auto-save failed for ${userId}:`, error.message);
+            return { saved: false, error: error.message };
+        }
+    }
+
+    /**
+     * Force immediate save
+     */
+    async forceSave(userId) {
+        console.log(`💾 Force save for user ${userId}`);
+        return this.saveWorkspace(userId, true);
+    }
+
+    /**
+     * Cleanup old snapshots
+     */
+    async cleanupOldSnapshots(workspaceId) {
+        const maxSnapshots = 200;
+        const count = await WorkspaceSnapshot.countDocuments({ workspaceId });
+
+        if (count > maxSnapshots) {
+            const toDelete = count - maxSnapshots;
+            const oldSnapshots = await WorkspaceSnapshot.find({ workspaceId })
+                .sort({ 'metadata.savedAt': 1 })
+                .limit(toDelete)
+                .select('_id');
+
+            const ids = oldSnapshots.map(s => s._id);
+            await WorkspaceSnapshot.deleteMany({ _id: { $in: ids } });
+        }
+    }
+
+    /**
+     * Encrypt data
+     */
+    encrypt(data) {
+        const algorithm = 'aes-256-gcm';
+        const key = Buffer.from(process.env.ENCRYPTION_KEY || 'supreme-32-char-encryption-key!!', 'utf8');
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv(algorithm, key, iv);
+
+        let encrypted = cipher.update(data);
+        encrypted = Buffer.concat([encrypted, cipher.final()]);
+        const authTag = cipher.getAuthTag();
+
+        return {
+            iv: iv.toString('hex'),
+            authTag: authTag.toString('hex'),
+            data: encrypted.toString('base64')
+        };
+    }
+
+    /**
+     * Decrypt data
+     */
+    decrypt(encryptedObj) {
+        const algorithm = 'aes-256-gcm';
+        const key = Buffer.from(process.env.ENCRYPTION_KEY || 'supreme-32-char-encryption-key!!', 'utf8');
+        const iv = Buffer.from(encryptedObj.iv, 'hex');
+        const authTag = Buffer.from(encryptedObj.authTag, 'hex');
+        const decipher = crypto.createDecipheriv(algorithm, key, iv);
+        decipher.setAuthTag(authTag);
+
+        let decrypted = decipher.update(Buffer.from(encryptedObj.data, 'base64'));
+        decrypted = Buffer.concat([decrypted, decipher.final()]);
+        return decrypted;
+    }
+
+    /**
+     * Get auto-save stats
+     */
+    getStats() {
+        return {
+            ...this.stats,
+            activeUsers: this.activeSaves.size,
+            saveInterval: `${this.saveInterval}ms`,
+            compressionAlgorithm: this.compressionAlgorithm,
+            totalStorageSaved: this.formatBytes(this.stats.totalBytes - this.stats.compressedBytes),
+            averageCompressionRatio: this.stats.totalBytes > 0 
+                ? ((1 - this.stats.compressedBytes / this.stats.totalBytes) * 100).toFixed(1) + '%'
+                : '0%'
+        };
+    }
+
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+}
+
+module.exports = new AutoSaveService();
