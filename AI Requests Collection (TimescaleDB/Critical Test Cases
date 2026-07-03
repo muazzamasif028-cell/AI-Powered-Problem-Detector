@@ -1,0 +1,29 @@
+Authentication:
+  - User can sign up with email/password
+  - User can sign in with correct credentials
+  - User cannot sign in with wrong password
+  - JWT token expires after 15 minutes
+  - Refresh token generates new access token
+  - Rate limiter blocks after 5 failed attempts
+  - Google OAuth returns valid user
+
+AI Gateway:
+  - Chat completion returns response from OpenAI
+  - Chat completion returns response from Anthropic
+  - Streaming returns SSE events
+  - Provider failover works when primary fails
+  - Cost estimation is within 10% of actual
+  - Rate limit enforced per plan
+
+Billing:
+  - Checkout creates Stripe session
+  - Webhook activates subscription
+  - Subscription cancellation works
+  - Invoice generated after payment
+  - Usage limits enforced per plan
+
+Trust & Safety:
+  - Evidence engine detects sources
+  - Hallucination detector flags unsupported claims
+  - AI Judge scores response quality
+  - Safety engine blocks dangerous actions
