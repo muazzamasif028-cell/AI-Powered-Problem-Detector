@@ -1,0 +1,231 @@
+// ============================================================
+// 📧 src/auth/welcome-email.service.js
+// SUPREME OS — Welcome Email Sender
+// ============================================================
+const nodemailer = require('nodemailer');
+
+class WelcomeEmailService {
+    constructor() {
+        this.transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST || 'smtp.resend.com',
+            port: parseInt(process.env.SMTP_PORT) || 587,
+            secure: process.env.SMTP_SECURE === 'true',
+            auth: {
+                user: process.env.SMTP_USER || 'resend',
+                pass: process.env.SMTP_PASS
+            }
+        });
+
+        this.fromEmail = process.env.FROM_EMAIL || 'SUPREME OS <welcome@supreme-os.com>';
+    }
+
+    /**
+     * Send welcome email
+     */
+    async sendWelcomeEmail(email, name, provider = 'google') {
+        const subject = this.getWelcomeSubject(name, provider);
+        const html = this.getWelcomeTemplate(name, provider);
+
+        const mailOptions = {
+            from: this.fromEmail,
+            to: email,
+            subject,
+            html,
+            headers: {
+                'X-Onboarding': 'welcome',
+                'X-Provider': provider
+            }
+        };
+
+        try {
+            const info = await this.transporter.sendMail(mailOptions);
+            console.log(`📧 Welcome email sent to ${email} (MessageID: ${info.messageId})`);
+            
+            // Also log to activity
+            await this.logEmailSent(email, 'welcome');
+            
+            return {
+                sent: true,
+                messageId: info.messageId,
+                to: email
+            };
+        } catch (error) {
+            console.error(`Failed to send welcome email to ${email}:`, error.message);
+            
+            // Queue for retry
+            await this.queueForRetry(email, 'welcome', mailOptions);
+            
+            throw error;
+        }
+    }
+
+    /**
+     * Get welcome subject line
+     */
+    getWelcomeSubject(name, provider) {
+        const subjects = [
+            `🚀 Welcome to SUPREME OS, ${name}!`,
+            `⚡ ${name}, your AI operating system is ready!`,
+            `🎉 You're in! Welcome to SUPREME OS`,
+            `🌟 ${name}, let's build something amazing!`
+        ];
+
+        // A/B test different subjects
+        return subjects[Math.floor(Math.random() * subjects.length)];
+    }
+
+    /**
+     * Get welcome email template
+     */
+    getWelcomeTemplate(name, provider) {
+        const providerName = provider === 'google' ? 'Google' : provider;
+        
+        return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #060a15; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+        .card { background: #0a1626; border: 1px solid #132f54; border-radius: 16px; padding: 40px; }
+        .logo { text-align: center; font-size: 48px; margin-bottom: 20px; }
+        h1 { color: #00ffff; font-size: 28px; text-align: center; margin-bottom: 12px; }
+        .welcome-text { color: #94a3b8; font-size: 16px; text-align: center; line-height: 1.6; margin-bottom: 30px; }
+        .info-box { background: #070e1a; border: 1px solid rgba(0,255,255,0.15); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+        .info-box p { color: #e2e8f0; font-size: 14px; margin: 8px 0; }
+        .info-box strong { color: #38bdf8; }
+        .steps { margin-bottom: 30px; }
+        .step { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .step-num { width: 32px; height: 32px; background: linear-gradient(135deg, #00ffff, #0088ff); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #000; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+        .step-text { color: #94a3b8; font-size: 14px; }
+        .step-text strong { color: #e2e8f0; }
+        .btn { display: block; width: 100%; padding: 16px; background: linear-gradient(135deg, #00ffff, #0088ff); color: #000; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 16px; margin-top: 20px; }
+        .footer { text-align: center; margin-top: 30px; color: #64748b; font-size: 12px; }
+        .footer a { color: #00ffff; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="logo">⚡</div>
+            <h1>Welcome to SUPREME OS!</h1>
+            <p class="welcome-text">
+                Hi <strong style="color:#e2e8f0;">${name}</strong>! 
+                You've successfully signed in with <strong>${providerName}</strong>. 
+                Your AI operating system is ready.
+            </p>
+
+            <div class="info-box">
+                <p>📧 <strong>Email:</strong> Verified via ${providerName}</p>
+                <p>🎁 <strong>Free Credits:</strong> 1,000 AI credits added</p>
+                <p>🤖 <strong>AI Agent:</strong> "My First Assistant" created</p>
+                <p>🔑 <strong>API Key:</strong> Generated automatically</p>
+                <p>💰 <strong>Plan:</strong> Free (upgrade anytime)</p>
+            </div>
+
+            <div class="steps">
+                <p style="color:#e2e8f0;font-weight:600;margin-bottom:12px;">🚀 Quick Start Guide:</p>
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <div class="step-text"><strong>Try the AI Chat</strong> — Ask anything to ChatGPT, Claude, or Gemini</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <div class="step-text"><strong>Create an Agent</strong> — Build your first AI agent in 2 minutes</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <div class="step-text"><strong>Get your API Key</strong> — Start building with our API</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <div class="step-text"><strong>Invite your team</strong> — Collaborate with colleagues</div>
+                </div>
+            </div>
+
+            <a href="https://supreme-os.com/dashboard" class="btn">🚀 Go to Dashboard</a>
+        </div>
+
+        <div class="footer">
+            <p>SUPREME OS — The Operating System for AI</p>
+            <p>
+                <a href="https://supreme-os.com/docs">Documentation</a> • 
+                <a href="https://supreme-os.com/blog">Blog</a> • 
+                <a href="https://supreme-os.com/support">Support</a>
+            </p>
+            <p style="margin-top:16px;">© 2025 SUPREME OS. All rights reserved.</p>
+            <p style="color:#64748b;font-size:11px;">
+                You received this email because you signed up for SUPREME OS.
+                <br><a href="{{unsubscribe_url}}" style="color:#64748b;">Unsubscribe</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>`;
+    }
+
+    /**
+     * Send verification email
+     */
+    async sendVerificationEmail(email, name, verificationToken) {
+        const verificationLink = `https://supreme-os.com/verify-email?token=${verificationToken}`;
+
+        const html = `
+            <h1>Verify your email</h1>
+            <p>Hi ${name},</p>
+            <p>Please verify your email address by clicking the link below:</p>
+            <a href="${verificationLink}" style="display:inline-block;padding:12px 24px;background:#00ffff;color:#000;text-decoration:none;border-radius:8px;font-weight:700;">
+                Verify Email
+            </a>
+            <p>Or copy this link: ${verificationLink}</p>
+            <p>This link expires in 24 hours.</p>
+        `;
+
+        return this.transporter.sendMail({
+            from: this.fromEmail,
+            to: email,
+            subject: 'Verify your email — SUPREME OS',
+            html
+        });
+    }
+
+    /**
+     * Log email sent to activity
+     */
+    async logEmailSent(email, type) {
+        try {
+            const Activity = require('../models/Activity');
+            await Activity.create({
+                type: 'email.sent',
+                action: type,
+                description: `📧 ${type} email sent to ${email}`,
+                metadata: { email, type },
+                status: 'success'
+            });
+        } catch (error) {
+            // Non-critical
+        }
+    }
+
+    /**
+     * Queue email for retry on failure
+     */
+    async queueForRetry(email, type, mailOptions) {
+        try {
+            const EmailQueue = require('../models/EmailQueue');
+            await EmailQueue.create({
+                email,
+                type,
+                mailOptions,
+                attempts: 0,
+                maxAttempts: 3,
+                nextRetryAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
+            });
+        } catch (error) {
+            console.error('Failed to queue email for retry:', error.message);
+        }
+    }
+}
+
+module.exports = new WelcomeEmailService();
