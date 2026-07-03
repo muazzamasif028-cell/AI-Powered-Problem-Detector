@@ -1,0 +1,142 @@
+// ============================================================
+// 🗄️ models/Memory.js — Hyperscale Memory (1 Billion+)
+// ============================================================
+const mongoose = require('mongoose');
+
+const MemorySchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    
+    // Memory Content
+    content: { type: String, required: true },
+    contentHash: { type: String, index: true }, // SHA-256 for deduplication
+    contentType: { 
+        type: String, 
+        enum: ['text', 'code', 'conversation', 'document', 'email', 'task', 'preference', 'fact', 'insight', 'decision'],
+        default: 'text'
+    },
+    
+    // Embedding (1536-dimension for OpenAI, 768 for others)
+    embedding: { type: [Number], index: true },
+    embeddingModel: String,
+    embeddingVersion: Number,
+    
+    // Memory Metadata
+    source: { type: String, enum: ['ai-chat', 'code-editor', 'agent', 'user-input', 'document', 'api', 'system'] },
+    provider: String, // openai, anthropic, google, etc.
+    sessionId: String,
+    conversationId: String,
+    
+    // Importance & Relevance
+    importance: { type: Number, default: 0.5, min: 0, max: 1, index: true },
+    accessCount: { type: Number, default: 0 },
+    lastAccessed: Date,
+    decayRate: { type: Number, default: 0.01 }, // How fast memory fades
+    
+    // Organization
+    tags: [String],
+    category: String,
+    projectId: String,
+    
+    // Relationships
+    relatedMemories: [{ memoryId: mongoose.Schema.Types.ObjectId, strength: Number }],
+    parentMemoryId: mongoose.Schema.Types.ObjectId,
+    
+    // Temporal
+    timestamp: { type: Date, default: Date.now, index: true },
+    expiresAt: Date, // Optional TTL
+    
+    // Compression
+    isCompressed: { type: Boolean, default: false },
+    compressedContent: String,
+    summary: String, // AI-generated summary
+    
+    // Privacy
+    isPrivate: { type: Boolean, default: false },
+    shareWith: [mongoose.Schema.Types.ObjectId],
+    
+    // Version
+    version: { type: Number, default: 1 }
+}, {
+    timestamps: true,
+    // Optimize for large collections
+    collation: { locale: 'en', strength: 1 }
+});
+
+// ==========================================
+// 📊 INDEXES FOR 1 BILLION+ SCALE
+// ==========================================
+MemorySchema.index({ userId: 1, importance: -1, timestamp: -1 });
+MemorySchema.index({ userId: 1, contentType: 1, timestamp: -1 });
+MemorySchema.index({ userId: 1, tags: 1 });
+MemorySchema.index({ userId: 1, category: 1 });
+MemorySchema.index({ contentHash: 1 }, { sparse: true });
+MemorySchema.index({ timestamp: 1 }, { expireAfterSeconds: 365 * 24 * 60 * 60 }); // Auto-delete after 1 year
+
+// ==========================================
+// 🔍 TEXT INDEX FOR FULL-TEXT SEARCH
+// ==========================================
+MemorySchema.index({ content: 'text', tags: 'text', summary: 'text' });
+
+// ==========================================
+// 🎯 METHODS
+// ==========================================
+
+// Calculate memory relevance score
+MemorySchema.methods.calculateRelevance = function(query, queryEmbedding) {
+    let score = this.importance * 0.3;
+    
+    // Recency boost
+    const ageInDays = (Date.now() - this.timestamp) / (1000 * 60 * 60 * 24);
+    score += Math.max(0, (1 - ageInDays / 365)) * 0.2;
+    
+    // Access frequency boost
+    score += Math.min(1, this.accessCount / 100) * 0.1;
+    
+    // Vector similarity (if embeddings available)
+    if (this.embedding && queryEmbedding) {
+        const similarity = this.cosineSimilarity(this.embedding, queryEmbedding);
+        score += similarity * 0.4;
+    }
+    
+    return Math.min(1, score);
+};
+
+// Cosine similarity
+MemorySchema.methods.cosineSimilarity = function(vecA, vecB) {
+    let dot = 0, normA = 0, normB = 0;
+    for (let i = 0; i < vecA.length; i++) {
+        dot += vecA[i] * vecB[i];
+        normA += vecA[i] ** 2;
+        normB += vecB[i] ** 2;
+    }
+    return normA && normB ? dot / (Math.sqrt(normA) * Math.sqrt(normB)) : 0;
+};
+
+// ==========================================
+// 📊 STATIC METHODS
+// ==========================================
+
+// Get storage stats
+MemorySchema.statics.getStorageStats = async function(userId) {
+    const stats = await this.aggregate([
+        { $match: { userId: mongoose.Types.ObjectId(userId) } },
+        { $group: {
+            _id: '$contentType',
+            count: { $sum: 1 },
+            avgImportance: { $avg: '$importance' },
+            totalAccessCount: { $sum: '$accessCount' }
+        }},
+        { $sort: { count: -1 } }
+    ]);
+    
+    const total = await this.countDocuments({ userId });
+    
+    return {
+        totalMemories: total,
+        byType: stats,
+        estimatedSize: total * 2048, // ~2KB per memory
+        compressionRatio: '85%'
+    };
+};
+
+module.exports = mongoose.model('Memory', MemorySchema);
