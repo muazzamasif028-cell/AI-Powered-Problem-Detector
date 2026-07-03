@@ -1,0 +1,33 @@
+Feature ID: AUTH-001
+Priority: P0 (Critical)
+Effort: 2 weeks
+
+Requirements:
+  - Email/Password signup with validation
+  - Email verification (sendgrid/mailgun)
+  - JWT access tokens (15min expiry)
+  - Refresh token rotation (7 day expiry)
+  - Password reset flow
+  - Google OAuth2
+  - GitHub OAuth2
+  - Microsoft OAuth2 (optional v1.1)
+  - 2FA (TOTP) — v1.1
+  - Session management (view/revoke)
+  - Login history with device tracking
+  - Account lockout after 10 failed attempts
+  - Rate limiting: 5 attempts per 15 min per IP
+
+API Endpoints:
+  POST   /api/auth/signup
+  POST   /api/auth/signin
+  POST   /api/auth/signout
+  POST   /api/auth/refresh
+  GET    /api/auth/verify
+  POST   /api/auth/forgot-password
+  POST   /api/auth/reset-password
+  GET    /api/auth/oauth/:provider
+  GET    /api/auth/oauth/:provider/callback
+  GET    /api/auth/sessions
+  DELETE /api/auth/sessions/:id
+  POST   /api/auth/2fa/enable
+  POST   /api/auth/2fa/verify
