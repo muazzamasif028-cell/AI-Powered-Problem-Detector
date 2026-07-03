@@ -1,0 +1,51 @@
+// ============================================================
+// 🛣️ routes/memory.routes.js
+// SUPREME Hyperscale Memory API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const auth = require('../middleware/auth');
+const memorySearch = require('../services/memory-search-orchestrator');
+const memoryIngestion = require('../services/memory-ingestion.service');
+
+router.use(auth);
+
+// Search memories (up to 100K)
+router.post('/search', async (req, res) => {
+    try {
+        const startTime = Date.now();
+        const result = await memorySearch.search(req.userId, req.body.query, req.body.options);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Ingest a memory
+router.post('/ingest', async (req, res) => {
+    const result = await memoryIngestion.ingest(req.userId, req.body.content, req.body.metadata);
+    res.json({ success: true, ...result });
+});
+
+// Bulk ingest
+router.post('/ingest/bulk', async (req, res) => {
+    const result = await memoryIngestion.bulkIngest(req.userId, req.body.memories);
+    res.json({ success: true, ...result });
+});
+
+// Get memory stats
+router.get('/stats', async (req, res) => {
+    const Memory = require('../models/Memory');
+    const storageStats = await Memory.getStorageStats(req.userId);
+    const searchStats = await memorySearch.getStats();
+    const ingestionStats = memoryIngestion.getStats();
+
+    res.json({
+        success: true,
+        storage: storageStats,
+        search: searchStats,
+        ingestion: ingestionStats
+    });
+});
+
+module.exports = router;
