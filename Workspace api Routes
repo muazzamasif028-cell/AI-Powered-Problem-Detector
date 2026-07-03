@@ -1,0 +1,92 @@
+// ============================================================
+// 🛣️ routes/workspace.routes.js
+// SUPREME Persistent Workspace API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const auth = require('../middleware/auth');
+const stateRestoreService = require('../services/workspace/services/state-restore.service');
+const autoSaveService = require('../services/workspace/services/auto-save.service');
+const crossDeviceSync = require('../services/workspace/services/cross-device-sync');
+
+router.use(auth);
+
+// ==========================================
+// 🔄 RESTORE ON LOGIN
+// ==========================================
+router.post('/restore', async (req, res) => {
+    try {
+        const result = await stateRestoreService.restoreOnLogin(req.userId);
+        
+        // Register device
+        await crossDeviceSync.registerDevice(req.userId, {
+            deviceId: req.body.deviceId || req.headers['x-device-id'],
+            platform: req.body.platform || req.headers['x-platform'],
+            deviceName: req.body.deviceName || 'Unknown Device',
+            deviceType: req.body.deviceType || 'desktop'
+        });
+
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ==========================================
+// 💾 FORCE SAVE
+// ==========================================
+router.post('/save', async (req, res) => {
+    const result = await autoSaveService.forceSave(req.userId);
+    res.json({ success: true, ...result });
+});
+
+// ==========================================
+// ⏰ TIME TRAVEL
+// ==========================================
+router.post('/time-travel', async (req, res) => {
+    try {
+        const { timestamp } = req.body;
+        const result = await stateRestoreService.restoreFromTime(req.userId, timestamp);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+// ==========================================
+// 📊 GET WORKSPACE STATE
+// ==========================================
+router.get('/current', async (req, res) => {
+    const Workspace = require('../models/Workspace');
+    const workspace = await Workspace.findOne({ userId: req.userId });
+    res.json({ success: true, workspace: stateRestoreService.formatForClient(workspace) });
+});
+
+// ==========================================
+// 🔗 DEVICE SYNC
+// ==========================================
+router.get('/devices', (req, res) => {
+    const devices = crossDeviceSync.getConnectedDevices(req.userId);
+    res.json({ success: true, devices });
+});
+
+router.post('/devices/unregister', async (req, res) => {
+    await crossDeviceSync.unregisterDevice(req.userId, req.body.deviceId);
+    res.json({ success: true, message: 'Device unregistered' });
+});
+
+// ==========================================
+// 📊 STATS
+// ==========================================
+router.get('/stats', (req, res) => {
+    const saveStats = autoSaveService.getStats();
+    const restoreStats = stateRestoreService.getStats();
+    
+    res.json({
+        success: true,
+        autoSave: saveStats,
+        restore: restoreStats
+    });
+});
+
+module.exports = router;
