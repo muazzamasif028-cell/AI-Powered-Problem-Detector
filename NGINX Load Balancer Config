@@ -1,0 +1,105 @@
+# ============================================================
+# 🚦 nginx.conf
+# SUPREME OS Load Balancer — Zero downtime
+# ============================================================
+
+worker_processes auto;
+worker_rlimit_nofile 65535;
+
+events {
+    worker_connections 10000;
+    multi_accept on;
+}
+
+http {
+    # Basic settings
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/s;
+    limit_req_zone $binary_remote_addr zone=ai_limit:10m rate=20r/s;
+
+    # Upstream servers
+    upstream auth_servers {
+        least_conn;
+        server auth-service:3001 max_fails=3 fail_timeout=30s;
+        server auth-service:3001 max_fails=3 fail_timeout=30s;
+        server auth-service:3001 max_fails=3 fail_timeout=30s;
+        keepalive 32;
+    }
+
+    upstream ai_gateway_servers {
+        least_conn;
+        server ai-gateway:3002 max_fails=3 fail_timeout=30s;
+        server ai-gateway:3002 max_fails=3 fail_timeout=30s;
+        server ai-gateway:3002 max_fails=3 fail_timeout=30s;
+        server ai-gateway:3002 max_fails=3 fail_timeout=30s;
+        server ai-gateway:3002 max_fails=3 fail_timeout=30s;
+        keepalive 64;
+    }
+
+    upstream memory_servers {
+        least_conn;
+        server memory-service:3003 max_fails=3 fail_timeout=30s;
+        server memory-service:3003 max_fails=3 fail_timeout=30s;
+        server memory-service:3003 max_fails=3 fail_timeout=30s;
+        keepalive 32;
+    }
+
+    # Main server
+    server {
+        listen 80;
+        server_name api.supreme-os.com;
+
+        # Health check endpoint
+        location /health {
+            return 200 '{"status":"healthy","platform":"SUPREME OS"}';
+            add_header Content-Type application/json;
+        }
+
+        # Auth service
+        location /api/auth/ {
+            limit_req zone=api_limit burst=20 nodelay;
+            proxy_pass http://auth_servers;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_connect_timeout 5s;
+            proxy_read_timeout 30s;
+        }
+
+        # AI Gateway
+        location /api/ai/ {
+            limit_req zone=ai_limit burst=10 nodelay;
+            proxy_pass http://ai_gateway_servers;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            proxy_set_header Host $host;
+            proxy_read_timeout 120s;  # AI responses can take longer
+            proxy_buffering off;       # For streaming
+        }
+
+        # Memory service
+        location /api/memory/ {
+            limit_req zone=api_limit burst=20 nodelay;
+            proxy_pass http://memory_servers;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            proxy_set_header Host $host;
+            proxy_read_timeout 30s;
+        }
+
+        # Error pages
+        error_page 502 503 504 /50x.html;
+        location = /50x.html {
+            return 503 '{"error":"Service temporarily unavailable","retry":true}';
+            add_header Content-Type application/json;
+        }
+    }
+}
