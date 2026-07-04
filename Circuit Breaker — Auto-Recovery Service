@@ -1,0 +1,157 @@
+// ============================================================
+// 🔄 services/circuit-breaker.service.js
+// SUPREME Circuit Breaker — Prevents cascade failures
+// ============================================================
+
+class CircuitBreaker {
+    constructor() {
+        this.breakers = new Map();
+        this.defaultConfig = {
+            failureThreshold: 5,      // Open after 5 failures
+            successThreshold: 2,       // Close after 2 successes
+            timeout: 30000,           // 30 seconds before trying again
+            halfOpenMaxRequests: 3,    // Max requests in half-open state
+            monitorInterval: 10000     // Check every 10 seconds
+        };
+    }
+
+    /**
+     * Execute function with circuit breaker protection
+     */
+    async execute(serviceName, fn, config = {}) {
+        const cfg = { ...this.defaultConfig, ...config };
+        
+        // Get or create breaker
+        if (!this.breakers.has(serviceName)) {
+            this.breakers.set(serviceName, {
+                state: 'CLOSED',       // CLOSED, OPEN, HALF_OPEN
+                failures: 0,
+                successes: 0,
+                lastFailure: null,
+                lastSuccess: null,
+                totalFailures: 0,
+                totalSuccesses: 0,
+                openedAt: null
+            });
+        }
+
+        const breaker = this.breakers.get(serviceName);
+
+        // Check if circuit is OPEN
+        if (breaker.state === 'OPEN') {
+            const timeSinceOpen = Date.now() - (breaker.openedAt || 0);
+            
+            if (timeSinceOpen >= cfg.timeout) {
+                // Move to HALF_OPEN
+                breaker.state = 'HALF_OPEN';
+                breaker.successes = 0;
+                console.log(`🔄 Circuit ${serviceName}: OPEN → HALF_OPEN`);
+            } else {
+                throw new CircuitBreakerError(
+                    `Service ${serviceName} is unavailable. Retry in ${Math.ceil((cfg.timeout - timeSinceOpen) / 1000)}s`
+                );
+            }
+        }
+
+        try {
+            // Execute the function
+            const result = await fn();
+
+            // Success
+            breaker.successes++;
+            breaker.totalSuccesses++;
+            breaker.lastSuccess = new Date();
+
+            // Check if we can close the circuit
+            if (breaker.state === 'HALF_OPEN' && breaker.successes >= cfg.successThreshold) {
+                breaker.state = 'CLOSED';
+                breaker.failures = 0;
+                console.log(`✅ Circuit ${serviceName}: HALF_OPEN → CLOSED`);
+            }
+
+            return result;
+
+        } catch (error) {
+            // Failure
+            breaker.failures++;
+            breaker.totalFailures++;
+            breaker.lastFailure = new Date();
+
+            // Check if we need to open the circuit
+            if (breaker.failures >= cfg.failureThreshold) {
+                breaker.state = 'OPEN';
+                breaker.openedAt = new Date();
+                console.error(`🚫 Circuit ${serviceName}: CLOSED → OPEN (${breaker.failures} failures)`);
+                
+                // Trigger alert
+                this.triggerAlert(serviceName, breaker);
+            }
+
+            throw error;
+        }
+    }
+
+    /**
+     * Get breaker status
+     */
+    getStatus(serviceName) {
+        const breaker = this.breakers.get(serviceName);
+        if (!breaker) return { state: 'UNKNOWN' };
+
+        return {
+            service: serviceName,
+            state: breaker.state,
+            failures: breaker.failures,
+            successes: breaker.successes,
+            totalFailures: breaker.totalFailures,
+            totalSuccesses: breaker.totalSuccesses,
+            lastFailure: breaker.lastFailure,
+            lastSuccess: breaker.lastSuccess,
+            healthPercent: breaker.totalSuccesses + breaker.totalFailures > 0
+                ? ((breaker.totalSuccesses / (breaker.totalSuccesses + breaker.totalFailures)) * 100).toFixed(1) + '%'
+                : '100%'
+        };
+    }
+
+    /**
+     * Get all breakers status
+     */
+    getAllStatus() {
+        const statuses = {};
+        for (const [service, breaker] of this.breakers) {
+            statuses[service] = this.getStatus(service);
+        }
+        return statuses;
+    }
+
+    /**
+     * Reset a breaker
+     */
+    reset(serviceName) {
+        this.breakers.delete(serviceName);
+        return { reset: true, service: serviceName };
+    }
+
+    /**
+     * Trigger alert on circuit open
+     */
+    triggerAlert(serviceName, breaker) {
+        console.error(`🚨 ALERT: Circuit ${serviceName} OPENED`);
+        console.error(`   Failures: ${breaker.failures}`);
+        console.error(`   Last Error: ${breaker.lastFailure}`);
+        
+        // In production: Send to monitoring/PagerDuty/Slack
+        // monitoringService.sendAlert(...)
+    }
+}
+
+class CircuitBreakerError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'CircuitBreakerError';
+        this.retryable = true;
+    }
+}
+
+module.exports = new CircuitBreaker();
+module.exports.CircuitBreakerError = CircuitBreakerError;
