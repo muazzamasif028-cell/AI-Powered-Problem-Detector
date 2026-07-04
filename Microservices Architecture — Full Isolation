@@ -1,0 +1,317 @@
+# ============================================================
+# 🏗️ docker-compose.anti-hang.yml
+# SUPREME OS — Each service isolated, one crash = others survive
+# ============================================================
+
+version: '3.8'
+
+services:
+  # ==========================================
+  # 🔐 AUTH SERVICE (Independent)
+  # ==========================================
+  auth-service:
+    image: supreme-os/auth:v1
+    container_name: supreme-auth
+    restart: always
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    environment:
+      - SERVICE_NAME=auth-service
+      - PORT=3001
+    networks:
+      - supreme-net
+    depends_on:
+      - redis-cache
+      - mongodb-primary
+
+  # ==========================================
+  # 🤖 AI GATEWAY SERVICE (Independent)
+  # ==========================================
+  ai-gateway:
+    image: supreme-os/ai-gateway:v1
+    container_name: supreme-ai-gateway
+    restart: always
+    deploy:
+      replicas: 5
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    environment:
+      - SERVICE_NAME=ai-gateway
+      - PORT=3002
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CIRCUIT_BREAKER_TIMEOUT=30000
+      - MAX_RETRIES=3
+      - REQUEST_TIMEOUT=60000
+    networks:
+      - supreme-net
+    depends_on:
+      - redis-cache
+      - rabbitmq
+
+  # ==========================================
+  # 🧠 MEMORY SERVICE (Independent)
+  # ==========================================
+  memory-service:
+    image: supreme-os/memory:v1
+    container_name: supreme-memory
+    restart: always
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
+        reservations:
+          cpus: '2'
+          memory: 8G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    environment:
+      - SERVICE_NAME=memory-service
+      - PORT=3003
+      - HOT_CACHE_SIZE=8G
+      - WARM_CACHE_SIZE=32G
+      - COLD_STORAGE=postgresql
+    networks:
+      - supreme-net
+    depends_on:
+      - redis-cache
+      - mongodb-primary
+      - postgresql
+
+  # ==========================================
+  # 💳 BILLING SERVICE (Independent)
+  # ==========================================
+  billing-service:
+    image: supreme-os/billing:v1
+    container_name: supreme-billing
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    environment:
+      - SERVICE_NAME=billing-service
+      - PORT=3004
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+    networks:
+      - supreme-net
+
+  # ==========================================
+  # 🤖 AGENT RUNTIME (Independent)
+  # ==========================================
+  agent-runtime:
+    image: supreme-os/agent-runtime:v1
+    container_name: supreme-agent-runtime
+    restart: always
+    deploy:
+      replicas: 5
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    environment:
+      - SERVICE_NAME=agent-runtime
+      - PORT=3005
+    networks:
+      - supreme-net
+    depends_on:
+      - rabbitmq
+
+  # ==========================================
+  # ☁️ CLOUD SERVICE (Independent)
+  # ==========================================
+  cloud-service:
+    image: supreme-os/cloud:v1
+    container_name: supreme-cloud
+    restart: always
+    deploy:
+      replicas: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3006/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    environment:
+      - SERVICE_NAME=cloud-service
+      - PORT=3006
+    networks:
+      - supreme-net
+
+  # ==========================================
+  # 🔴 REDIS CACHE (Multi-Layer)
+  # ==========================================
+  redis-cache:
+    image: redis:7.2-alpine
+    container_name: supreme-redis
+    restart: always
+    command: redis-server --maxmemory 8gb --maxmemory-policy allkeys-lru --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - supreme-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # ==========================================
+  # 📨 RABBITMQ (Queue System)
+  # ==========================================
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: supreme-rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=supreme
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - supreme-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ==========================================
+  # 🗄️ MONGODB (Primary Database)
+  # ==========================================
+  mongodb-primary:
+    image: mongo:7.0
+    container_name: supreme-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - supreme-net
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ==========================================
+  # 🐘 POSTGRESQL (Analytics + Cold Storage)
+  # ==========================================
+  postgresql:
+    image: postgres:16-alpine
+    container_name: supreme-postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=supreme
+      - POSTGRES_PASSWORD=${PG_PASS}
+      - POSTGRES_DB=supreme
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - supreme-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supreme"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ==========================================
+  # 🚪 NGINX LOAD BALANCER
+  # ==========================================
+  nginx-lb:
+    image: nginx:alpine
+    container_name: supreme-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - supreme-net
+    depends_on:
+      - auth-service
+      - ai-gateway
+      - memory-service
+
+  # ==========================================
+  # 📊 PROMETHEUS + GRAFANA (Monitoring)
+  # ==========================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: supreme-prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - supreme-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: supreme-grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASS}
+    networks:
+      - supreme-net
+
+networks:
+  supreme-net:
+    driver: bridge
+
+volumes:
+  redis-data:
+  rabbitmq-data:
+  mongodb-data:
+  postgres-data:
