@@ -1,0 +1,153 @@
+// ============================================================
+// 💾 services/multi-level-cache.service.js
+// SUPREME Multi-Level Cache — RAM → Redis → Database
+// ============================================================
+
+class MultiLevelCache {
+    constructor() {
+        // Level 1: RAM Cache (fastest, limited size)
+        this.ramCache = new Map();
+        this.ramMaxSize = 10000; // 10K items
+        this.ramTTL = 60000;     // 1 minute
+
+        // Level 2: Redis Cache (fast, larger)
+        this.redisClient = require('../config/redis');
+        this.redisTTL = 300;     // 5 minutes
+
+        // Level 3: Database (slowest, unlimited)
+        this.stats = { l1Hits: 0, l2Hits: 0, l3Hits: 0, misses: 0, sets: 0 };
+    }
+
+    /**
+     * Get value with multi-level fallback
+     */
+    async get(key, fetchFromDB = null) {
+        // Level 1: Check RAM
+        const ramEntry = this.ramCache.get(key);
+        if (ramEntry && Date.now() < ramEntry.expiresAt) {
+            this.stats.l1Hits++;
+            return ramEntry.value;
+        }
+
+        // Level 2: Check Redis
+        try {
+            const redisValue = await this.redisClient.get(key);
+            if (redisValue) {
+                const parsed = JSON.parse(redisValue);
+                
+                // Promote to RAM
+                this.ramCache.set(key, {
+                    value: parsed,
+                    expiresAt: Date.now() + this.ramTTL
+                });
+                
+                this.stats.l2Hits++;
+                return parsed;
+            }
+        } catch (error) {
+            // Redis down — skip to L3
+        }
+
+        // Level 3: Fetch from database (or provided function)
+        if (fetchFromDB) {
+            try {
+                const dbValue = await fetchFromDB();
+                
+                if (dbValue) {
+                    // Store in all levels
+                    await this.set(key, dbValue);
+                    this.stats.l3Hits++;
+                    return dbValue;
+                }
+            } catch (error) {
+                // Database error
+            }
+        }
+
+        this.stats.misses++;
+        return null;
+    }
+
+    /**
+     * Set value in all cache levels
+     */
+    async set(key, value, options = {}) {
+        const { ramTTL = this.ramTTL, redisTTL = this.redisTTL } = options;
+
+        // Level 1: RAM
+        this.ramCache.set(key, {
+            value,
+            expiresAt: Date.now() + ramTTL
+        });
+
+        // Evict oldest if RAM cache is full
+        if (this.ramCache.size > this.ramMaxSize) {
+            const oldestKey = this.ramCache.keys().next().value;
+            this.ramCache.delete(oldestKey);
+        }
+
+        // Level 2: Redis
+        try {
+            await this.redisClient.setex(key, redisTTL, JSON.stringify(value));
+        } catch (error) {
+            // Redis down — value is at least in RAM
+        }
+
+        this.stats.sets++;
+    }
+
+    /**
+     * Delete from all levels
+     */
+    async delete(key) {
+        this.ramCache.delete(key);
+        try { await this.redisClient.del(key); } catch {}
+    }
+
+    /**
+     * Warm up cache with frequently accessed data
+     */
+    async warmUp(keys, fetchFn) {
+        console.log(`🔥 Warming up ${keys.length} cache entries...`);
+        
+        const promises = keys.map(async (key) => {
+            const value = await fetchFn(key);
+            if (value) await this.set(key, value, { redisTTL: 3600 }); // 1 hour
+        });
+
+        await Promise.allSettled(promises);
+        console.log(`✅ Cache warmup complete`);
+    }
+
+    /**
+     * Get cache stats
+     */
+    getStats() {
+        const total = this.stats.l1Hits + this.stats.l2Hits + this.stats.l3Hits + this.stats.misses;
+        
+        return {
+            ...this.stats,
+            totalRequests: total,
+            hitRate: total > 0 ? (((this.stats.l1Hits + this.stats.l2Hits + this.stats.l3Hits) / total) * 100).toFixed(1) + '%' : '0%',
+            ramSize: this.ramCache.size,
+            ramMaxSize: this.ramMaxSize,
+            levels: {
+                l1: { hits: this.stats.l1Hits, percent: total > 0 ? ((this.stats.l1Hits / total) * 100).toFixed(1) + '%' : '0%' },
+                l2: { hits: this.stats.l2Hits, percent: total > 0 ? ((this.stats.l2Hits / total) * 100).toFixed(1) + '%' : '0%' },
+                l3: { hits: this.stats.l3Hits, percent: total > 0 ? ((this.stats.l3Hits / total) * 100).toFixed(1) + '%' : '0%' },
+                miss: { count: this.stats.misses, percent: total > 0 ? ((this.stats.misses / total) * 100).toFixed(1) + '%' : '0%' }
+            }
+        };
+    }
+
+    /**
+     * Clear all caches
+     */
+    async clear() {
+        this.ramCache.clear();
+        try { await this.redisClient.flushdb(); } catch {}
+        return { cleared: true };
+    }
+}
+
+module.exports = new MultiLevelCache();
