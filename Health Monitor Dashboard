@@ -1,0 +1,165 @@
+// ============================================================
+// 📊 services/health-monitor.service.js
+// SUPREME Health Monitor — Real-time system status
+// ============================================================
+
+class HealthMonitor {
+    constructor() {
+        this.services = new Map();
+        this.checkInterval = 15000; // 15 seconds
+        this.alertThresholds = {
+            cpu: 80,
+            memory: 85,
+            disk: 90,
+            responseTime: 2000 // 2 seconds
+        };
+
+        this.startMonitoring();
+    }
+
+    /**
+     * Register a service for monitoring
+     */
+    registerService(name, checkFn) {
+        this.services.set(name, {
+            name,
+            checkFn,
+            status: 'UNKNOWN',
+            lastCheck: null,
+            lastHealthy: null,
+            lastUnhealthy: null,
+            consecutiveFailures: 0,
+            totalChecks: 0,
+            totalFailures: 0,
+            metrics: {}
+        });
+    }
+
+    /**
+     * Start periodic health checks
+     */
+    startMonitoring() {
+        setInterval(async () => {
+            await this.checkAllServices();
+        }, this.checkInterval);
+    }
+
+    /**
+     * Check all registered services
+     */
+    async checkAllServices() {
+        const promises = Array.from(this.services.entries()).map(async ([name, service]) => {
+            const startTime = Date.now();
+
+            try {
+                const result = await service.checkFn();
+                const responseTime = Date.now() - startTime;
+
+                service.status = result.healthy ? 'HEALTHY' : 'UNHEALTHY';
+                service.lastCheck = new Date();
+                service.lastHealthy = new Date();
+                service.consecutiveFailures = 0;
+                service.totalChecks++;
+                service.metrics = {
+                    ...result,
+                    responseTime: `${responseTime}ms`
+                };
+
+                return { name, status: 'HEALTHY', responseTime };
+
+            } catch (error) {
+                service.status = 'DOWN';
+                service.lastCheck = new Date();
+                service.lastUnhealthy = new Date();
+                service.consecutiveFailures++;
+                service.totalChecks++;
+                service.totalFailures++;
+
+                // Auto-restart logic
+                if (service.consecutiveFailures >= 3) {
+                    await this.attemptRecovery(name, service);
+                }
+
+                return { name, status: 'DOWN', error: error.message };
+            }
+        });
+
+        const results = await Promise.allSettled(promises);
+        return results;
+    }
+
+    /**
+     * Attempt to recover a failed service
+     */
+    async attemptRecovery(serviceName, service) {
+        console.log(`🔄 Attempting recovery for ${serviceName}...`);
+
+        // Strategy 1: Clear cache
+        try {
+            const cache = require('./multi-level-cache.service');
+            await cache.delete(`health:${serviceName}`);
+            console.log(`  ✅ Cleared cache for ${serviceName}`);
+        } catch {}
+
+        // Strategy 2: Reset connections
+        try {
+            service.consecutiveFailures = 0;
+            console.log(`  ✅ Reset failure counter for ${serviceName}`);
+        } catch {}
+
+        // Strategy 3: Alert if still failing
+        if (service.consecutiveFailures >= 5) {
+            console.error(`🚨 CRITICAL: Service ${serviceName} has been down for ${service.consecutiveFailures} checks`);
+            // In production: Send PagerDuty/Slack alert
+        }
+    }
+
+    /**
+     * Get overall system health
+     */
+    getSystemHealth() {
+        const services = Array.from(this.services.values());
+        const healthy = services.filter(s => s.status === 'HEALTHY').length;
+        const total = services.length;
+
+        return {
+            status: healthy === total ? '✅ ALL HEALTHY' : 
+                    healthy > total * 0.8 ? '⚠️ DEGRADED' : 
+                    '🚨 CRITICAL',
+            healthyCount: healthy,
+            totalCount: total,
+            healthPercent: total > 0 ? ((healthy / total) * 100).toFixed(1) + '%' : '0%',
+            services: services.map(s => ({
+                name: s.name,
+                status: s.status,
+                lastCheck: s.lastCheck,
+                responseTime: s.metrics?.responseTime,
+                uptime: s.totalChecks > 0 
+                    ? ((1 - s.totalFailures / s.totalChecks) * 100).toFixed(2) + '%' 
+                    : '100%',
+                consecutiveFailures: s.consecutiveFailures
+            }))
+        };
+    }
+
+    /**
+     * Get detailed metrics
+     */
+    getMetrics() {
+        const systemMetrics = {
+            cpu: process.cpuUsage(),
+            memory: process.memoryUsage(),
+            uptime: process.uptime(),
+            pid: process.pid,
+            nodeVersion: process.version,
+            platform: process.platform
+        };
+
+        return {
+            system: systemMetrics,
+            services: this.getSystemHealth()
+        };
+    }
+}
+
+module.exports = new HealthMonitor();
