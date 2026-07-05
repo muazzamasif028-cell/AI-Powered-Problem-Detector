@@ -1,0 +1,163 @@
+// ============================================================
+// 👤 services/evolution/gates/human-approval-gate.js
+// SUPREME Human Approval Gate — Critical changes need humans
+// ============================================================
+const Activity = require('../../../models/Activity');
+
+class HumanApprovalGate {
+    constructor() {
+        this.approvalLevels = {
+            LEVEL_1: { name: 'Auto-Approved', requiresHuman: false, maxRisk: 10, maxChanges: 5 },
+            LEVEL_2: { name: 'Peer Review', requiresHuman: true, reviewers: 1, maxRisk: 30, maxChanges: 20 },
+            LEVEL_3: { name: 'Senior Review', requiresHuman: true, reviewers: 2, maxRisk: 60, maxChanges: 100 },
+            LEVEL_4: { name: 'Architecture Review', requiresHuman: true, reviewers: 3, maxRisk: 100, maxChanges: 500 },
+            LEVEL_5: { name: 'Executive Approval', requiresHuman: true, reviewers: 5, maxRisk: Infinity, maxChanges: Infinity }
+        };
+
+        this.pendingApprovals = new Map();
+    }
+
+    /**
+     * Determine approval level needed
+     */
+    determineApprovalLevel(change) {
+        const risk = this.calculateRisk(change);
+        
+        for (const [level, config] of Object.entries(this.approvalLevels)) {
+            if (risk <= config.maxRisk && change.filesChanged <= config.maxChanges) {
+                return { level, ...config, risk };
+            }
+        }
+
+        return { level: 'LEVEL_5', ...this.approvalLevels.LEVEL_5, risk };
+    }
+
+    /**
+     * Calculate risk score
+     */
+    calculateRisk(change) {
+        let risk = 0;
+
+        // File type risk
+        const highRiskPaths = ['auth', 'billing', 'database', 'security', 'encryption', 'payment'];
+        for (const file of change.files || []) {
+            if (highRiskPaths.some(p => file.path.includes(p))) {
+                risk += 20;
+            }
+        }
+
+        // Change type risk
+        if (change.type === 'database_migration') risk += 30;
+        if (change.type === 'api_breaking_change') risk += 40;
+        if (change.type === 'security_patch') risk += 15;
+        if (change.type === 'performance_optimization') risk += 5;
+
+        // Size risk
+        if (change.linesAdded > 1000) risk += 20;
+        else if (change.linesAdded > 500) risk += 10;
+        else if (change.linesAdded > 100) risk += 5;
+
+        // Test coverage risk
+        if (change.testCoverage < 50) risk += 25;
+        else if (change.testCoverage < 80) risk += 10;
+
+        return Math.min(100, risk);
+    }
+
+    /**
+     * Submit change for approval
+     */
+    async submitForApproval(change) {
+        const approvalLevel = this.determineApprovalLevel(change);
+        
+        console.log(`👤 Submitting for approval: ${change.title}`);
+        console.log(`   Risk Score: ${approvalLevel.risk}/100`);
+        console.log(`   Approval Level: ${approvalLevel.name}`);
+        console.log(`   Reviewers Required: ${approvalLevel.reviewers}`);
+
+        const approval = {
+            id: `APR-${Date.now()}`,
+            change,
+            approvalLevel,
+            status: approvalLevel.requiresHuman ? 'PENDING_REVIEW' : 'AUTO_APPROVED',
+            submittedAt: new Date(),
+            reviewers: [],
+            reviews: [],
+            expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000) // 72 hours
+        };
+
+        if (approvalLevel.requiresHuman) {
+            // Notify reviewers
+            await this.notifyReviewers(approval);
+        }
+
+        this.pendingApprovals.set(approval.id, approval);
+
+        await Activity.create({
+            type: 'approval.submitted',
+            action: 'change_submitted',
+            description: `👤 "${change.title}" submitted for ${approvalLevel.name}`,
+            metadata: { approvalId: approval.id, risk: approvalLevel.risk, level: approvalLevel.level }
+        });
+
+        return approval;
+    }
+
+    /**
+     * Review a change
+     */
+    async review(approvalId, reviewerId, decision, comments = '') {
+        const approval = this.pendingApprovals.get(approvalId);
+        if (!approval) throw new Error('Approval not found');
+
+        approval.reviews.push({
+            reviewerId,
+            decision,
+            comments,
+            reviewedAt: new Date()
+        });
+
+        // Check if enough reviews
+        const approved = approval.reviews.filter(r => r.decision === 'APPROVED').length;
+        const rejected = approval.reviews.filter(r => r.decision === 'REJECTED').length;
+        const required = approval.approvalLevel.reviewers;
+
+        if (rejected > 0) {
+            approval.status = 'REJECTED';
+            approval.decidedAt = new Date();
+            console.log(`   ❌ REJECTED by reviewer`);
+        } else if (approved >= required) {
+            approval.status = 'APPROVED';
+            approval.decidedAt = new Date();
+            console.log(`   ✅ APPROVED (${approved}/${required} reviewers)`);
+        }
+
+        return approval;
+    }
+
+    /**
+     * Auto-approve low-risk changes
+     */
+    async autoApprove(change) {
+        const risk = this.calculateRisk(change);
+        
+        if (risk <= 10 && change.filesChanged <= 5) {
+            console.log(`   ✅ Auto-approved (Risk: ${risk}, Files: ${change.filesChanged})`);
+            return {
+                status: 'AUTO_APPROVED',
+                reason: 'Low risk, small change — within auto-approval threshold',
+                risk,
+                filesChanged: change.filesChanged
+            };
+        }
+
+        return null; // Needs human review
+    }
+
+    async notifyReviewers(approval) {
+        console.log(`   📧 Notifying ${approval.approvalLevel.reviewers} reviewer(s)...`);
+        // In production: Send Slack/Email notification
+    }
+}
+
+module.exports = new HumanApprovalGate();
