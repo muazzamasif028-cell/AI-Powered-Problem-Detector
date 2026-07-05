@@ -1,0 +1,327 @@
+// ============================================================
+// 👀 reviewer-ai.js
+// SUPREME Reviewer AI — Automated code review with AI
+// ============================================================
+
+class ReviewerAI {
+    constructor() {
+        this.name = 'REVIEWER-AI-1';
+        this.reviewChecklist = [
+            'code_quality',
+            'security_vulnerabilities',
+            'performance_issues',
+            'bug_patterns',
+            'best_practices',
+            'documentation',
+            'test_coverage',
+            'dependency_checks',
+            'naming_conventions',
+            'error_handling'
+        ];
+
+        this.severityLevels = {
+            CRITICAL: { action: 'block_merge', requiresHuman: true },
+            HIGH: { action: 'request_changes', requiresHuman: true },
+            MEDIUM: { action: 'suggest_improvement', requiresHuman: false },
+            LOW: { action: 'nitpick', requiresHuman: false },
+            INFO: { action: 'informational', requiresHuman: false }
+        };
+
+        this.reviews = [];
+    }
+
+    /**
+     * Review a pull request
+     */
+    async reviewPullRequest(prData) {
+        const { prId, title, description, files, author, branch, baseBranch } = prData;
+        
+        console.log(`👀 Reviewing PR #${prId}: "${title}" by ${author}`);
+
+        const review = {
+            prId,
+            title,
+            author,
+            reviewedAt: new Date(),
+            filesReviewed: files.length,
+            totalIssues: 0,
+            issues: [],
+            summary: '',
+            recommendation: ''
+        };
+
+        // 1. Review each file
+        for (const file of files) {
+            const fileIssues = await this.reviewFile(file);
+            review.issues.push(...fileIssues);
+        }
+
+        // 2. Cross-file analysis
+        const crossFileIssues = await this.crossFileAnalysis(files);
+        review.issues.push(...crossFileIssues);
+
+        // 3. Security scan
+        const securityIssues = await this.securityScan(files);
+        review.issues.push(...securityIssues);
+
+        // 4. Performance analysis
+        const performanceIssues = await this.performanceAnalysis(files);
+        review.issues.push(...performanceIssues);
+
+        // 5. Test coverage check
+        const testIssues = await this.checkTestCoverage(files);
+        review.issues.push(...testIssues);
+
+        // Summarize
+        review.totalIssues = review.issues.length;
+        review.summary = this.generateSummary(review);
+        review.recommendation = this.generateRecommendation(review);
+
+        // Save review
+        this.reviews.push(review);
+
+        console.log(`   Found ${review.totalIssues} issues`);
+        console.log(`   Recommendation: ${review.recommendation}`);
+
+        return review;
+    }
+
+    /**
+     * Review a single file
+     */
+    async reviewFile(file) {
+        const issues = [];
+
+        // Check for common issues
+        if (file.content.includes('console.log') && file.type !== 'test') {
+            issues.push({
+                file: file.path,
+                line: this.findLine(file.content, 'console.log'),
+                severity: 'MEDIUM',
+                category: 'code_quality',
+                message: 'Remove console.log before merging',
+                suggestion: 'Use proper logging library instead',
+                autoFixable: true,
+                autoFix: file.content.replace(/console\.log\([^)]+\);?/g, '// [LOGGER] Use logger.info() instead')
+            });
+        }
+
+        if (file.content.includes('TODO') || file.content.includes('FIXME')) {
+            issues.push({
+                file: file.path,
+                line: this.findLine(file.content, 'TODO') || this.findLine(file.content, 'FIXME'),
+                severity: 'MEDIUM',
+                category: 'best_practices',
+                message: 'Unresolved TODO/FIXME found',
+                suggestion: 'Create a ticket and reference it here'
+            });
+        }
+
+        if (file.content.includes('password') || file.content.includes('secret') || file.content.includes('api_key')) {
+            if (!file.content.includes('process.env')) {
+                issues.push({
+                    file: file.path,
+                    line: this.findLine(file.content, 'password') || this.findLine(file.content, 'secret'),
+                    severity: 'CRITICAL',
+                    category: 'security_vulnerabilities',
+                    message: 'Hardcoded secret detected!',
+                    suggestion: 'Use environment variables or secrets manager',
+                    autoFixable: false
+                });
+            }
+        }
+
+        if (file.content.includes('SELECT * FROM') || file.content.includes('select * from')) {
+            issues.push({
+                file: file.path,
+                line: this.findLine(file.content, 'SELECT *'),
+                severity: 'HIGH',
+                category: 'performance_issues',
+                message: 'Avoid SELECT * in queries',
+                suggestion: 'Specify only needed columns',
+                autoFixable: false
+            });
+        }
+
+        // Check error handling
+        if ((file.content.includes('async') || file.content.includes('Promise')) && 
+            !file.content.includes('catch') && !file.content.includes('try {')) {
+            issues.push({
+                file: file.path,
+                line: 1,
+                severity: 'HIGH',
+                category: 'error_handling',
+                message: 'Async operation without error handling',
+                suggestion: 'Add try/catch or .catch() handler',
+                autoFixable: false
+            });
+        }
+
+        return issues;
+    }
+
+    /**
+     * Cross-file analysis
+     */
+    async crossFileAnalysis(files) {
+        const issues = [];
+
+        // Check for duplicate code across files
+        for (let i = 0; i < files.length; i++) {
+            for (let j = i + 1; j < files.length; j++) {
+                const similarity = this.calculateSimilarity(files[i].content, files[j].content);
+                if (similarity > 0.8) {
+                    issues.push({
+                        file: `${files[i].path} ↔ ${files[j].path}`,
+                        severity: 'MEDIUM',
+                        category: 'code_quality',
+                        message: `High code duplication (${(similarity * 100).toFixed(0)}%) between files`,
+                        suggestion: 'Extract shared code into a common module'
+                    });
+                }
+            }
+        }
+
+        return issues;
+    }
+
+    /**
+     * Security scan
+     */
+    async securityScan(files) {
+        const issues = [];
+        const vulnerabilityPatterns = [
+            { pattern: /eval\(/g, message: 'Avoid using eval()', severity: 'CRITICAL' },
+            { pattern: /innerHTML\s*=/g, message: 'Avoid innerHTML — XSS risk', severity: 'HIGH' },
+            { pattern: /http:\/\//g, message: 'Use HTTPS URLs', severity: 'MEDIUM' },
+            { pattern: /\.exec\(/g, message: 'Review exec() usage for command injection', severity: 'HIGH' }
+        ];
+
+        for (const file of files) {
+            for (const vuln of vulnerabilityPatterns) {
+                if (vuln.pattern.test(file.content)) {
+                    issues.push({
+                        file: file.path,
+                        severity: vuln.severity,
+                        category: 'security_vulnerabilities',
+                        message: vuln.message,
+                        suggestion: 'Review and use safer alternatives'
+                    });
+                }
+            }
+        }
+
+        return issues;
+    }
+
+    /**
+     * Performance analysis
+     */
+    async performanceAnalysis(files) {
+        const issues = [];
+
+        for (const file of files) {
+            // N+1 query detection
+            if ((file.content.match(/\.find\(/g) || []).length > 0 &&
+                file.content.includes('for') && file.content.includes('await')) {
+                issues.push({
+                    file: file.path,
+                    severity: 'HIGH',
+                    category: 'performance_issues',
+                    message: 'Potential N+1 query pattern detected',
+                    suggestion: 'Use batch queries or eager loading'
+                });
+            }
+
+            // Large loops
+            if (file.content.includes('for') && file.content.includes('await') && file.lines > 100) {
+                issues.push({
+                    file: file.path,
+                    severity: 'MEDIUM',
+                    category: 'performance_issues',
+                    message: 'Large async loop — may cause performance issues',
+                    suggestion: 'Consider using Promise.all() or batching'
+                });
+            }
+        }
+
+        return issues;
+    }
+
+    /**
+     * Check test coverage
+     */
+    async checkTestCoverage(files) {
+        const issues = [];
+        const sourceFiles = files.filter(f => !f.path.includes('.test.') && !f.path.includes('.spec.'));
+        const testFiles = files.filter(f => f.path.includes('.test.') || f.path.includes('.spec.'));
+
+        const coverageRatio = testFiles.length / Math.max(sourceFiles.length, 1);
+
+        if (coverageRatio < 0.5) {
+            issues.push({
+                severity: 'HIGH',
+                category: 'test_coverage',
+                message: `Low test coverage: ${(coverageRatio * 100).toFixed(0)}% (${testFiles.length} tests for ${sourceFiles.length} files)`,
+                suggestion: 'Add tests for new or modified code'
+            });
+        }
+
+        return issues;
+    }
+
+    /**
+     * Generate review summary
+     */
+    generateSummary(review) {
+        const bySeverity = {};
+        for (const issue of review.issues) {
+            bySeverity[issue.severity] = (bySeverity[issue.severity] || 0) + 1;
+        }
+
+        return {
+            totalIssues: review.totalIssues,
+            bySeverity,
+            criticalCount: bySeverity.CRITICAL || 0,
+            highCount: bySeverity.HIGH || 0,
+            autoFixableCount: review.issues.filter(i => i.autoFixable).length
+        };
+    }
+
+    /**
+     * Generate recommendation
+     */
+    generateRecommendation(review) {
+        const criticalCount = review.issues.filter(i => i.severity === 'CRITICAL').length;
+        const highCount = review.issues.filter(i => i.severity === 'HIGH').length;
+
+        if (criticalCount > 0) {
+            return '❌ REJECTED — Critical issues must be fixed';
+        }
+        if (highCount > 3) {
+            return '⚠️ CHANGES REQUESTED — Address high-priority issues';
+        }
+        if (highCount > 0) {
+            return '🟡 APPROVED WITH SUGGESTIONS — Fix when convenient';
+        }
+        return '✅ APPROVED — Ready to merge';
+    }
+
+    calculateSimilarity(text1, text2) {
+        const words1 = new Set(text1.split(/\s+/));
+        const words2 = new Set(text2.split(/\s+/));
+        const intersection = new Set([...words1].filter(x => words2.has(x)));
+        const union = new Set([...words1, ...words2]);
+        return intersection.size / union.size;
+    }
+
+    findLine(content, search) {
+        const lines = content.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes(search)) return i + 1;
+        }
+        return 1;
+    }
+}
+
+module.exports = new ReviewerAI();
