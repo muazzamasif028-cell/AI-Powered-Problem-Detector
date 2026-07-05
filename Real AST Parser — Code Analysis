@@ -1,0 +1,237 @@
+// ============================================================
+// 🔍 services/code-analysis/ast-parser.service.js
+// SUPREME AST Parser — Real code analysis with AST
+// ============================================================
+const parser = require('@babel/parser');
+const traverse = require('@babel/traverse').default;
+const fs = require('fs');
+const path = require('path');
+const glob = require('glob');
+
+class ASTParser {
+    constructor() {
+        this.cache = new Map();
+    }
+
+    /**
+     * Analyze a complete project
+     */
+    async analyzeProject(projectPath) {
+        console.log(`🔍 Analyzing project: ${projectPath}`);
+
+        const files = glob.sync('**/*.{js,ts,jsx,tsx}', {
+            cwd: projectPath,
+            ignore: ['node_modules/**', 'dist/**', 'build/**', '.git/**']
+        });
+
+        const analysis = {
+            projectPath,
+            totalFiles: files.length,
+            totalLines: 0,
+            totalFunctions: 0,
+            totalClasses: 0,
+            complexity: { high: 0, medium: 0, low: 0 },
+            dependencies: new Set(),
+            issues: [],
+            suggestions: []
+        };
+
+        for (const file of files) {
+            try {
+                const filePath = path.join(projectPath, file);
+                const content = fs.readFileSync(filePath, 'utf-8');
+                const fileAnalysis = await this.analyzeFile(filePath, content);
+                
+                analysis.totalLines += fileAnalysis.lines;
+                analysis.totalFunctions += fileAnalysis.functions;
+                analysis.totalClasses += fileAnalysis.classes;
+                analysis.issues.push(...fileAnalysis.issues.map(i => ({ ...i, file })));
+                analysis.suggestions.push(...fileAnalysis.suggestions.map(s => ({ ...s, file })));
+                
+                fileAnalysis.dependencies.forEach(d => analysis.dependencies.add(d));
+            } catch (error) {
+                analysis.issues.push({ file, error: error.message });
+            }
+        }
+
+        analysis.dependencies = Array.from(analysis.dependencies);
+        return analysis;
+    }
+
+    /**
+     * Analyze a single file
+     */
+    async analyzeFile(filePath, content) {
+        const cacheKey = `${filePath}:${content.length}`;
+        if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+
+        const analysis = {
+            lines: content.split('\n').length,
+            functions: 0,
+            classes: 0,
+            imports: [],
+            exports: [],
+            complexity: [],
+            dependencies: [],
+            issues: [],
+            suggestions: []
+        };
+
+        try {
+            // Parse AST
+            const ast = parser.parse(content, {
+                sourceType: 'module',
+                plugins: ['jsx', 'typescript', 'decorators-legacy', 'classProperties'],
+                errorRecovery: true
+            });
+
+            // Traverse AST
+            traverse(ast, {
+                // Count functions
+                FunctionDeclaration(path) {
+                    analysis.functions++;
+                    const complexity = this.calculateComplexity(path.node);
+                    analysis.complexity.push({ name: path.node.id?.name, complexity });
+                },
+                ArrowFunctionExpression(path) {
+                    analysis.functions++;
+                },
+                
+                // Count classes
+                ClassDeclaration(path) {
+                    analysis.classes++;
+                    
+                    // Check class size
+                    const methods = path.node.body.body.filter(n => n.type === 'ClassMethod');
+                    if (methods.length > 20) {
+                        analysis.issues.push({
+                            type: 'large_class',
+                            line: path.node.loc?.start.line,
+                            message: `Class "${path.node.id.name}" has ${methods.length} methods — consider splitting`
+                        });
+                    }
+                },
+
+                // Track imports
+                ImportDeclaration(path) {
+                    const source = path.node.source.value;
+                    analysis.imports.push(source);
+                    if (!source.startsWith('.') && !source.startsWith('@')) {
+                        analysis.dependencies.push(source);
+                    }
+                },
+
+                // Check for issues
+                CallExpression(path) {
+                    // Detect eval()
+                    if (path.node.callee.name === 'eval') {
+                        analysis.issues.push({
+                            type: 'security',
+                            line: path.node.loc?.start.line,
+                            message: 'Avoid using eval() — security risk',
+                            severity: 'critical'
+                        });
+                    }
+
+                    // Detect console.log
+                    if (path.node.callee.type === 'MemberExpression' &&
+                        path.node.callee.object.name === 'console') {
+                        analysis.issues.push({
+                            type: 'code_quality',
+                            line: path.node.loc?.start.line,
+                            message: 'Remove console.log before production',
+                            severity: 'medium'
+                        });
+                    }
+                },
+
+                // Check try/catch
+                TryStatement(path) {
+                    if (path.node.handler?.param?.name === 'e' || path.node.handler?.param?.name === 'error') {
+                        if (path.node.handler.body.body.length === 0) {
+                            analysis.issues.push({
+                                type: 'error_handling',
+                                line: path.node.loc?.start.line,
+                                message: 'Empty catch block — handle the error properly',
+                                severity: 'high'
+                            });
+                        }
+                    }
+                }
+            });
+
+        } catch (error) {
+            analysis.issues.push({ type: 'parse_error', message: error.message });
+        }
+
+        this.cache.set(cacheKey, analysis);
+        return analysis;
+    }
+
+    /**
+     * Calculate cyclomatic complexity
+     */
+    calculateComplexity(node) {
+        let complexity = 1;
+        
+        traverse(node, {
+            IfStatement() { complexity++; },
+            ForStatement() { complexity++; },
+            WhileStatement() { complexity++; },
+            CaseClause() { complexity++; },
+            ConditionalExpression() { complexity++; },
+            LogicalExpression(path) {
+                if (path.node.operator === '&&' || path.node.operator === '||') {
+                    complexity++;
+                }
+            },
+            CatchClause() { complexity++; }
+        }, node);
+
+        return complexity;
+    }
+
+    /**
+     * Find duplicate code blocks
+     */
+    async findDuplicates(projectPath, minLines = 10) {
+        console.log('🔍 Scanning for duplicate code...');
+        
+        const files = glob.sync('**/*.{js,ts}', {
+            cwd: projectPath,
+            ignore: ['node_modules/**', 'dist/**']
+        });
+
+        const blocks = new Map();
+        const duplicates = [];
+
+        for (const file of files) {
+            const content = fs.readFileSync(path.join(projectPath, file), 'utf-8');
+            const lines = content.split('\n');
+
+            for (let i = 0; i < lines.length - minLines; i++) {
+                const block = lines.slice(i, i + minLines).join('\n').trim();
+                const hash = this.hashBlock(block);
+
+                if (blocks.has(hash)) {
+                    duplicates.push({
+                        block,
+                        files: [blocks.get(hash), { file, line: i + 1 }],
+                        lines: minLines
+                    });
+                } else {
+                    blocks.set(hash, { file, line: i + 1 });
+                }
+            }
+        }
+
+        return duplicates;
+    }
+
+    hashBlock(block) {
+        // Simple hash for comparison
+        return block.replace(/\s+/g, ' ').replace(/\/\/.*/g, '').trim();
+    }
+}
+
+module.exports = new ASTParser();
