@@ -1,0 +1,104 @@
+// ============================================================
+// 🧬 company-dna.js
+// SUPREME Company DNA — Organizational learning & memory
+// ============================================================
+
+class CompanyDNA {
+    constructor() {
+        this.dna = {
+            founded: new Date(),
+            mission: 'Become the operating system for AI',
+            values: ['Innovation', 'Reliability', 'Security', 'User First', 'Continuous Evolution'],
+            decisions: [],
+            learnings: [],
+            features: new Map(),
+            metrics: [],
+            culture: {
+                meetingCount: 0,
+                decisionsMade: 0,
+                featuresShipped: 0,
+                bugsFixed: 0,
+                uptime: '99.99%'
+            }
+        };
+
+        this.institutionalMemory = new Map();
+    }
+
+    /**
+     * Record a major decision
+     */
+    async recordDecision(decision) {
+        this.dna.decisions.push({
+            ...decision,
+            recordedAt: new Date(),
+            decisionId: `DEC-${this.dna.decisions.length + 1}`
+        });
+
+        // Keep last 1000 decisions
+        if (this.dna.decisions.length > 1000) {
+            this.dna.decisions = this.dna.decisions.slice(-1000);
+        }
+
+        return this.dna.decisions.length;
+    }
+
+    /**
+     * Record a learning
+     */
+    async recordLearning(learning) {
+        this.dna.learnings.push({
+            ...learning,
+            learnedAt: new Date(),
+            learningId: `LRN-${this.dna.learnings.length + 1}`
+        });
+
+        return this.dna.learnings.length;
+    }
+
+    /**
+     * Get feature history
+     */
+    async getFeatureHistory(featureName) {
+        return this.dna.features.get(featureName) || {
+            created: null,
+            versions: [],
+            bugs: 0,
+            users: 0,
+            revenue: 0
+        };
+    }
+
+    /**
+     * Get company metrics over time
+     */
+    async getHistoricalMetrics() {
+        return this.dna.metrics.slice(-12); // Last 12 months
+    }
+
+    /**
+     * Get institutional knowledge
+     */
+    async queryKnowledge(question) {
+        // Search through decisions, learnings, and metrics
+        const relevantDecisions = this.dna.decisions.filter(d => 
+            d.type?.toLowerCase().includes(question.toLowerCase()) ||
+            d.decision?.toLowerCase().includes(question.toLowerCase())
+        );
+
+        const relevantLearnings = this.dna.learnings.filter(l =>
+            l.topic?.toLowerCase().includes(question.toLowerCase())
+        );
+
+        return {
+            question,
+            relevantDecisions: relevantDecisions.slice(-5),
+            relevantLearnings: relevantLearnings.slice(-5),
+            recommendation: relevantDecisions.length > 0 
+                ? `Based on ${relevantDecisions.length} previous decisions...`
+                : 'No relevant historical data found'
+        };
+    }
+}
+
+module.exports = new CompanyDNA();
