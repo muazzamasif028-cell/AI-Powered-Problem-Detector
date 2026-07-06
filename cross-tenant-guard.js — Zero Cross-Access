@@ -1,0 +1,200 @@
+// ============================================================
+// 🚫 cross-tenant-guard.js
+// SUPREME Cross-Tenant Guard — Absolute zero cross-access
+// ============================================================
+const TenantRegistry = require('./tenant-registry');
+const CrossAccessAttempt = require('../models/CrossAccessAttempt');
+
+class CrossTenantGuard {
+    constructor() {
+        this.guardRules = [
+            'DENY_ALL_CROSS_TENANT_ACCESS',
+            'NO_SHARED_DATABASE_CONNECTIONS',
+            'NO_SHARED_MEMORY_ACCESS',
+            'NO_SHARED_AI_BRAIN_ACCESS',
+            'NO_SHARED_FILE_ACCESS',
+            'NO_SHARED_NETWORK_PATHS',
+            'NO_SHARED_ENCRYPTION_KEYS',
+            'NO_SHARED_AUDIT_LOGS'
+        ];
+
+        this.blockedOperations = new Map();
+        this.violationCounters = new Map();
+    }
+
+    /**
+     * Activate guard for a tenant
+     */
+    async activate(tenant) {
+        console.log(`🚫 Activating cross-tenant guard for ${tenant.name}`);
+
+        // Create tenant boundary
+        const boundary = {
+            tenantId: tenant.tenantId,
+            rules: this.guardRules,
+            allowedConnections: [], // Empty = no cross-tenant by default
+            status: 'ACTIVE',
+            activatedAt: new Date()
+        };
+
+        this.blockedOperations.set(tenant.tenantId, new Set());
+        this.violationCounters.set(tenant.tenantId, 0);
+
+        return boundary;
+    }
+
+    /**
+     * Check EVERY operation for cross-tenant access
+     */
+    async checkAccess(sourceTenantId, targetResourceId, operation) {
+        // Always check — zero trust
+        const sourceTenant = await TenantRegistry.findById(sourceTenantId);
+        const targetOwner = await this.getResourceTenant(targetResourceId);
+
+        // Same tenant = allowed
+        if (targetOwner === sourceTenantId) {
+            return { allowed: true };
+        }
+
+        // Cross-tenant access attempted!
+        const blockedOps = this.blockedOperations.get(sourceTenantId);
+        blockedOps.add(`${operation}:${targetResourceId}`);
+
+        // Increment violation counter
+        const count = (this.violationCounters.get(sourceTenantId) || 0) + 1;
+        this.violationCounters.set(sourceTenantId, count);
+
+        // Log the attempt
+        await CrossAccessAttempt.create({
+            sourceTenantId,
+            targetResourceId,
+            operation,
+            timestamp: new Date(),
+            blocked: true,
+            sourceTenantName: sourceTenant?.name,
+            violationCount: count
+        });
+
+        // Alert on repeated violations
+        if (count >= 3) {
+            console.error(`🚨 REPEATED VIOLATIONS: Tenant ${sourceTenant?.name} has ${count} cross-access attempts`);
+            
+            if (count >= 10) {
+                // Auto-suspend tenant on excessive violations
+                await TenantRegistry.updateStatus(sourceTenantId, 'suspended');
+                console.error(`⛔ TENANT SUSPENDED: ${sourceTenant?.name} due to excessive violations`);
+            }
+        }
+
+        return {
+            allowed: false,
+            reason: 'CROSS_TENANT_ACCESS_DENIED',
+            rule: 'DENY_ALL_CROSS_TENANT_ACCESS',
+            violationCount: count
+        };
+    }
+
+    /**
+     * Check API request isolation
+     */
+    async checkAPIRequest(tenantId, req) {
+        // Extract resource IDs from request
+        const resourceIds = this.extractResourceIds(req);
+
+        for (const resourceId of resourceIds) {
+            const check = await this.checkAccess(tenantId, resourceId, `${req.method} ${req.path}`);
+            if (!check.allowed) {
+                throw new Error(`Cross-tenant access denied: ${check.reason}`);
+            }
+        }
+
+        return { allowed: true };
+    }
+
+    /**
+     * Check database query isolation
+     */
+    async checkDatabaseQuery(tenantId, query) {
+        // Ensure query is scoped to tenant
+        if (!query.tenantId || query.tenantId !== tenantId) {
+            return {
+                allowed: false,
+                reason: 'Database query must be scoped to tenant'
+            };
+        }
+
+        return { allowed: true };
+    }
+
+    /**
+     * Check AI brain isolation
+     */
+    async checkAIBrainAccess(tenantId, brainId) {
+        if (brainId !== `brain_${tenantId}`) {
+            return {
+                allowed: false,
+                reason: 'Cannot access another tenant\'s AI brain'
+            };
+        }
+
+        return { allowed: true };
+    }
+
+    /**
+     * Check memory isolation
+     */
+    async checkMemoryAccess(tenantId, memoryId) {
+        const owner = await this.getMemoryOwner(memoryId);
+        
+        if (owner !== tenantId) {
+            return {
+                allowed: false,
+                reason: 'Cannot access another tenant\'s memory'
+            };
+        }
+
+        return { allowed: true };
+    }
+
+    /**
+     * Get violation report
+     */
+    async getViolationReport(tenantId) {
+        const count = this.violationCounters.get(tenantId) || 0;
+        const recent = await CrossAccessAttempt.find({ sourceTenantId: tenantId })
+            .sort({ timestamp: -1 })
+            .limit(20);
+
+        return {
+            tenantId,
+            totalViolations: count,
+            status: count >= 10 ? 'SUSPENDED' : count >= 3 ? 'WARNING' : 'CLEAN',
+            recentAttempts: recent.map(a => ({
+                operation: a.operation,
+                target: a.targetResourceId,
+                timestamp: a.timestamp,
+                blocked: a.blocked
+            }))
+        };
+    }
+
+    // Helpers
+    async getResourceTenant(resourceId) {
+        // In production: Look up resource ownership
+        return resourceId?.split('_')[1] || null;
+    }
+
+    async getMemoryOwner(memoryId) {
+        return memoryId?.split('_')[1] || null;
+    }
+
+    extractResourceIds(req) {
+        const ids = [];
+        if (req.params.id) ids.push(req.params.id);
+        if (req.body?.resourceId) ids.push(req.body.resourceId);
+        if (req.body?.tenantId) ids.push(req.body.tenantId);
+        return ids;
+    }
+}
+
+module.exports = new CrossTenantGuard();
