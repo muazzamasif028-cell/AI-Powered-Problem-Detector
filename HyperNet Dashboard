@@ -1,0 +1,27 @@
+const hypernetStats = {
+    infrastructure: {
+        edgeNodes: 10,
+        cloudProviders: 4,
+        activeRegions: 12,
+        satellites: 'Starlink + OneWeb (future)'
+    },
+    performance: {
+        averageLatency: '45ms',
+        p95Latency: '120ms',
+        cacheHitRate: '87%',
+        uptime: '99.999%',
+        bandwidthServed: '10 TB/day'
+    },
+    routing: {
+        routesToday: '2.5M',
+        failoversToday: 3,
+        costSaved: '$1,200/day',
+        co2Reduced: '500 kg/day'
+    },
+    smartRouting: {
+        pakistanToDubai: '45ms',
+        pakistanToSingapore: '120ms',
+        pakistanToIndia: '70ms',
+        selected: 'Dubai (optimal)'
+    }
+};
