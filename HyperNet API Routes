@@ -1,0 +1,42 @@
+// ============================================================
+// 🛣️ routes/hypernet.routes.js
+// SUPREME HyperNet API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const auth = require('../../middleware/auth');
+const hypernet = require('../../services/hypernet/core/hypernet-orchestrator');
+const aiRouter = require('../../services/hypernet/core/ai-router');
+const edgeManager = require('../../services/hypernet/core/edge-manager');
+
+// Route a request through HyperNet
+router.post('/route', auth, async (req, res) => {
+    const result = await hypernet.routeRequest(req.userId, req.body);
+    res.json({ success: true, ...result });
+});
+
+// Get HyperNet status
+router.get('/status', auth, async (req, res) => {
+    const status = await hypernet.getStatus();
+    res.json({ success: true, status });
+});
+
+// Get edge network status
+router.get('/edges', auth, async (req, res) => {
+    const edges = await edgeManager.getStatus();
+    res.json({ success: true, edges });
+});
+
+// Get recent routes
+router.get('/routes/recent', auth, (req, res) => {
+    const routes = aiRouter.getRecentRoutes(20);
+    res.json({ success: true, routes });
+});
+
+// Get failover history
+router.get('/failovers', auth, (req, res) => {
+    const autoFailover = require('../../services/hypernet/resilience/auto-failover');
+    res.json({ success: true, failovers: autoFailover.getHistory() });
+});
+
+module.exports = router;
