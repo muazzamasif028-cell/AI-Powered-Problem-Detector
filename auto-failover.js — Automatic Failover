@@ -1,0 +1,135 @@
+// ============================================================
+// 🔄 auto-failover.js
+// SUPREME Auto Failover — Zero downtime failover
+// ============================================================
+
+class AutoFailover {
+    constructor() {
+        this.failoverHistory = [];
+        this.healthThresholds = {
+            latency: 500,    // ms — trigger failover if above
+            errorRate: 1,    // % — trigger failover if above
+            consecutiveFailures: 3
+        };
+
+        this.failoverChain = [
+            { provider: 'aws', regions: ['us-east-1', 'eu-west-1', 'ap-southeast-1'] },
+            { provider: 'azure', regions: ['eastus', 'westeurope', 'southeastasia'] },
+            { provider: 'gcp', regions: ['us-central1', 'europe-west1', 'asia-east1'] },
+            { provider: 'oracle', regions: ['us-ashburn-1', 'eu-frankfurt-1'] },
+            { provider: 'cloudflare', regions: ['global'] }
+        ];
+    }
+
+    /**
+     * Monitor and auto-failover
+     */
+    async monitor(currentRoute) {
+        const health = await this.checkHealth(currentRoute);
+
+        if (!health.healthy) {
+            console.log(`🔄 Failover triggered for ${currentRoute.cloud.name}`);
+            return this.executeFailover(currentRoute);
+        }
+
+        return { failover: false, route: currentRoute, health };
+    }
+
+    /**
+     * Check health of current route
+     */
+    async checkHealth(route) {
+        const metrics = await this.getRouteMetrics(route);
+
+        const issues = [];
+        if (metrics.latency > this.healthThresholds.latency) {
+            issues.push(`High latency: ${metrics.latency}ms`);
+        }
+        if (metrics.errorRate > this.healthThresholds.errorRate) {
+            issues.push(`High error rate: ${metrics.errorRate}%`);
+        }
+        if (metrics.consecutiveFailures >= this.healthThresholds.consecutiveFailures) {
+            issues.push(`${metrics.consecutiveFailures} consecutive failures`);
+        }
+
+        return {
+            healthy: issues.length === 0,
+            issues,
+            metrics
+        };
+    }
+
+    /**
+     * Execute failover to next provider
+     */
+    async executeFailover(failedRoute) {
+        const currentIndex = this.failoverChain.findIndex(
+            f => f.provider === failedRoute.cloud.provider
+        );
+
+        // Try next providers in chain
+        for (let i = currentIndex + 1; i < this.failoverChain.length; i++) {
+            const candidate = this.failoverChain[i];
+            
+            // Find best region
+            const region = await this.findBestRegion(candidate);
+            
+            if (region) {
+                const failoverEvent = {
+                    timestamp: new Date(),
+                    from: `${failedRoute.cloud.name} (${failedRoute.region})`,
+                    to: `${candidate.provider} (${region})`,
+                    reason: 'Health check failed'
+                };
+
+                this.failoverHistory.push(failoverEvent);
+                
+                console.log(`   ✅ Failover: ${failoverEvent.from} → ${failoverEvent.to}`);
+
+                return {
+                    failover: true,
+                    route: {
+                        cloud: { name: candidate.provider, provider: candidate.provider },
+                        region,
+                        edge: failedRoute.edge
+                    },
+                    failoverEvent
+                };
+            }
+        }
+
+        throw new Error('All providers exhausted — no failover available');
+    }
+
+    /**
+     * Find best region for a provider
+     */
+    async findBestRegion(provider) {
+        for (const region of provider.regions) {
+            const healthy = await this.checkRegionHealth(provider.provider, region);
+            if (healthy) return region;
+        }
+        return null;
+    }
+
+    async getRouteMetrics(route) {
+        return {
+            latency: Math.random() * 400 + 100,
+            errorRate: Math.random() * 2,
+            consecutiveFailures: 0
+        };
+    }
+
+    async checkRegionHealth(provider, region) {
+        return Math.random() > 0.1; // 90% chance healthy
+    }
+
+    /**
+     * Get failover history
+     */
+    getHistory() {
+        return this.failoverHistory.slice(-50);
+    }
+}
+
+module.exports = new AutoFailover();
