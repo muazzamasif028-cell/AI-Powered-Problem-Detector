@@ -1,0 +1,60 @@
+// ============================================================
+// 🛣️ routes/architect.routes.js
+// SUPREME AI Architect API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const auth = require('../../middleware/auth');
+const AIChiefArchitect = require('../../services/evolution/brain/ai-chief-architect');
+const MultiAICouncil = require('../../services/evolution/brain/multi-ai-council');
+const GlobalKnowledgeEngine = require('../../services/evolution/brain/global-knowledge-engine');
+const ZeroRiskDeployer = require('../../services/evolution/deployment/zero-risk-deployer');
+const InstantRollback = require('../../services/evolution/deployment/instant-rollback');
+
+router.use(auth);
+
+// Start monthly review
+router.post('/review', async (req, res) => {
+    const result = await AIChiefArchitect.performMonthlyReview();
+    res.json({ success: true, ...result });
+});
+
+// Get council decision
+router.post('/council/review', async (req, res) => {
+    const decision = await MultiAICouncil.review(req.body.report);
+    res.json({ success: true, decision });
+});
+
+// Scan global knowledge
+router.post('/knowledge/scan', async (req, res) => {
+    const results = await GlobalKnowledgeEngine.scan();
+    res.json({ success: true, ...results });
+});
+
+// Zero-risk deployment
+router.post('/deploy', async (req, res) => {
+    try {
+        const result = await ZeroRiskDeployer.deploy(req.body.version, req.body.changes);
+        res.json({ success: true, deployment: result });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+// Instant rollback
+router.post('/rollback', async (req, res) => {
+    try {
+        const result = await InstantRollback.rollback(req.body.deploymentId);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get rollback stats
+router.get('/rollback/stats', (req, res) => {
+    const stats = InstantRollback.getStats();
+    res.json({ success: true, stats });
+});
+
+module.exports = router;
