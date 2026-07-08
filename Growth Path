@@ -1,0 +1,35 @@
+const growthPath = {
+    stage1: {
+        files: '5,000',
+        duration: '3-6 months',
+        team: '2-4 engineers',
+        goal: 'Production MVP with paying customers'
+    },
+    stage2: {
+        files: '20,000',
+        duration: '6-12 months',
+        team: '8-15 engineers',
+        additions: [
+            'HyperNet (3,000 files)',
+            'Plugin System (3,000 files)',
+            'Marketplace (2,000 files)',
+            'More AI Agents (2,000 files)',
+            'Advanced Analytics (1,500 files)',
+            'Enterprise Features (1,500 files)',
+            'More SDKs (1,000 files)',
+            'Expanded Tests (1,000 files)'
+        ]
+    },
+    stage3: {
+        files: '50,000-80,000',
+        duration: '12-24 months',
+        team: '30-50 engineers',
+        goal: 'Enterprise platform with 100+ enterprise customers'
+    },
+    stage4: {
+        files: '200,000+',
+        duration: '3-5 years',
+        team: '100-500 engineers',
+        goal: 'Planetary-scale AI Operating System'
+    }
+};
