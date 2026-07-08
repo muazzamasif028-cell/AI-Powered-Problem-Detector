@@ -1,0 +1,187 @@
+// ============================================================
+// 🔄 webhook-dedup.js
+// SUPREME Webhook Deduplication — Never process same event twice
+// ============================================================
+const crypto = require('crypto');
+
+class WebhookDeduplicator {
+    constructor() {
+        this.processedEvents = new Map();
+        this.processingEvents = new Set();
+        this.redisClient = null; // Will be initialized with Redis
+        
+        // In-memory cache for fast lookup
+        this.eventCache = new Map();
+        this.cacheMaxSize = 10000;
+        this.cacheExpiry = 24 * 60 * 60 * 1000; // 24 hours
+
+        // Initialize Redis if available
+        this.initRedis();
+    }
+
+    async initRedis() {
+        try {
+            if (process.env.REDIS_URL) {
+                const Redis = require('ioredis');
+                this.redisClient = new Redis(process.env.REDIS_URL);
+                console.log('🔴 Redis connected for webhook dedup');
+            }
+        } catch (error) {
+            console.warn('Redis not available — using in-memory dedup only');
+        }
+    }
+
+    /**
+     * Check if event was already processed (idempotency)
+     */
+    async isDuplicate(provider, eventId) {
+        const dedupKey = this.generateDedupKey(provider, eventId);
+
+        // 1. Check in-memory processing set (fastest)
+        if (this.processingEvents.has(dedupKey)) {
+            console.log(`🔄 Event ${dedupKey} is currently being processed`);
+            return { duplicate: true, reason: 'CURRENTLY_PROCESSING' };
+        }
+
+        // 2. Check in-memory cache
+        if (this.eventCache.has(dedupKey)) {
+            const cached = this.eventCache.get(dedupKey);
+            if (Date.now() - cached.timestamp < this.cacheExpiry) {
+                console.log(`📋 Event ${dedupKey} already processed (cache)`);
+                return { duplicate: true, reason: 'ALREADY_PROCESSED', originalResult: cached.result };
+            }
+        }
+
+        // 3. Check Redis (distributed)
+        if (this.redisClient) {
+            try {
+                const exists = await this.redisClient.exists(`webhook:${dedupKey}`);
+                if (exists) {
+                    const result = await this.redisClient.get(`webhook:${dedupKey}`);
+                    console.log(`📋 Event ${dedupKey} already processed (Redis)`);
+                    return { 
+                        duplicate: true, 
+                        reason: 'ALREADY_PROCESSED',
+                        originalResult: JSON.parse(result)
+                    };
+                }
+            } catch (error) {
+                console.error('Redis dedup check error:', error.message);
+                // Continue — better to process twice than miss
+            }
+        }
+
+        // 4. Check database
+        const WebhookEvent = require('./models/WebhookEvent');
+        const existingEvent = await WebhookEvent.findOne({
+            provider,
+            eventId,
+            status: 'processed'
+        });
+
+        if (existingEvent) {
+            console.log(`📋 Event ${dedupKey} already processed (DB)`);
+            
+            // Update cache and Redis
+            await this.markAsProcessed(provider, eventId, existingEvent.result);
+            
+            return { 
+                duplicate: true, 
+                reason: 'ALREADY_PROCESSED',
+                originalResult: existingEvent.result
+            };
+        }
+
+        // Not a duplicate — mark as processing
+        this.processingEvents.add(dedupKey);
+
+        return { duplicate: false };
+    }
+
+    /**
+     * Mark event as processed
+     */
+    async markAsProcessed(provider, eventId, result) {
+        const dedupKey = this.generateDedupKey(provider, eventId);
+
+        // Remove from processing
+        this.processingEvents.delete(dedupKey);
+
+        // Add to cache
+        this.eventCache.set(dedupKey, {
+            result,
+            timestamp: Date.now()
+        });
+
+        // Evict oldest cache entries
+        if (this.eventCache.size > this.cacheMaxSize) {
+            const oldestKey = this.eventCache.keys().next().value;
+            this.eventCache.delete(oldestKey);
+        }
+
+        // Store in Redis
+        if (this.redisClient) {
+            try {
+                await this.redisClient.setex(
+                    `webhook:${dedupKey}`,
+                    86400, // 24 hours
+                    JSON.stringify(result)
+                );
+            } catch (error) {
+                console.error('Redis dedup store error:', error.message);
+            }
+        }
+    }
+
+    /**
+     * Mark event as failed (can be retried)
+     */
+    async markAsFailed(provider, eventId, error) {
+        const dedupKey = this.generateDedupKey(provider, eventId);
+        this.processingEvents.delete(dedupKey);
+        
+        // Don't cache failures — allow retry
+    }
+
+    /**
+     * Generate unique dedup key
+     */
+    generateDedupKey(provider, eventId) {
+        return crypto
+            .createHash('sha256')
+            .update(`${provider}:${eventId}`)
+            .digest('hex')
+            .substring(0, 32);
+    }
+
+    /**
+     * Clear expired cache entries
+     */
+    cleanupCache() {
+        const now = Date.now();
+        for (const [key, value] of this.eventCache) {
+            if (now - value.timestamp > this.cacheExpiry) {
+                this.eventCache.delete(key);
+            }
+        }
+    }
+
+    /**
+     * Get dedup stats
+     */
+    getStats() {
+        return {
+            cacheSize: this.eventCache.size,
+            processingEvents: this.processingEvents.size,
+            redisConnected: !!this.redisClient,
+            cacheMaxSize: this.cacheMaxSize,
+            cacheExpiry: `${this.cacheExpiry / 3600000}h`
+        };
+    }
+}
+
+// Cleanup every hour
+const deduplicator = new WebhookDeduplicator();
+setInterval(() => deduplicator.cleanupCache(), 60 * 60 * 1000);
+
+module.exports = deduplicator;
