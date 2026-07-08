@@ -1,0 +1,237 @@
+// ============================================================
+// 🔐 webhook-security.js
+// SUPREME Webhook Security — Multi-Provider Signature Verification
+// ============================================================
+const crypto = require('crypto');
+
+class WebhookSecurity {
+    constructor() {
+        this.providers = {
+            paddle: {
+                headerName: 'paddle-signature',
+                algorithm: 'sha256',
+                secretKey: process.env.PADDLE_WEBHOOK_SECRET,
+                verificationFn: this.verifyPaddleSignature.bind(this)
+            },
+            lemonsqueezy: {
+                headerName: 'x-signature',
+                algorithm: 'sha256',
+                secretKey: process.env.LEMONSQUEEZY_WEBHOOK_SECRET,
+                verificationFn: this.verifyLemonSqueezySignature.bind(this)
+            },
+            paypal: {
+                headerName: 'paypal-transmission-sig',
+                algorithm: 'sha256',
+                secretKey: null, // PayPal uses certificate verification
+                verificationFn: this.verifyPayPalSignature.bind(this)
+            },
+            stripe: {
+                headerName: 'stripe-signature',
+                algorithm: 'sha256',
+                secretKey: process.env.STRIPE_WEBHOOK_SECRET,
+                verificationFn: this.verifyStripeSignature.bind(this)
+            }
+        };
+    }
+
+    /**
+     * Verify webhook signature for any provider
+     */
+    async verify(provider, req) {
+        const config = this.providers[provider];
+        
+        if (!config) {
+            throw new Error(`Unknown provider: ${provider}`);
+        }
+
+        const signature = req.headers[config.headerName];
+        
+        if (!signature) {
+            console.error(`❌ Missing signature header: ${config.headerName}`);
+            return {
+                verified: false,
+                reason: 'MISSING_SIGNATURE',
+                provider
+            };
+        }
+
+        try {
+            const verified = await config.verificationFn(req, signature, config);
+            
+            if (!verified) {
+                console.error(`❌ Invalid signature for ${provider}`);
+                return {
+                    verified: false,
+                    reason: 'INVALID_SIGNATURE',
+                    provider
+                };
+            }
+
+            console.log(`✅ Signature verified for ${provider}`);
+            return {
+                verified: true,
+                provider
+            };
+
+        } catch (error) {
+            console.error(`Signature verification error for ${provider}:`, error.message);
+            return {
+                verified: false,
+                reason: 'VERIFICATION_ERROR',
+                error: error.message,
+                provider
+            };
+        }
+    }
+
+    /**
+     * Verify Paddle signature
+     * Paddle uses HMAC-SHA256 with ts + h1 parameters
+     */
+    verifyPaddleSignature(req, signature, config) {
+        const rawBody = req.body;
+        const bodyString = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : rawBody;
+
+        // Paddle signature format: ts=1234567890;h1=abcdef123456
+        const params = {};
+        signature.split(';').forEach(part => {
+            const [key, value] = part.trim().split('=');
+            params[key] = value;
+        });
+
+        if (!params.ts || !params.h1) {
+            console.error('Paddle signature missing ts or h1');
+            return false;
+        }
+
+        // Check timestamp freshness (prevent replay attacks)
+        const currentTime = Math.floor(Date.now() / 1000);
+        const signatureTime = parseInt(params.ts);
+        
+        if (Math.abs(currentTime - signatureTime) > 300) { // 5 minutes tolerance
+            console.error(`Paddle signature expired: ${currentTime - signatureTime}s old`);
+            return false;
+        }
+
+        // Build payload to verify
+        const payload = `${params.ts}:${bodyString}`;
+        
+        // Compute HMAC
+        const computed = crypto
+            .createHmac('sha256', config.secretKey)
+            .update(payload)
+            .digest('hex');
+
+        // Constant-time comparison
+        try {
+            return crypto.timingSafeEqual(
+                Buffer.from(computed),
+                Buffer.from(params.h1)
+            );
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Verify Lemon Squeezy signature
+     */
+    verifyLemonSqueezySignature(req, signature, config) {
+        const rawBody = req.body;
+        const bodyString = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : JSON.stringify(rawBody);
+
+        const computed = crypto
+            .createHmac('sha256', config.secretKey)
+            .update(bodyString)
+            .digest('hex');
+
+        try {
+            return crypto.timingSafeEqual(
+                Buffer.from(computed),
+                Buffer.from(signature)
+            );
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Verify PayPal signature (via PayPal API)
+     */
+    async verifyPayPalSignature(req, signature, config) {
+        // PayPal requires verification via their API
+        const axios = require('axios');
+        const paypalMode = process.env.PAYPAL_MODE === 'live' ? '' : 'sandbox.';
+        
+        const verificationBody = {
+            auth_algo: req.headers['paypal-auth-algo'],
+            cert_url: req.headers['paypal-cert-url'],
+            transmission_id: req.headers['paypal-transmission-id'],
+            transmission_sig: req.headers['paypal-transmission-sig'],
+            transmission_time: req.headers['paypal-transmission-time'],
+            webhook_id: process.env.PAYPAL_WEBHOOK_ID,
+            webhook_event: req.body
+        };
+
+        try {
+            const response = await axios.post(
+                `https://api-m.${paypalMode}paypal.com/v1/notifications/verify-webhook-signature`,
+                verificationBody,
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${await this.getPayPalAccessToken()}`
+                    }
+                }
+            );
+
+            return response.data.verification_status === 'SUCCESS';
+        } catch (error) {
+            console.error('PayPal verification error:', error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Verify Stripe signature
+     */
+    verifyStripeSignature(req, signature, config) {
+        try {
+            const stripe = require('stripe')(config.secretKey);
+            const event = stripe.webhooks.constructEvent(
+                req.body,
+                signature,
+                config.secretKey
+            );
+            
+            // Attach verified event to request
+            req.stripeEvent = event;
+            return true;
+        } catch (error) {
+            console.error('Stripe signature verification failed:', error.message);
+            return false;
+        }
+    }
+
+    async getPayPalAccessToken() {
+        const axios = require('axios');
+        const paypalMode = process.env.PAYPAL_MODE === 'live' ? '' : 'sandbox.';
+        
+        const response = await axios.post(
+            `https://api-m.${paypalMode}paypal.com/v1/oauth2/token`,
+            'grant_type=client_credentials',
+            {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': 'Basic ' + Buffer.from(
+                        `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`
+                    ).toString('base64')
+                }
+            }
+        );
+
+        return response.data.access_token;
+    }
+}
+
+module.exports = new WebhookSecurity();
