@@ -1,0 +1,45 @@
+// ============================================================
+// 📊 routes/evolution.routes.js
+// SUPREME Evolution API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const auth = require('../middleware/auth');
+const evolutionOrchestrator = require('../services/evolution/engine/evolution-orchestrator');
+
+router.use(auth);
+
+// Start evolution cycle
+router.post('/start', async (req, res) => {
+    try {
+        const result = await evolutionOrchestrator.startMonthlyCycle();
+        res.json({ success: true, cycle: result });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+// Get evolution status
+router.get('/status', (req, res) => {
+    const status = evolutionOrchestrator.getStatus();
+    res.json({ success: true, ...status });
+});
+
+// Get feature health report
+router.get('/features/health', async (req, res) => {
+    const Feature = require('../models/Feature');
+    const features = await Feature.find({ status: { $ne: 'deprecated' } })
+        .select('name category healthScore status lastScanned')
+        .sort({ healthScore: 1 });
+    
+    res.json({ success: true, features });
+});
+
+// Get release history
+router.get('/releases', async (req, res) => {
+    const Release = require('../models/Release');
+    const releases = await Release.find().sort({ createdAt: -1 }).limit(12);
+    res.json({ success: true, releases });
+});
+
+module.exports = router;
