@@ -1,0 +1,381 @@
+// ============================================================
+// 🔐 packages/auth/src/services/auth.service.js
+// SUPREME Authentication Service
+// ============================================================
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const User = require('../models/User');
+const Session = require('../models/Session');
+const RefreshToken = require('../models/RefreshToken');
+const ApiKey = require('../models/ApiKey');
+const emailService = require('./email.service');
+const tokenService = require('./token.service');
+const rbacService = require('./rbac.service');
+
+class AuthService {
+    constructor() {
+        this.maxLoginAttempts = 10;
+        this.lockDuration = 30 * 60 * 1000; // 30 minutes
+        this.passwordMinLength = 8;
+    }
+
+    /**
+     * Register a new user
+     */
+    async signUp(userData) {
+        const { email, password, name, companyName } = userData;
+
+        // Validate
+        this.validateEmail(email);
+        this.validatePassword(password);
+
+        // Check existing user
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
+        if (existingUser) {
+            throw new AppError('Email already registered', 409, 'EMAIL_EXISTS');
+        }
+
+        // Create user
+        const user = await User.create({
+            email: email.toLowerCase(),
+            password, // Hashed via pre-save hook
+            name,
+            role: 'user',
+            permissions: ['ai:read', 'ai:write', 'agent:read'],
+            status: 'active',
+            isEmailVerified: false
+        });
+
+        // Create default organization
+        const Organization = require('../models/Organization');
+        const org = await Organization.create({
+            name: companyName || `${name}'s Organization`,
+            ownerId: user._id,
+            members: [{ userId: user._id, role: 'admin' }]
+        });
+
+        user.organizationId = org._id;
+        await user.save();
+
+        // Generate email verification token
+        const verificationToken = user.generateEmailVerificationToken();
+        await user.save({ validateBeforeSave: false });
+
+        // Send welcome email
+        await emailService.sendVerificationEmail(user.email, user.name, verificationToken);
+
+        // Generate tokens
+        const accessToken = tokenService.generateAccessToken(user);
+        const refreshToken = await tokenService.generateRefreshToken(user._id);
+
+        return {
+            user: user.toSafeObject(),
+            accessToken,
+            refreshToken: refreshToken.token,
+            organization: org.toSafeObject()
+        };
+    }
+
+    /**
+     * Sign in user
+     */
+    async signIn(email, password, deviceInfo = {}) {
+        // Find user
+        const user = await User.findOne({ email: email.toLowerCase() })
+            .select('+password +twoFactorSecret');
+
+        if (!user) {
+            throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+        }
+
+        // Check account status
+        if (user.status === 'suspended') {
+            throw new AppError('Account has been suspended', 403, 'ACCOUNT_SUSPENDED');
+        }
+
+        if (user.status === 'deleted') {
+            throw new AppError('Account not found', 404, 'ACCOUNT_NOT_FOUND');
+        }
+
+        // Check lockout
+        if (user.lockedUntil && user.lockedUntil > new Date()) {
+            const minutesLeft = Math.ceil((user.lockedUntil - new Date()) / 60000);
+            throw new AppError(
+                `Account locked. Try again in ${minutesLeft} minutes`,
+                429,
+                'ACCOUNT_LOCKED'
+            );
+        }
+
+        // Verify password
+        const isPasswordValid = await user.comparePassword(password);
+        if (!isPasswordValid) {
+            user.failedLoginAttempts += 1;
+
+            if (user.failedLoginAttempts >= this.maxLoginAttempts) {
+                user.lockedUntil = new Date(Date.now() + this.lockDuration);
+            }
+
+            await user.save({ validateBeforeSave: false });
+            throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+        }
+
+        // 2FA check
+        if (user.twoFactorEnabled) {
+            if (!deviceInfo.twoFactorCode && !deviceInfo.backupCode) {
+                return {
+                    requiresTwoFactor: true,
+                    userId: user._id,
+                    message: 'Please enter your 2FA code'
+                };
+            }
+
+            await this.verifyTwoFactor(user, deviceInfo);
+        }
+
+        // Reset login attempts
+        user.failedLoginAttempts = 0;
+        user.lockedUntil = null;
+        user.lastLoginAt = new Date();
+        user.lastLoginIp = deviceInfo.ip;
+        user.loginCount += 1;
+        await user.save({ validateBeforeSave: false });
+
+        // Generate tokens
+        const accessToken = tokenService.generateAccessToken(user);
+        const refreshToken = await tokenService.generateRefreshToken(user._id, deviceInfo);
+
+        // Send login notification
+        if (user.loginCount > 1) {
+            await emailService.sendLoginNotification(user.email, user.name, {
+                ip: deviceInfo.ip,
+                userAgent: deviceInfo.userAgent,
+                timestamp: new Date()
+            });
+        }
+
+        return {
+            user: user.toSafeObject(),
+            accessToken,
+            refreshToken: refreshToken.token,
+            deviceId: refreshToken.deviceId
+        };
+    }
+
+    /**
+     * Sign in with OAuth provider
+     */
+    async signInWithOAuth(provider, profile, tokens) {
+        // Find or create user
+        let user = await User.findByOAuthProvider(provider, profile.id);
+
+        if (!user) {
+            // Check if email exists
+            user = await User.findOne({ email: profile.email?.toLowerCase() });
+
+            if (user) {
+                // Link OAuth to existing account
+                user.oauthProviders.push({
+                    provider,
+                    providerId: profile.id,
+                    email: profile.email,
+                    name: profile.displayName,
+                    avatar: profile.photos?.[0]?.value,
+                    accessToken: this.encryptToken(tokens.accessToken),
+                    refreshToken: tokens.refreshToken ? this.encryptToken(tokens.refreshToken) : null,
+                    connectedAt: new Date()
+                });
+            } else {
+                // Create new user
+                user = await User.create({
+                    email: profile.email?.toLowerCase() || `${profile.id}@${provider}.user`,
+                    name: profile.displayName || `${provider} User`,
+                    password: crypto.randomBytes(32).toString('hex'),
+                    avatar: profile.photos?.[0]?.value,
+                    isEmailVerified: true, // OAuth email is pre-verified
+                    oauthProviders: [{
+                        provider,
+                        providerId: profile.id,
+                        email: profile.email,
+                        name: profile.displayName,
+                        avatar: profile.photos?.[0]?.value,
+                        accessToken: this.encryptToken(tokens.accessToken),
+                        connectedAt: new Date(),
+                        isPrimary: true
+                    }]
+                });
+            }
+        }
+
+        user.lastLoginAt = new Date();
+        user.loginCount += 1;
+        await user.save();
+
+        // Generate tokens
+        const accessToken = tokenService.generateAccessToken(user);
+        const refreshToken = await tokenService.generateRefreshToken(user._id);
+
+        return {
+            user: user.toSafeObject(),
+            accessToken,
+            refreshToken: refreshToken.token,
+            isNewUser: !user._id
+        };
+    }
+
+    /**
+     * Sign out
+     */
+    async signOut(userId, refreshToken) {
+        if (refreshToken) {
+            await tokenService.revokeRefreshToken(refreshToken);
+        }
+        return { success: true };
+    }
+
+    /**
+     * Verify email
+     */
+    async verifyEmail(token) {
+        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+        const user = await User.findOne({
+            emailVerificationToken: hashedToken,
+            emailVerificationExpires: { $gt: new Date() }
+        });
+
+        if (!user) {
+            throw new AppError('Invalid or expired verification link', 400, 'INVALID_TOKEN');
+        }
+
+        user.isEmailVerified = true;
+        user.emailVerificationToken = undefined;
+        user.emailVerificationExpires = undefined;
+        await user.save({ validateBeforeSave: false });
+
+        return { success: true, message: 'Email verified successfully' };
+    }
+
+    /**
+     * Forgot password
+     */
+    async forgotPassword(email) {
+        const user = await User.findOne({ email: email.toLowerCase() });
+
+        // Always return success (prevent email enumeration)
+        if (!user) {
+            return { success: true, message: 'If that email exists, a reset link has been sent' };
+        }
+
+        const resetToken = user.generatePasswordResetToken();
+        await user.save({ validateBeforeSave: false });
+
+        await emailService.sendPasswordResetEmail(user.email, user.name, resetToken);
+
+        return { success: true, message: 'If that email exists, a reset link has been sent' };
+    }
+
+    /**
+     * Reset password
+     */
+    async resetPassword(token, newPassword) {
+        this.validatePassword(newPassword);
+
+        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+        const user = await User.findOne({
+            passwordResetToken: hashedToken,
+            passwordResetExpires: { $gt: new Date() }
+        });
+
+        if (!user) {
+            throw new AppError('Invalid or expired reset link', 400, 'INVALID_TOKEN');
+        }
+
+        user.password = newPassword;
+        user.passwordResetToken = undefined;
+        user.passwordResetExpires = undefined;
+        user.passwordChangedAt = new Date();
+        user.failedLoginAttempts = 0;
+        user.lockedUntil = null;
+
+        // Revoke all existing tokens
+        await tokenService.revokeAllUserTokens(user._id);
+        await user.save();
+
+        await emailService.sendPasswordChangedEmail(user.email, user.name);
+
+        return { success: true, message: 'Password reset successful' };
+    }
+
+    // ==========================================
+    // VALIDATION
+    // ==========================================
+    validateEmail(email) {
+        if (!email) throw new AppError('Email is required', 400);
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            throw new AppError('Invalid email format', 400, 'INVALID_EMAIL');
+        }
+    }
+
+    validatePassword(password) {
+        if (!password) throw new AppError('Password is required', 400);
+        if (password.length < this.passwordMinLength) {
+            throw new AppError(`Password must be at least ${this.passwordMinLength} characters`, 400);
+        }
+        if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+            throw new AppError('Password must contain uppercase, lowercase, and number', 400);
+        }
+    }
+
+    async verifyTwoFactor(user, deviceInfo) {
+        const { twoFactorCode, backupCode } = deviceInfo;
+
+        if (twoFactorCode) {
+            const speakeasy = require('speakeasy');
+            const isValid = speakeasy.totp.verify({
+                secret: user.twoFactorSecret,
+                encoding: 'base32',
+                token: twoFactorCode
+            });
+
+            if (!isValid) {
+                throw new AppError('Invalid 2FA code', 401, 'INVALID_2FA');
+            }
+        }
+
+        if (backupCode) {
+            const backupCodeObj = user.twoFactorBackupCodes.find(
+                c => c.code === backupCode && !c.used
+            );
+            if (!backupCodeObj) {
+                throw new AppError('Invalid backup code', 401, 'INVALID_BACKUP');
+            }
+            backupCodeObj.used = true;
+        }
+    }
+
+    encryptToken(token) {
+        if (!token) return null;
+        const cipher = crypto.createCipheriv('aes-256-gcm', 
+            Buffer.from(process.env.ENCRYPTION_KEY, 'hex'),
+            crypto.randomBytes(16));
+        let encrypted = cipher.update(token, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        return encrypted;
+    }
+}
+
+class AppError extends Error {
+    constructor(message, statusCode = 500, code = 'INTERNAL_ERROR') {
+        super(message);
+        this.statusCode = statusCode;
+        this.code = code;
+        this.isOperational = true;
+    }
+}
+
+module.exports = new AuthService();
+module.exports.AppError = AppError;
