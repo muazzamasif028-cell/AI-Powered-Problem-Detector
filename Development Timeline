@@ -1,0 +1,34 @@
+Week 1-2: Foundation
+  - Project setup, database, CI/CD
+  - Authentication (email + OAuth)
+  - Basic middleware (auth, rate limit, error handling)
+
+Week 3-4: Core Features
+  - AI Gateway (OpenAI + Anthropic)
+  - Streaming responses
+  - Usage tracking
+  - API key management
+
+Week 5-6: Monetization
+  - Stripe integration
+  - Plan management
+  - Invoice generation
+  - Billing webhook
+
+Week 7-8: Trust & Quality
+  - Evidence Engine
+  - Hallucination Detector
+  - AI Judge
+  - Safety Engine
+
+Week 9-10: Polish
+  - Dashboard UI
+  - Documentation
+  - Testing (unit + integration + load)
+  - Bug fixes
+
+Week 11-12: Launch Prep
+  - Security audit
+  - Performance optimization
+  - Deployment automation
+  - Launch marketing materials
