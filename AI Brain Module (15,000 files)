@@ -1,0 +1,106 @@
+// ============================================================
+// 🤖 packages/ai-brain/src/llm/providers/openai.provider.ts
+// SUPREME OpenAI Provider
+// ============================================================
+import OpenAI from 'openai';
+import { BaseProvider, ProviderConfig, ChatRequest, ChatResponse, StreamResponse } from './base.provider';
+
+export class OpenAIProvider extends BaseProvider {
+    private client: OpenAI;
+    
+    constructor(config: ProviderConfig) {
+        super(config);
+        this.name = 'openai';
+        this.models = [
+            'gpt-4o',
+            'gpt-4-turbo',
+            'gpt-3.5-turbo',
+            'gpt-4o-mini'
+        ];
+        this.defaultModel = 'gpt-4o';
+    }
+
+    async initialize(): Promise<void> {
+        this.client = new OpenAI({
+            apiKey: this.config.apiKey,
+            organization: this.config.orgId,
+            maxRetries: 3,
+            timeout: 60000
+        });
+    }
+
+    async chat(request: ChatRequest): Promise<ChatResponse> {
+        const startTime = Date.now();
+
+        const response = await this.client.chat.completions.create({
+            model: request.model || this.defaultModel,
+            messages: request.messages as any,
+            temperature: request.temperature ?? 0.7,
+            max_tokens: request.maxTokens ?? 2000,
+            top_p: request.topP,
+            frequency_penalty: request.frequencyPenalty,
+            presence_penalty: request.presencePenalty,
+            stop: request.stop,
+            user: request.userId
+        });
+
+        return {
+            id: response.id,
+            provider: this.name,
+            model: response.model,
+            content: response.choices[0]?.message?.content || '',
+            usage: {
+                promptTokens: response.usage?.prompt_tokens || 0,
+                completionTokens: response.usage?.completion_tokens || 0,
+                totalTokens: response.usage?.total_tokens || 0
+            },
+            latency: Date.now() - startTime,
+            finishReason: response.choices[0]?.finish_reason || 'stop',
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    async chatStream(request: ChatRequest): Promise<AsyncIterable<StreamResponse>> {
+        const stream = await this.client.chat.completions.create({
+            model: request.model || this.defaultModel,
+            messages: request.messages as any,
+            temperature: request.temperature ?? 0.7,
+            max_tokens: request.maxTokens ?? 2000,
+            stream: true
+        });
+
+        return this.createAsyncIterator(stream);
+    }
+
+    private async *createAsyncIterator(stream: any): AsyncIterable<StreamResponse> {
+        for await (const chunk of stream) {
+            const delta = chunk.choices[0]?.delta;
+            if (delta?.content) {
+                yield {
+                    content: delta.content,
+                    finishReason: chunk.choices[0]?.finish_reason,
+                    index: chunk.choices[0]?.index
+                };
+            }
+        }
+    }
+
+    async healthCheck(): Promise<boolean> {
+        try {
+            await this.client.models.list();
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async getModelPricing(model: string): Promise<{ input: number; output: number }> {
+        const pricing: Record<string, { input: number; output: number }> = {
+            'gpt-4o': { input: 0.005, output: 0.015 },
+            'gpt-4-turbo': { input: 0.01, output: 0.03 },
+            'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 },
+            'gpt-4o-mini': { input: 0.00015, output: 0.0006 }
+        };
+        return pricing[model] || { input: 0.005, output: 0.015 };
+    }
+}
