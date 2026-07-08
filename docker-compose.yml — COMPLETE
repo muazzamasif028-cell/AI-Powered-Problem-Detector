@@ -1,13 +1,23 @@
 # ============================================================
-# 🤫 SUPREME PLATFORM v7.0 — DOCKER COMPOSE
+# 🐳 SUPREME PLATFORM v11.0 — UNIFIED DOCKER COMPOSE
+# Production-Ready Multi-Service Architecture
 # ============================================================
 
 version: '3.8'
 
+# ==========================================
+# 📦 SERVICES
+# ==========================================
 services:
+
+  # ==========================================
+  # 🚀 MAIN PLATFORM API
+  # ==========================================
   supreme-platform:
-    build: .
-    container_name: supreme-platform-v7
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: supreme-platform
     restart: always
     ports:
       - "5000:5000"
@@ -15,9 +25,13 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - PORT=5000
+      - SERVICE_NAME=supreme-platform
     depends_on:
-      - mongodb
-      - redis
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
@@ -28,8 +42,79 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '1'
+          memory: 2G
 
+  # ==========================================
+  # ⚙️ BACKGROUND WORKER
+  # ==========================================
+  supreme-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: supreme-worker
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - SERVICE_NAME=supreme-worker
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - supreme-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # ==========================================
+  # 📊 DASHBOARD (React/Next.js)
+  # ==========================================
+  supreme-dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: supreme-dashboard
+    restart: always
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://supreme-platform:5000/api
+    depends_on:
+      - supreme-platform
+    networks:
+      - supreme-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # 🗄️ MONGODB (Primary Database)
+  # ==========================================
   mongodb:
     image: mongo:7.0
     container_name: supreme-mongodb
@@ -45,19 +130,90 @@ services:
       - "27017:27017"
     networks:
       - supreme-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
+        reservations:
+          cpus: '2'
+          memory: 8G
 
+  # ==========================================
+  # 🔴 REDIS (Cache + Session Store)
+  # ==========================================
   redis:
     image: redis:7.2-alpine
     container_name: supreme-redis
     restart: always
-    command: redis-server --requirepass supreme-redis-password-2024
+    command: >
+      redis-server
+      --requirepass supreme-redis-password-2024
+      --maxmemory 4gb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
     volumes:
       - redis-data:/data
     ports:
       - "6379:6379"
     networks:
       - supreme-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "supreme-redis-password-2024", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
 
+  # ==========================================
+  # 📨 RABBITMQ (Message Queue)
+  # ==========================================
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: supreme-rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=supreme
+      - RABBITMQ_DEFAULT_PASS=supreme123
+      - RABBITMQ_VM_MEMORY_HIGH_WATERMARK=0.7
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - supreme-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================
+  # 🚪 NGINX (Reverse Proxy + Load Balancer)
+  # ==========================================
   nginx:
     image: nginx:1.25-alpine
     container_name: supreme-nginx
@@ -68,15 +224,141 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
     depends_on:
       - supreme-platform
+      - supreme-dashboard
     networks:
       - supreme-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # ==========================================
+  # 📊 PROMETHEUS (Metrics Collection)
+  # ==========================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: supreme-prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - supreme-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # 📈 GRAFANA (Dashboards + Alerts)
+  # ==========================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: supreme-grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-supreme-admin}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - supreme-network
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # 🔍 ELASTICSEARCH (Logs + Search)
+  # ==========================================
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: supreme-elasticsearch
+    restart: always
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - supreme-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  # ==========================================
+  # 📋 KIBANA (Log Visualization)
+  # ==========================================
+  kibana:
+    image: kibana:8.11.0
+    container_name: supreme-kibana
+    restart: always
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - supreme-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5601/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# ==========================================
+# 📦 VOLUMES
+# ==========================================
 volumes:
   mongodb-data:
+    driver: local
   redis-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  elasticsearch-data:
+    driver: local
 
+# ==========================================
+# 🌐 NETWORKS
+# ==========================================
 networks:
   supreme-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
