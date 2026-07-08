@@ -1,0 +1,31 @@
+# ============================================================
+# 🏗️ Kubernetes Namespaces
+# ============================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supreme-production
+  labels:
+    environment: production
+    platform: supreme-os
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supreme-staging
+  labels:
+    environment: staging
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supreme-monitoring
+  labels:
+    environment: monitoring
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: supreme-istio
+  labels:
+    environment: infrastructure
