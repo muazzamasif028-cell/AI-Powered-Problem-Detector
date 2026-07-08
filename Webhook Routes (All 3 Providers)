@@ -1,6 +1,6 @@
 // ============================================================
 // 🔔 src/routes/webhook.routes.js
-// SUPREME Webhook Handler — Paddle | Lemon Squeezy | PayPal
+// SUPREME Webhook Handler — Paddle | Lemon Squeezy
 // ============================================================
 const express = require('express');
 const router = express.Router();
@@ -14,11 +14,6 @@ router.post('/paddle', express.raw({ type: 'application/json' }), async (req, re
 // Lemon Squeezy webhook
 router.post('/lemonsqueezy', express.json(), async (req, res) => {
     await paymentOrchestrator.handleWebhook('lemonsqueezy', req, res);
-});
-
-// PayPal webhook (IPN)
-router.post('/paypal', express.urlencoded({ extended: true }), async (req, res) => {
-    await paymentOrchestrator.handleWebhook('paypal', req, res);
 });
 
 module.exports = router;
