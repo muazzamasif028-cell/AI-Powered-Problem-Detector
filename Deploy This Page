@@ -1,0 +1,19 @@
+# 1. Save the file
+# Save above code as index.html
+
+# 2. Deploy instantly (FREE)
+# Option A: Netlify Drop
+# Drag and drop index.html to https://app.netlify.com/drop
+
+# Option B: Vercel
+npx vercel --prod
+
+# Option C: GitHub Pages
+git init
+git add index.html
+git commit -m "Landing page"
+git push origin main
+# Enable GitHub Pages in repo settings
+
+# Option D: Any static hosting
+# Upload index.html to any web server
