@@ -1,0 +1,74 @@
+#!/bin/bash
+# ============================================================
+# 🚀 deploy.sh — SUPREME OS Full Deployment
+# ============================================================
+
+set -e
+
+echo "🌌 Deploying SUPREME OS to Kubernetes..."
+
+# 1. Create namespaces
+echo "📦 Creating namespaces..."
+kubectl apply -f kubernetes/namespaces/
+
+# 2. Apply secrets and config
+echo "🔐 Applying secrets..."
+kubectl apply -f kubernetes/secrets/
+kubectl apply -f kubernetes/configmaps/
+
+# 3. Deploy databases
+echo "🗄️ Deploying databases..."
+kubectl apply -f kubernetes/databases/
+
+# Wait for databases to be ready
+kubectl wait --for=condition=ready pod -l app=mongodb -n supreme-production --timeout=300s
+kubectl wait --for=condition=ready pod -l app=postgres -n supreme-production --timeout=300s
+kubectl wait --for=condition=ready pod -l app=redis -n supreme-production --timeout=300s
+
+# 4. Deploy services
+echo "🚀 Deploying services..."
+kubectl apply -f kubernetes/deployments/
+
+# Wait for deployments
+kubectl rollout status deployment/ai-gateway -n supreme-production --timeout=300s
+kubectl rollout status deployment/auth-service -n supreme-production --timeout=300s
+kubectl rollout status deployment/memory-service -n supreme-production --timeout=300s
+
+# 5. Apply services and ingress
+echo "🌐 Configuring networking..."
+kubectl apply -f kubernetes/services/
+kubectl apply -f kubernetes/ingresses/
+
+# 6. Apply HPA
+echo "📈 Configuring autoscaling..."
+kubectl apply -f kubernetes/hpa/
+
+# 7. Deploy Istio
+echo "🔗 Deploying service mesh..."
+istioctl install --set profile=production -y
+kubectl label namespace supreme-production istio-injection=enabled
+kubectl apply -f kubernetes/istio/
+
+# 8. Deploy monitoring
+echo "📊 Deploying monitoring stack..."
+kubectl apply -f kubernetes/monitoring/
+
+# 9. Setup backups
+echo "💾 Configuring backups..."
+kubectl apply -f kubernetes/backups/
+
+# 10. Verify deployment
+echo "✅ Verifying deployment..."
+kubectl get pods -n supreme-production
+kubectl get services -n supreme-production
+kubectl get ingress -n supreme-production
+
+echo ""
+echo "╔══════════════════════════════════════════════╗"
+echo "║   🌌 SUPREME OS Deployed Successfully!       ║"
+echo "║                                              ║"
+echo "║   📊 Grafana:  https://grafana.supreme-os.com║"
+echo "║   🔍 Jaeger:   https://jaeger.supreme-os.com ║"
+echo "║   📈 Prometheus: https://prometheus...        ║"
+echo "║   🌐 API:      https://api.supreme-os.com    ║"
+echo "╚══════════════════════════════════════════════╝"
