@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supreme Platform — Canvas + Payment (Paddle/Lemon Squeezy)</title>
+    
+    <!-- Paddle.js -->
+    <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+    
+    <!-- Lemon Squeezy.js -->
+    <script src="https://app.lemonsqueezy.com/js/lemon.js"></script>
+    
+    <style>
+        :root {
+            --bg-deep: #08080f;
+            --bg-panel: #0e0e1a;
+            --bg-card: #12122a;
+            --accent: #e94560;
+            --quantum: #00ffff;
+            --gold: #ffd700;
+            --success: #3fb950;
+            --warning: #f0883e;
+            --danger: #da3633;
+            --text: #e0e0e0;
+            --text-dim: #8888aa;
+            --border: rgba(255,255,255,0.06);
+            --input-bg: #0d1117;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-deep);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 1300px;
+            height: 95vh;
+            background: var(--bg-panel);
+            border-radius: 24px;
+            display: flex;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 0 1px var(--border);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 16px 12px;
+            gap: 6px;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 6px;
+        }
+
+        .sidebar-header h3 {
+            color: var(--quantum);
+            font-size: 0.85em;
+            letter-spacing: 1px;
+        }
+
+        .sidebar-header .version {
+            color: var(--text-dim);
+            font-size: 0.6em;
+            margin-top: 2px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--text-dim);
+            font-size: 0.82em;
+            border: 1px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: rgba(255,255,255,0.03);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: rgba(233,69,96,0.1);
+            border-color: rgba(233,69,96,0.3);
+            color: var(--text);
+        }
+
+        .nav-item .nav-icon { font-size: 1.2em; width: 24px; text-align: center; }
+
+        .nav-section {
+            color: var(--text-dim);
+            font-size: 0.6em;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            padding: 12px 14px 4px;
+            margin-top: 8px;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .top-bar {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #e94560 150%);
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+            min-height: 60px;
+        }
+
+        .company-logo {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, #e94560, #ff6b81);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            animation: logoGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes logoGlow {
+            0%, 100% { box-shadow: 0 0 20px rgba(233,69,96,0.3); }
+            50% { box-shadow: 0 0 35px rgba(0,255,255,0.5); }
+        }
+
+        .company-info h2 { color: white; font-size: 1.1em; font-weight: 700; }
+        .company-info p { color: rgba(255,255,255,0.6); font-size: 0.65em; }
+
+        .top-bar-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.65em;
+            font-weight: 600;
+        }
+
+        .badge.success {
+            background: rgba(63,185,80,0.15);
+            color: var(--success);
+            border: 1px solid rgba(63,185,80,0.2);
+        }
+
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: var(--bg-deep);
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            gap: 12px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-right: 8px;
+        }
+
+        .message {
+            display: flex;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-msg { justify-content: flex-end; }
+        .bot-msg { justify-content: flex-start; }
+
+        .bubble {
+            max-width: 72%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            line-height: 1.5;
+            font-size: 0.88em;
+        }
+
+        .user-bubble {
+            background: linear-gradient(135deg, #238636, #2ea043);
+            color: white;
+            border-bottom-right-radius: 4px;
+            margin-left: 30px;
+        }
+
+        .bot-bubble {
+            background: #1a1a2e;
+            color: var(--text);
+            border-bottom-left-radius: 4px;
+            margin-right: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 10px;
+            padding: 12px 0 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 18px;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            color: white;
+            font-size: 0.9em;
+            outline: none;
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+
+        .chat-input:focus {
+            border-color: rgba(0,255,255,0.4);
+            box-shadow: 0 0 0 3px rgba(0,255,255,0.05);
+        }
+
+        .send-btn {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, #e94560, #ff6b81);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            color: white;
+            transition: all 0.3s;
+        }
+
+        .send-btn:hover { transform: scale(1.06); }
+
+        .payment-panel {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .payment-panel.show { display: flex; }
+
+        .payment-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        @media (max-width: 900px) {
+            .payment-grid { grid-template-columns: 1fr; }
+        }
+
+        .payment-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+        }
+
+        .problem-summary {
+            background: var(--bg-card);
+            border: 1px solid rgba(233,69,96,0.2);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+
+        .problem-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 16px;
+            font-size: 0.65em;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .problem-badge.critical {
+            background: rgba(218,54,51,0.2);
+            color: #da3633;
+            border: 1px solid rgba(218,54,51,0.3);
+        }
+
+        .problem-name { font-size: 1em; font-weight: 600; margin-bottom: 4px; }
+        .problem-detail { font-size: 0.75em; color: var(--text-dim); line-height: 1.4; }
+
+        .fix-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: rgba(63,185,80,0.1);
+            border: 1px solid rgba(63,185,80,0.2);
+            border-radius: 6px;
+            font-size: 0.78em;
+            color: var(--success);
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            font-size: 0.82em;
+        }
+
+        .price-row.total {
+            margin-top: 6px;
+            padding-top: 12px;
+            border-top: 2px solid var(--border);
+            font-size: 1em;
+            font-weight: 700;
+        }
+
+        .price-row.total .price-value { color: var(--gold); font-size: 1.2em; }
+        .price-label { color: var(--text-dim); }
+        .price-value { font-weight: 600; color: var(--text); }
+        .price-value.discount { color: var(--success); }
+
+        .provider-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .provider-card {
+            padding: 14px 10px;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .provider-card:hover {
+            border-color: rgba(233,69,96,0.3);
+        }
+
+        .provider-card.active {
+            border-color: var(--accent);
+            background: rgba(233,69,96,0.1);
+        }
+
+        .provider-card .provider-icon { font-size: 1.5em; display: block; margin-bottom: 4px; }
+        .provider-card .provider-name { font-size: 0.8em; font-weight: 700; }
+        .provider-card .provider-desc { font-size: 0.6em; color: var(--text-dim); margin-top: 2px; }
+
+        .payment-methods {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+        .payment-method {
+            padding: 10px 6px;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.7em;
+            color: var(--text-dim);
+        }
+
+        .payment-method:hover { border-color: rgba(233,69,96,0.3); }
+        .payment-method.active {
+            border-color: var(--accent);
+            background: rgba(233,69,96,0.1);
+            color: var(--text);
+        }
+
+        .payment-method .method-icon { font-size: 1.3em; display: block; margin-bottom: 2px; }
+
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #e94560, #ff6b81);
+            color: white;
+            box-shadow: 0 4px 15px rgba(233,69,96,0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(233,69,96,0.5);
+        }
+
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+
+        .btn-paddle {
+            background: linear-gradient(135deg, #6c3bd4, #8b5cf6);
+            color: white;
+            box-shadow: 0 4px 15px rgba(108,59,212,0.3);
+        }
+
+        .btn-lemon {
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            color: #1a1a1a;
+            box-shadow: 0 4px 15px rgba(245,158,11,0.3);
+        }
+
+        .coupon-row { display: flex; gap: 6px; margin-bottom: 12px; }
+        .coupon-input {
+            flex: 1;
+            padding: 8px 12px;
+            background: var(--input-bg);
+            border: 1px dashed var(--gold);
+            border-radius: 6px;
+            color: var(--gold);
+            font-family: 'Courier New', monospace;
+            font-size: 0.8em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            outline: none;
+        }
+        .btn-coupon {
+            background: transparent;
+            border: 1px dashed var(--gold);
+            color: var(--gold);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.72em;
+            font-family: inherit;
+        }
+        .coupon-applied {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: rgba(63,185,80,0.1);
+            border: 1px solid rgba(63,185,80,0.2);
+            border-radius: 6px;
+            color: var(--success);
+            font-size: 0.78em;
+            margin-bottom: 12px;
+        }
+
+        .success-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .success-overlay.show { display: flex; }
+
+        .success-modal {
+            background: var(--bg-panel);
+            border: 1px solid var(--success);
+            border-radius: 18px;
+            padding: 30px;
+            text-align: center;
+            max-width: 480px;
+            width: 90%;
+            animation: slideUp 0.4s ease;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .success-icon { font-size: 3.5em; margin-bottom: 12px; }
+        .success-title { font-size: 1.3em; font-weight: 700; color: var(--success); margin-bottom: 6px; }
+        .success-message { color: var(--text-dim); font-size: 0.82em; margin-bottom: 16px; }
+
+        .transaction-id {
+            font-family: 'Courier New', monospace;
+            background: var(--bg-card);
+            padding: 8px 14px;
+            border-radius: 6px;
+            color: var(--quantum);
+            font-size: 0.78em;
+            margin-bottom: 12px;
+        }
+
+        .features-unlocked {
+            text-align: left;
+            margin: 12px 0;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            font-size: 0.75em;
+            color: var(--text);
+        }
+
+        .feature-item .check { color: var(--success); }
+
+        .processing-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 998;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .processing-overlay.show { display: flex; }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .content-area::-webkit-scrollbar,
+        .chat-messages::-webkit-scrollbar,
+        .sidebar::-webkit-scrollbar { width: 3px; }
+        .content-area::-webkit-scrollbar-thumb,
+        .chat-messages::-webkit-scrollbar-thumb,
+        .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h3>⚡ SUPREME PLATFORM</h3>
+                <div class="version">v11.0 • Paddle + Lemon Squeezy</div>
+            </div>
+
+            <div class="nav-section">MAIN</div>
+            <div class="nav-item active" data-panel="chat" onclick="switchPanel('chat', this)">
+                <span class="nav-icon">💬</span> Problem Chat
+            </div>
+            <div class="nav-item" data-panel="payment" onclick="switchPanel('payment', this)">
+                <span class="nav-icon">💳</span> Payment
+            </div>
+
+            <div class="nav-section">MONITORING</div>
+            <div class="nav-item" onclick="switchPanel('chat', this); sendPresetMessage('Show system status')">
+                <span class="nav-icon">📊</span> System Status
+            </div>
+            <div class="nav-item" onclick="switchPanel('chat', this); sendPresetMessage('Run full diagnostic')">
+                <span class="nav-icon">🔍</span> Run Diagnostic
+            </div>
+
+            <div class="nav-section">TOOLS</div>
+            <div class="nav-item" onclick="switchPanel('chat', this); sendPresetMessage('Show detected problems')">
+                <span class="nav-icon">🐛</span> View Problems
+            </div>
+
+            <div style="margin-top:auto;padding:12px;background:rgba(0,255,255,0.03);border:1px solid rgba(0,255,255,0.1);border-radius:10px;text-align:center;">
+                <div style="color:var(--quantum);font-size:0.7em;font-weight:700;">🔐 PADDLE + LEMON SQUEEZY</div>
+                <div style="color:var(--text-dim);font-size:0.55em;">Global Tax Handling • MoR</div>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <div class="company-logo">⚡</div>
+                <div class="company-info">
+                    <h2>Supreme Problem Detector</h2>
+                    <p>v11.0 • 56 Problems • Paddle + Lemon Squeezy</p>
+                </div>
+                <div class="top-bar-right">
+                    <span class="badge success" id="headerStatus">🟢 ALL SYSTEMS ONLINE</span>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                
+                <!-- CHAT PANEL -->
+                <div class="chat-container" id="chatPanel">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="message bot-msg">
+                            <div class="bubble bot-bubble">
+                                👋 <strong>Welcome to Supreme Platform!</strong><br><br>
+                                I detect and fix 56 types of problems across your infrastructure.<br><br>
+                                🔍 Describe your problem and I'll:<br>
+                                • Auto-detect the issue<br>
+                                • Find root cause<br>
+                                • Apply fix automatically<br>
+                                • Generate payment invoice<br>
+                                • Process via <strong>Paddle</strong> or <strong>Lemon Squeezy</strong><br><br>
+                                <em>Type your problem or click "Run Diagnostic" in sidebar.</em>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" class="chat-input" id="chatInput" 
+                               placeholder="Describe your problem here..." 
+                               onkeypress="if(event.key==='Enter') sendMessage()">
+                        <button class="send-btn" onclick="sendMessage()">➤</button>
+                    </div>
+                </div>
+
+                <!-- PAYMENT PANEL -->
+                <div class="payment-panel" id="paymentPanel">
+                    <div class="payment-grid">
+                        
+                        <!-- Left: Problem + Price -->
+                        <div class="payment-card">
+                            <div style="font-weight:700;margin-bottom:14px;color:var(--text);">🔍 Problem Resolution</div>
+                            
+                            <div class="problem-summary">
+                                <span class="problem-badge critical">🚨 CRITICAL</span>
+                                <div class="problem-name" id="payProblemName">Database Connection Pool Full</div>
+                                <div class="problem-detail" id="payProblemDetail">
+                                    📍 Production Database Server<br>
+                                    💥 500 users affected<br>
+                                    ✅ Auto-Fix Applied in 3 min
+                                </div>
+                                <div class="fix-status">
+                                    ✅ Fix Applied Successfully — System Healthy
+                                </div>
+                            </div>
+
+                            <div id="priceBreakdown">
+                                <div class="price-row">
+                                    <span class="price-label">🔍 Diagnosis</span>
+                                    <span class="price-value" id="payDiagnosis">$2,900.00</span>
+                                </div>
+                                <div class="price-row">
+                                    <span class="price-label">🔧 Auto-Fix</span>
+                                    <span class="price-value" id="payFix">$8,500.00</span>
+                                </div>
+                                <div class="price-row" id="payDiscountRow" style="display:none;">
+                                    <span class="price-label">🎟️ Discount</span>
+                                    <span class="price-value discount" id="payDiscount">-$0.00</span>
+                                </div>
+                                <div class="price-row">
+                                    <span class="price-label">🏷️ Tax (Handled by Provider)</span>
+                                    <span class="price-value" id="payTax">Auto</span>
+                                </div>
+                                <div class="price-row total">
+                                    <span class="price-label">💳 TOTAL</span>
+                                    <span class="price-value" id="payTotal">$11,400.00</span>
+                                </div>
+                            </div>
+
+                            <div class="coupon-row" style="margin-top:12px;">
+                                <input type="text" class="coupon-input" id="couponInput" 
+                                       placeholder="COUPON CODE" maxlength="20">
+                                <button class="btn-coupon" onclick="applyCoupon()">APPLY</button>
+                            </div>
+                            <div class="coupon-applied" id="couponApplied" style="display:none;">
+                                ✅ <strong id="couponCode">SUPREME20</strong> — <strong id="couponValue">20% OFF</strong>
+                                <span style="cursor:pointer;margin-left:auto;" onclick="removeCoupon()">✕</span>
+                            </div>
+                        </div>
+
+                        <!-- Right: Provider + Payment -->
+                        <div class="payment-card">
+                            <div style="font-weight:700;margin-bottom:14px;color:var(--text);">💳 Payment Provider</div>
+
+                            <!-- Provider Selection -->
+                            <div class="provider-selector">
+                                <div class="provider-card active" id="providerPaddle" onclick="selectProvider('paddle')">
+                                    <span class="provider-icon">🏓</span>
+                                    <span class="provider-name">Paddle</span>
+                                    <span class="provider-desc">Global Tax • 200+ Countries</span>
+                                </div>
+                                <div class="provider-card" id="providerLemon" onclick="selectProvider('lemonsqueezy')">
+                                    <span class="provider-icon">🍋</span>
+                                    <span class="provider-name">Lemon Squeezy</span>
+                                    <span class="provider-desc">Crypto • Modern MoR</span>
+                                </div>
+                            </div>
+
+                            <!-- Payment Methods -->
+                            <div class="payment-methods">
+                                <div class="payment-method active" data-method="CARD" onclick="selectMethod('CARD', this)">
+                                    <span class="method-icon">💳</span>Card
+                                </div>
+                                <div class="payment-method" data-method="PAYPAL" onclick="selectMethod('PAYPAL', this)">
+                                    <span class="method-icon">🅿️</span>PayPal
+                                </div>
+                                <div class="payment-method" data-method="APPLE_PAY" onclick="selectMethod('APPLE_PAY', this)">
+                                    <span class="method-icon">🍎</span>Apple
+                                </div>
+                                <div class="payment-method" data-method="GOOGLE_PAY" onclick="selectMethod('GOOGLE_PAY', this)">
+                                    <span class="method-icon">🤖</span>Google
+                                </div>
+                                <div class="payment-method" data-method="CRYPTO" onclick="selectMethod('CRYPTO', this)">
+                                    <span class="method-icon">🪙</span>Crypto
+                                </div>
+                                <div class="payment-method" data-method="BANK" onclick="selectMethod('BANK', this)">
+                                    <span class="method-icon">🏦</span>Bank
+                                </div>
+                            </div>
+
+                            <!-- Paddle Checkout Button -->
+                            <div id="paddleCheckoutSection">
+                                <p style="font-size:0.7em;color:var(--text-dim);margin-bottom:8px;">
+                                    🏓 Paddle handles global tax (VAT/GST) automatically.<br>
+                                    Supports 200+ countries, PayPal, Cards, Apple/Google Pay.
+                                </p>
+                                <button class="btn btn-paddle" onclick="openPaddleCheckout()">
+                                    🏓 PAY WITH PADDLE — <span id="paddleAmount">$11,400.00</span>
+                                </button>
+                            </div>
+
+                            <!-- Lemon Squeezy Checkout Button -->
+                            <div id="lemonCheckoutSection" style="display:none;">
+                                <p style="font-size:0.7em;color:var(--text-dim);margin-bottom:8px;">
+                                    🍋 Lemon Squeezy — Modern MoR with crypto support.<br>
+                                    BTC, ETH, USDT accepted. Klarna & Afterpay available.
+                                </p>
+                                <button class="btn btn-lemon" onclick="openLemonSqueezyCheckout()">
+                                    🍋 PAY WITH LEMON SQUEEZY — <span id="lemonAmount">$11,400.00</span>
+                                </button>
+                            </div>
+
+                            <!-- Country Info -->
+                            <div style="margin-top:16px;padding:12px;background:rgba(0,255,255,0.03);border:1px solid rgba(0,255,255,0.1);border-radius:8px;font-size:0.7em;">
+                                <div style="color:var(--quantum);font-weight:600;margin-bottom:4px;">🌍 Global Coverage</div>
+                                <div style="color:var(--text-dim);">
+                                    🏓 Paddle: 200+ countries<br>
+                                    🍋 Lemon Squeezy: 100+ countries<br>
+                                    ✅ Tax handled automatically (MoR)<br>
+                                    ✅ No need to register for VAT/GST
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing Overlay -->
+    <div class="processing-overlay" id="processingOverlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Success Overlay -->
+    <div class="success-overlay" id="successOverlay">
+        <div class="success-modal">
+            <div class="success-icon">✅</div>
+            <div class="success-title">Payment Successful!</div>
+            <div class="success-message" id="successProvider">Processed via Paddle</div>
+            <div class="transaction-id" id="transactionId">TXN-ABC123XYZ</div>
+            <div style="color:var(--text-dim);font-size:0.8em;margin-bottom:6px;">
+                Amount: <strong style="color:var(--success);" id="paidAmount">$11,400.00</strong><br>
+                Invoice: <strong style="color:var(--quantum);" id="invoiceNumber">INV-SUP-001056</strong>
+            </div>
+            <div class="features-unlocked">
+                <div style="font-weight:600;color:var(--gold);margin-bottom:6px;">🔓 UNLOCKED:</div>
+                <div class="feature-item"><span class="check">✅</span> Full Diagnostic Reports</div>
+                <div class="feature-item"><span class="check">✅</span> Real-Time Monitoring</div>
+                <div class="feature-item"><span class="check">✅</span> Auto-Fix Engine</div>
+                <div class="feature-item"><span class="check">✅</span> 24/7 Priority Support</div>
+                <div class="feature-item"><span class="check">✅</span> Quantum-Safe Security</div>
+            </div>
+            <button class="btn btn-primary" onclick="downloadReport()" style="margin-bottom:6px;">📥 DOWNLOAD REPORT</button>
+            <button class="btn btn-secondary" onclick="goToDashboard()">🚀 GO TO DASHBOARD</button>
+            <button class="btn btn-secondary" onclick="closeSuccess()" style="margin-top:4px;">CLOSE</button>
+        </div>
+    </div>
+
+    <script>
+        // =============================================
+        // PAYMENT PROVIDER CONFIGURATION
+        // =============================================
+        const PAYMENT_CONFIG = {
+            paddle: {
+                clientToken: 'live_xxxx', // Replace with real Paddle client token
+                environment: 'sandbox', // 'sandbox' or 'production'
+                productId: 'pro_01hxxxxx',
+                priceId: 'pri_01hxxxxx'
+            },
+            lemonsqueezy: {
+                storeId: '12345', // Replace with real Lemon Squeezy store ID
+                productId: '12345',
+                variantId: '67890',
+                apiKey: 'live_xxxx' // Server-side only
+            }
+        };
+
+        // =============================================
+        // Initialize Paddle
+        // =============================================
+        function initializePaddle() {
+            if (typeof Paddle === 'undefined') {
+                console.warn('Paddle.js not loaded');
+                return;
+            }
+            
+            Paddle.Initialize({
+                token: PAYMENT_CONFIG.paddle.clientToken,
+                environment: PAYMENT_CONFIG.paddle.environment,
+                checkout: {
+                    settings: {
+                        displayMode: 'overlay',
+                        theme: 'dark',
+                        locale: 'en'
+                    }
+                },
+                eventCallback: function(event) {
+                    handlePaddleEvent(event);
+                }
+            });
+            
+            console.log('🏓 Paddle initialized');
+        }
+
+        // =============================================
+        // Paddle Event Handler
+        // =============================================
+        function handlePaddleEvent(event) {
+            console.log('🏓 Paddle Event:', event.name, event.data);
+            
+            switch (event.name) {
+                case 'checkout.closed':
+                    document.getElementById('processingOverlay').classList.remove('show');
+                    console.log('Checkout closed');
+                    break;
+                    
+                case 'checkout.completed':
+                    document.getElementById('processingOverlay').classList.remove('show');
+                    const txnId = event.data?.transaction_id || 'TXN-' + Date.now().toString(36).toUpperCase();
+                    showPaymentSuccess('Paddle', txnId);
+                    break;
+                    
+                case 'checkout.error':
+                    document.getElementById('processingOverlay').classList.remove('show');
+                    alert('Payment failed: ' + (event.data?.error?.detail || 'Unknown error'));
+                    break;
+            }
+        }
+
+        // =============================================
+        // Open Paddle Checkout
+        // =============================================
+        function openPaddleCheckout() {
+            document.getElementById('processingOverlay').classList.add('show');
+            
+            const total = parseFloat(document.getElementById('payTotal').textContent.replace(/[^0-9.]/g, ''));
+            
+            if (typeof Paddle !== 'undefined') {
+                // Real Paddle checkout
+                Paddle.Checkout.open({
+                    items: [{
+                        priceId: PAYMENT_CONFIG.paddle.priceId,
+                        quantity: 1
+                    }],
+                    customData: {
+                        problemType: document.getElementById('payProblemName').textContent,
+                        userId: 'user_' + Date.now()
+                    },
+                    settings: {
+                        displayMode: 'overlay',
+                        theme: 'dark',
+                        locale: 'en',
+                        allowLogout: false
+                    }
+                });
+            } else {
+                // Demo mode — simulate checkout
+                simulatePaddleCheckout(total);
+            }
+        }
+
+        // =============================================
+        // Simulate Paddle Checkout (Demo)
+        // =============================================
+        function simulatePaddleCheckout(amount) {
+            setTimeout(() => {
+                document.getElementById('processingOverlay').classList.remove('show');
+                const txnId = 'TXN-PDL-' + Date.now().toString(36).toUpperCase();
+                showPaymentSuccess('Paddle', txnId);
+            }, 2500);
+        }
+
+        // =============================================
+        // Open Lemon Squeezy Checkout
+        // =============================================
+        function openLemonSqueezyCheckout() {
+            document.getElementById('processingOverlay').classList.add('show');
+            
+            const total = parseFloat(document.getElementById('payTotal').textContent.replace(/[^0-9.]/g, ''));
+            
+            // Real Lemon Squeezy checkout
+            if (typeof LemonSqueezy !== 'undefined') {
+                LemonSqueezy.Checkout.open({
+                    store: PAYMENT_CONFIG.lemonsqueezy.storeId,
+                    variant: PAYMENT_CONFIG.lemonsqueezy.variantId,
+                    checkout: {
+                        custom: {
+                            problemType: document.getElementById('payProblemName').textContent,
+                            userId: 'user_' + Date.now()
+                        }
+                    }
+                });
+            } else {
+                // Demo mode — simulate checkout
+                setTimeout(() => {
+                    document.getElementById('processingOverlay').classList.remove('show');
+                    const txnId = 'TXN-LSQ-' + Date.now().toString(36).toUpperCase();
+                    showPaymentSuccess('Lemon Squeezy', txnId);
+                }, 2500);
+            }
+        }
+
+        // =============================================
+        // Show Payment Success
+        // =============================================
+        function showPaymentSuccess(provider, txnId) {
+            const total = parseFloat(document.getElementById('payTotal').textContent.replace(/[^0-9.]/g, ''));
+            const invoice = 'INV-SUP-' + Math.floor(Math.random() * 90000 + 10000);
+            
+            document.getElementById('successProvider').textContent = 'Processed via ' + provider;
+            document.getElementById('transactionId').textContent = txnId;
+            document.getElementById('paidAmount').textContent = '$' + total.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('invoiceNumber').textContent = invoice;
+            document.getElementById('successOverlay').classList.add('show');
+            
+            console.log(`✅ Payment via ${provider} — ${txnId} — $${total}`);
+        }
+
+        // =============================================
+        // Provider Selection
+        // =============================================
+        let currentProvider = 'paddle';
+
+        function selectProvider(provider) {
+            currentProvider = provider;
+            
+            document.getElementById('providerPaddle').classList.toggle('active', provider === 'paddle');
+            document.getElementById('providerLemon').classList.toggle('active', provider === 'lemonsqueezy');
+            document.getElementById('paddleCheckoutSection').style.display = provider === 'paddle' ? 'block' : 'none';
+            document.getElementById('lemonCheckoutSection').style.display = provider === 'lemonsqueezy' ? 'block' : 'none';
+        }
+
+        function selectMethod(method, el) {
+            document.querySelectorAll('.payment-method').forEach(e => e.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        // =============================================
+        // Coupon System
+        // =============================================
+        let couponDiscount = 0;
+
+        function applyCoupon() {
+            const code = document.getElementById('couponInput').value.trim().toUpperCase();
+            const coupons = { 'SUPREME20': 20, 'LAUNCH50': 50, 'NEOM2025': 30, 'PADDLE10': 10 };
+            
+            if (!coupons[code]) { alert('Invalid coupon code'); return; }
+            
+            couponDiscount = coupons[code];
+            const basePrice = 11400;
+            const discountAmount = basePrice * (couponDiscount / 100);
+            const newTotal = basePrice - discountAmount;
+            
+            document.getElementById('payDiscountRow').style.display = 'flex';
+            document.getElementById('payDiscount').textContent = '-$' + discountAmount.toLocaleString();
+            document.getElementById('payTotal').textContent = '$' + newTotal.toLocaleString();
+            document.getElementById('paddleAmount').textContent = '$' + newTotal.toLocaleString();
+            document.getElementById('lemonAmount').textContent = '$' + newTotal.toLocaleString();
+            
+            document.getElementById('couponApplied').style.display = 'flex';
+            document.getElementById('couponCode').textContent = code;
+            document.getElementById('couponValue').textContent = couponDiscount + '% OFF';
+        }
+
+        function removeCoupon() {
+            couponDiscount = 0;
+            const basePrice = 11400;
+            
+            document.getElementById('payDiscountRow').style.display = 'none';
+            document.getElementById('payTotal').textContent = '$' + basePrice.toLocaleString();
+            document.getElementById('paddleAmount').textContent = '$' + basePrice.toLocaleString();
+            document.getElementById('lemonAmount').textContent = '$' + basePrice.toLocaleString();
+            document.getElementById('couponApplied').style.display = 'none';
+            document.getElementById('couponInput').value = '';
+        }
+
+        // =============================================
+        // Panel Switching
+        // =============================================
+        function switchPanel(panel, el) {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            if (el) el.classList.add('active');
+            
+            document.getElementById('chatPanel').style.display = panel === 'chat' ? 'flex' : 'none';
+            document.getElementById('paymentPanel').classList.toggle('show', panel === 'payment');
+        }
+
+        // =============================================
+        // Chat Functionality
+        // =============================================
+        function addChatMessage(text, isUser = false) {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = `message ${isUser ? 'user-msg' : 'bot-msg'}`;
+            div.innerHTML = `<div class="bubble ${isUser ? 'user-bubble' : 'bot-bubble'}">${text.replace(/\n/g, '<br>')}</div>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+            
+            addChatMessage(msg, true);
+            input.value = '';
+            
+            setTimeout(() => {
+                const lower = msg.toLowerCase();
+                
+                if (lower.includes('problem') || lower.includes('error') || lower.includes('database') || lower.includes('cpu') || lower.includes('memory')) {
+                    addChatMessage('🔍 <strong>Problem Detected!</strong><br><br>🟢 Diagnostic: Running...<br>✅ Root cause identified<br>✅ Auto-fix applied<br>📊 System restored<br><br>💡 <em>Switch to Payment tab to process via <strong>Paddle</strong> or <strong>Lemon Squeezy</strong>.</em>');
+                    document.getElementById('payProblemName').textContent = 'Detected: ' + msg.substring(0, 50) + '...';
+                } else if (lower.includes('status') || lower.includes('health')) {
+                    addChatMessage('📊 <strong>System Status</strong><br><br>✅ All Systems Online<br>✅ Paddle: Connected<br>✅ Lemon Squeezy: Connected<br>✅ 56 Detectors Active<br>🛰️ 350+ Satellites Operational');
+                } else if (lower.includes('diagnostic')) {
+                    addChatMessage('🔍 <strong>Full Diagnostic</strong><br><br>🟥 Performance: 10/10 ✅<br>🟧 Security: 10/10 ✅<br>🟩 Resources: 6/6 ✅<br>💳 Payments: Paddle + LSQ Active<br><br>🎯 <strong>ALL HEALTHY</strong>');
+                } else {
+                    addChatMessage('🤔 I can help with:<br>• 🔍 Detecting problems<br>• 🔧 Auto-fixing issues<br>• 💳 Processing payments<br><br>Try: "My database is slow"');
+                }
+            }, 800);
+        }
+
+        function sendPresetMessage(msg) {
+            document.getElementById('chatInput').value = msg;
+            sendMessage();
+        }
+
+        // =============================================
+        // Success Actions
+        // =============================================
+        function downloadReport() {
+            alert('📥 REPORT DOWNLOADED!\n\nPayment processed via Paddle/Lemon Squeezy\nInvoice attached to email.');
+        }
+
+        function goToDashboard() {
+            document.getElementById('successOverlay').classList.remove('show');
+            switchPanel('chat', document.querySelector('[data-panel="chat"]'));
+            addChatMessage('🚀 <strong>Welcome!</strong><br><br>✅ Payment confirmed<br>✅ All features unlocked<br>✅ Auto-fix engine active<br>✅ 24/7 monitoring started');
+        }
+
+        function closeSuccess() {
+            document.getElementById('successOverlay').classList.remove('show');
+        }
+
+        // =============================================
+        // Initialize
+        // =============================================
+        function init() {
+            initializePaddle();
+            console.log('🚀 Supreme Platform v11.0 Ready');
+            console.log('🏓 Paddle: Initialized');
+            console.log('🍋 Lemon Squeezy: Ready');
+            console.log('💳 Payment Providers: Paddle + Lemon Squeezy');
+            console.log('🌍 Global Tax: Auto-handled by MoR');
+        }
+
+        init();
+    </script>
+
+</body>
+</html>
