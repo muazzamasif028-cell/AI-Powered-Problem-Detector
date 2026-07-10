@@ -1,0 +1,121 @@
+// gateways/GatewayFactory.js
+const SafePayGateway = require('./SafePayGateway');
+const PayFastGateway = require('./PayFastGateway');
+const HBLGateway = require('./HBLGateway');
+const JazzCashGateway = require('./JazzCashGateway');
+const EasyPaisaGateway = require('./EasyPaisaGateway');
+const StripeGateway = require('./StripeGateway');
+
+class GatewayFactory {
+    constructor() {
+        this.gateways = new Map();
+        this.initializeGateways();
+    }
+
+    initializeGateways() {
+        // Initialize all gateways
+        this.registerGateway(new SafePayGateway());
+        this.registerGateway(new PayFastGateway());
+        this.registerGateway(new HBLGateway());
+        this.registerGateway(new JazzCashGateway());
+        this.registerGateway(new EasyPaisaGateway());
+        
+        // Only if Stripe is configured
+        if (process.env.STRIPE_ENABLED === 'true') {
+            this.registerGateway(new StripeGateway());
+        }
+    }
+
+    registerGateway(gateway) {
+        this.gateways.set(gateway.gatewayId, gateway);
+        console.log(`✅ Gateway registered: ${gateway.name}`);
+    }
+
+    /**
+     * Get best gateway for payment
+     */
+    getGatewayForPayment(paymentData) {
+        const { country, currency, amount, paymentMethod } = paymentData;
+
+        // Pakistan + PKR
+        if (country === 'PK' && currency === 'PKR') {
+            // High-value transactions -> SafePay
+            if (amount > 100000) {
+                return this.gateways.get('SAFEPAY');
+            }
+            
+            // Mobile wallet -> JazzCash or EasyPaisa
+            if (paymentMethod === 'mobile_wallet') {
+                return this.gateways.get('JAZZCASH');
+            }
+            
+            // Default: SafePay (best success rate)
+            return this.gateways.get('SAFEPAY');
+        }
+
+        // Pakistan + International cards
+        if (country === 'PK' && currency !== 'PKR') {
+            return this.gateways.get('SAFEPAY'); // SafePay supports international
+        }
+
+        // International -> Stripe
+        if (process.env.STRIPE_ENABLED === 'true') {
+            return this.gateways.get('STRIPE');
+        }
+
+        // Fallback
+        return this.gateways.get('SAFEPAY');
+    }
+
+    /**
+     * Get all available gateways for country
+     */
+    getGatewaysForCountry(country) {
+        const available = [];
+        
+        if (country === 'PK') {
+            available.push(
+                { id: 'SAFEPAY', name: 'Credit/Debit Card', icon: '💳' },
+                { id: 'JAZZCASH', name: 'JazzCash', icon: '📱' },
+                { id: 'EASYPAISA', name: 'EasyPaisa', icon: '📱' },
+                { id: 'PAYFAST', name: 'PayFast', icon: '🏦' },
+                { id: 'HBL', name: 'HBL Direct', icon: '🏛️' }
+            );
+        } else {
+            available.push(
+                { id: 'STRIPE', name: 'Credit/Debit Card', icon: '💳' },
+                { id: 'STRIPE', name: 'Apple Pay', icon: '🍎' },
+                { id: 'STRIPE', name: 'Google Pay', icon: '🤖' }
+            );
+        }
+        
+        return available;
+    }
+
+    /**
+     * Get specific gateway
+     */
+    getGateway(gatewayId) {
+        const gateway = this.gateways.get(gatewayId);
+        if (!gateway) {
+            throw new Error(`Gateway ${gatewayId} not found`);
+        }
+        return gateway;
+    }
+
+    /**
+     * Get all active gateways
+     */
+    getAllGateways() {
+        return Array.from(this.gateways.values()).map(g => ({
+            id: g.gatewayId,
+            name: g.name,
+            type: g.type,
+            enabled: true,
+            supportedCards: g.getSupportedMethods(),
+            features: g.config.features
+        }));
+    }
+}
+
+module.exports = new GatewayFactory();
