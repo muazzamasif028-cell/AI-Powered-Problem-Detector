@@ -1,0 +1,57 @@
+// service/TaxService.java
+package com.supreme.billing.service;
+
+import org.springframework.stereotype.Service;
+import java.math.BigDecimal;
+import java.util.Map;
+import java.util.HashMap;
+
+@Service
+public class TaxService {
+    
+    private final Map<String, BigDecimal> taxRates;
+    
+    public TaxService() {
+        taxRates = new HashMap<>();
+        // VAT rates by country
+        taxRates.put("GB", new BigDecimal("20"));  // UK VAT
+        taxRates.put("DE", new BigDecimal("19"));  // Germany VAT
+        taxRates.put("FR", new BigDecimal("20"));  // France VAT
+        taxRates.put("AE", new BigDecimal("5"));   // UAE VAT
+        taxRates.put("SA", new BigDecimal("15"));  // Saudi Arabia VAT
+        taxRates.put("PK", new BigDecimal("17"));  // Pakistan GST
+        taxRates.put("IN", new BigDecimal("18"));  // India GST
+        // Digital services tax
+        taxRates.put("DIGITAL_EU", new BigDecimal("21"));
+    }
+    
+    public BigDecimal calculateTax(BigDecimal amount, String country, String taxId) {
+        // If company has valid VAT ID, reverse charge may apply
+        if (taxId != null && isValidVAT(taxId, country)) {
+            return BigDecimal.ZERO;  // Reverse charge for B2B
+        }
+        
+        BigDecimal taxRate = taxRates.getOrDefault(country, BigDecimal.ZERO);
+        return amount.multiply(taxRate).divide(new BigDecimal("100"));
+    }
+    
+    private boolean isValidVAT(String taxId, String country) {
+        // Integrate with VIES or other VAT validation service
+        return taxId != null && taxId.matches("^[A-Z]{2}\\d+$");
+    }
+    
+    public Map<String, BigDecimal> getApplicableTaxes(String country, boolean isBusiness) {
+        Map<String, BigDecimal> taxes = new HashMap<>();
+        
+        if (isBusiness) {
+            // Business customers might have different rates
+        }
+        
+        BigDecimal rate = taxRates.getOrDefault(country, BigDecimal.ZERO);
+        if (rate.compareTo(BigDecimal.ZERO) > 0) {
+            taxes.put("VAT", rate);
+        }
+        
+        return taxes;
+    }
+}
