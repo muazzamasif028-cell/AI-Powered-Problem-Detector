@@ -1,0 +1,67 @@
+// tests/test-cards.js
+module.exports = {
+    // SafePay Test Cards
+    safepay: {
+        success: {
+            cardNumber: '4532789651234567',
+            expiry: '12/28',
+            cvv: '123',
+            name: 'Test Success'
+        },
+        failure: {
+            cardNumber: '5532789651234567',
+            expiry: '12/25',
+            cvv: '456',
+            name: 'Test Failure'
+        }
+    },
+    
+    // Stripe Test Cards
+    stripe: {
+        success: {
+            cardNumber: '4242424242424242',
+            expiry: '12/28',
+            cvv: '123',
+            name: 'Stripe Success'
+        },
+        requireAuth: {
+            cardNumber: '4000002500003155',
+            expiry: '12/28',
+            cvv: '123',
+            name: 'Requires 3D Secure'
+        },
+        decline: {
+            cardNumber: '4000000000000002',
+            expiry: '12/28',
+            cvv: '123',
+            name: 'Declined Card'
+        }
+    },
+    
+    // HBL Test Cards
+    hbl: {
+        success: {
+            cardNumber: '5123456789012346',
+            expiry: '12/28',
+            cvv: '123',
+            name: 'HBL Success'
+        }
+    },
+    
+    // JazzCash Test Accounts
+    jazzcash: {
+        wallet: {
+            mobile: '03001234567',
+            mpin: '1234',
+            otp: '123456'
+        }
+    },
+    
+    // EasyPaisa Test
+    easypaisa: {
+        wallet: {
+            mobile: '03451234567',
+            pin: '12345'
+        }
+    }
+};
