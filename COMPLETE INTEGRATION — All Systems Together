@@ -1,0 +1,102 @@
+// ============================================================
+// 🚀 supreme-planetary-os.js
+// SUPREME PLANETARY OS — Complete Integration
+// Telemetry + MPU Core + OTA + Security — All Ready
+// ============================================================
+const TelemetryAgent = require('./telemetry/agent/TelemetryAgent');
+const CentralProcessor = require('./mpu-core/CentralProcessor');
+const OTAAgent = require('./ota-system/OTAAgent');
+const E2EEncryption = require('./security/E2EEncryption');
+const DataIsolation = require('./security/DataIsolation');
+const SecureProcessor = require('./security/SecureProcessor');
+
+class SupremePlanetaryOS {
+    constructor(config = {}) {
+        console.log('🌍 Initializing SUPREME PLANETARY OS v14.0...');
+        
+        // Security layer first
+        this.encryption = new E2EEncryption(config.encryptionKey);
+        this.dataIsolation = new DataIsolation();
+        this.secureProcessor = new SecureProcessor();
+        
+        // Core systems
+        this.telemetry = new TelemetryAgent({
+            encryptionKey: config.encryptionKey,
+            serverEndpoint: config.telemetryEndpoint
+        });
+        
+        this.mpuCore = new CentralProcessor();
+        this.ota = new OTAAgent({
+            updateServer: config.updateServer,
+            autoUpdate: config.autoUpdate || false
+        });
+        
+        // Connect telemetry to MPU
+        this.telemetry.on('data', async (event) => {
+            await this.mpuCore.processEvent(event);
+        });
+        
+        // Connect MPU insights to OTA
+        this.mpuCore.on('autoFix:suggested', async (suggestion) => {
+            console.log('🔧 Auto-fix suggested:', suggestion);
+            await this.ota.installUpdates([suggestion.fix]);
+        });
+        
+        this.state = {
+            initialized: false,
+            startTime: null
+        };
+    }
+    
+    async initialize() {
+        console.log('🚀 Starting SUPREME PLANETARY OS...');
+        this.state.startTime = Date.now();
+        
+        // Initialize in sequence
+        await this.dataIsolation.initialize();
+        await this.secureProcessor.initialize();
+        await this.telemetry.initialize();
+        await this.mpuCore.initialize?.();
+        // OTA runs in background
+        
+        this.state.initialized = true;
+        
+        console.log('✅ SUPREME PLANETARY OS READY');
+        console.log('═══════════════════════════════');
+        console.log('🧠 MPU Core: Active');
+        console.log('📡 Telemetry: Active');
+        console.log('🔄 OTA System: Active');
+        console.log('🔐 Encryption: Active');
+        console.log('🛡️ Security: Active');
+        console.log('═══════════════════════════════');
+        
+        return this.getStatus();
+    }
+    
+    getStatus() {
+        return {
+            name: 'SUPREME PLANETARY OS',
+            version: '14.0.0',
+            initialized: this.state.initialized,
+            uptime: Date.now() - this.state.startTime,
+            systems: {
+                telemetry: this.telemetry.getStatus(),
+                mpuCore: this.mpuCore.getStatus(),
+                ota: this.ota.getStatus(),
+                security: {
+                    encryption: this.encryption.getStatus(),
+                    isolation: this.dataIsolation.getStatus()
+                }
+            }
+        };
+    }
+    
+    async shutdown() {
+        console.log('🛑 Shutting down SUPREME PLANETARY OS...');
+        await this.telemetry.shutdown();
+        await this.mpuCore.shutdown();
+        console.log('✅ Shutdown complete');
+    }
+}
+
+module.exports = SupremePlanetaryOS;
