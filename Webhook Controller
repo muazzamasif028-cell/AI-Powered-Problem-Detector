@@ -1,0 +1,88 @@
+// controller/WebhookController.java
+package com.supreme.billing.controller;
+
+import com.supreme.billing.service.*;
+import com.supreme.billing.gateway.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/webhooks")
+@RequiredArgsConstructor
+@Slf4j
+public class WebhookController {
+    
+    private final BillingService billingService;
+    private final WebhookVerificationService verificationService;
+    
+    @PostMapping("/payment/{gateway}")
+    public ResponseEntity<String> handlePaymentWebhook(
+            @PathVariable String gateway,
+            @RequestBody String payload,
+            @RequestHeader Map<String, String> headers) {
+        
+        log.info("Received webhook from {}: {}", gateway, payload);
+        
+        try {
+            // Verify webhook signature
+            if (!verificationService.verifySignature(gateway, payload, headers)) {
+                log.warn("Invalid webhook signature from {}", gateway);
+                return ResponseEntity.status(403).body("Invalid signature");
+            }
+            
+            Map<String, Object> event = parseEvent(payload);
+            String eventType = (String) event.get("type");
+            
+            switch (gateway.toUpperCase()) {
+                case "STRIPE":
+                    handleStripeWebhook(eventType, event);
+                    break;
+                case "SAFEPAY":
+                    handleSafePayWebhook(eventType, event);
+                    break;
+                case "PAYFAST":
+                    handlePayFastWebhook(eventType, event);
+                    break;
+                default:
+                    log.warn("Unknown gateway: {}", gateway);
+                    return ResponseEntity.badRequest().body("Unknown gateway");
+            }
+            
+            return ResponseEntity.ok("Webhook processed");
+            
+        } catch (Exception e) {
+            log.error("Failed to process webhook", e);
+            return ResponseEntity.status(500).body("Internal server error");
+        }
+    }
+    
+    private void handleStripeWebhook(String eventType, Map<String, Object> event) {
+        switch (eventType) {
+            case "payment_intent.succeeded":
+                String paymentIntentId = (String) ((Map)event.get("data")).get("id");
+                // Update payment status
+                break;
+            case "payment_intent.payment_failed":
+                // Handle failed payment
+                break;
+            case "invoice.payment_failed":
+                String subscriptionId = (String) ((Map)event.get("data")).get("subscription");
+                billingService.handleFailedPayment(subscriptionId);
+                break;
+            case "customer.subscription.deleted":
+                // Handle subscription cancellation
+                break;
+        }
+    }
+    
+    private void handleSafePayWebhook(String eventType, Map<String, Object> event) {
+        // SafePay specific webhook handling
+    }
+    
+    private void handlePayFastWebhook(String eventType, Map<String, Object> event) {
+        // PayFast specific webhook handling
+    }
+}
