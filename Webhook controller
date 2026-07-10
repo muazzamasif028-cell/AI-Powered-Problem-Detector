@@ -1,0 +1,175 @@
+// controllers/webhook.controller.js
+const PaymentService = require('../services/payment.service');
+const SubscriptionService = require('../services/subscription.service');
+
+class WebhookController {
+    
+    /**
+     * SafePay webhook handler
+     */
+    async handleSafePayWebhook(req, res) {
+        try {
+            const payload = req.body;
+            const signature = req.headers['x-safepay-signature'];
+            
+            // Verify signature
+            const gateway = GatewayFactory.getGateway('SAFEPAY');
+            const isValid = gateway.verifyWebhookSignature(
+                JSON.stringify(payload),
+                signature,
+                gateway.envConfig.webhookSecret
+            );
+            
+            if (!isValid) {
+                console.error('❌ Invalid SafePay webhook signature');
+                return res.status(403).json({ error: 'Invalid signature' });
+            }
+
+            console.log('📩 SafePay Webhook:', payload.type);
+
+            switch (payload.type) {
+                case 'transaction.completed':
+                    await PaymentService.verifyPayment(
+                        payload.data.order_id,
+                        'SAFEPAY'
+                    );
+                    
+                    // If it's a subscription payment, update subscription
+                    if (payload.data.metadata?.subscriptionId) {
+                        await SubscriptionService.handlePaymentSuccess(
+                            payload.data.metadata.subscriptionId,
+                            payload.data
+                        );
+                    }
+                    break;
+
+                case 'transaction.failed':
+                    await Transaction.updateOne(
+                        { transactionId: payload.data.order_id },
+                        { 
+                            status: 'FAILED',
+                            failureReason: payload.data.failure_reason,
+                            updatedAt: new Date()
+                        }
+                    );
+                    break;
+
+                case 'transaction.refunded':
+                    // Already handled in refund process
+                    break;
+            }
+
+            res.json({ received: true });
+
+        } catch (error) {
+            console.error('Webhook error:', error);
+            res.status(500).json({ error: 'Webhook processing failed' });
+        }
+    }
+
+    /**
+     * Stripe webhook handler
+     */
+    async handleStripeWebhook(req, res) {
+        try {
+            const signature = req.headers['stripe-signature'];
+            
+            const gateway = GatewayFactory.getGateway('STRIPE');
+            const event = gateway.stripe.webhooks.constructEvent(
+                req.body,
+                signature,
+                gateway.envConfig.webhookSecret
+            );
+
+            console.log('📩 Stripe Webhook:', event.type);
+
+            switch (event.type) {
+                case 'payment_intent.succeeded':
+                    const paymentIntent = event.data.object;
+                    await Transaction.updateOne(
+                        { transactionId: paymentIntent.id },
+                        { 
+                            status: 'SUCCESS',
+                            paidAt: new Date(),
+                            updatedAt: new Date()
+                        }
+                    );
+                    break;
+
+                case 'payment_intent.payment_failed':
+                    const failedIntent = event.data.object;
+                    await Transaction.updateOne(
+                        { transactionId: failedIntent.id },
+                        { 
+                            status: 'FAILED',
+                            failureReason: failedIntent.last_payment_error?.message,
+                            updatedAt: new Date()
+                        }
+                    );
+                    break;
+
+                case 'invoice.payment_succeeded':
+                    await SubscriptionService.handleInvoicePaid(event.data.object);
+                    break;
+
+                case 'invoice.payment_failed':
+                    await SubscriptionService.handleInvoiceFailed(event.data.object);
+                    break;
+
+                case 'customer.subscription.deleted':
+                    await SubscriptionService.handleSubscriptionCancelled(
+                        event.data.object
+                    );
+                    break;
+            }
+
+            res.json({ received: true });
+
+        } catch (error) {
+            console.error('Stripe webhook error:', error);
+            res.status(400).json({ error: error.message });
+        }
+    }
+
+    /**
+     * JazzCash webhook handler
+     */
+    async handleJazzCashWebhook(req, res) {
+        try {
+            const payload = req.body;
+            const gateway = GatewayFactory.getGateway('JAZZCASH');
+            
+            // Verify JazzCash response
+            if (!gateway.verifyResponse(payload)) {
+                console.error('❌ Invalid JazzCash response');
+                return res.status(403).json({ error: 'Invalid signature' });
+            }
+
+            const responseCode = payload.pp_ResponseCode;
+            
+            if (responseCode === '000') {
+                await PaymentService.verifyPayment(
+                    payload.pp_TxnRefNo,
+                    'JAZZCASH'
+                );
+            } else {
+                await Transaction.updateOne(
+                    { transactionId: payload.pp_TxnRefNo },
+                    { 
+                        status: 'FAILED',
+                        failureReason: payload.pp_ResponseMessage,
+                        updatedAt: new Date()
+                    }
+                );
+            }
+
+            res.json({ received: true });
+
+        } catch (error) {
+            console.error('JazzCash webhook error:', error);
+            res.status(500).json({ error: 'Webhook processing failed' });
+        }
+    }
+}
+
+module.exports = new WebhookController();
