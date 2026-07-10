@@ -1,0 +1,49 @@
+# k8s/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supreme-billing
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: supreme-billing
+  template:
+    metadata:
+      labels:
+        app: supreme-billing
+    spec:
+      containers:
+      - name: supreme-billing
+        image: supreme/billing:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: supreme-secrets
+              key: db-username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: supreme-secrets
+              key: db-password
+        - name: STRIPE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: supreme-secrets
+              key: stripe-api-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supreme-billing-service
+spec:
+  selector:
+    app: supreme-billing
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: LoadBalancer
