@@ -1,0 +1,216 @@
+// model/Plan.java
+package com.supreme.billing.model;
+
+import lombok.Data;
+import lombok.Builder;
+import javax.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Set;
+
+@Entity
+@Table(name = "plans")
+@Data
+@Builder
+public class Plan {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private String id;
+    
+    @Column(nullable = false)
+    private String name;
+    
+    @Column(nullable = false)
+    private BigDecimal price;
+    
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private Currency currency;
+    
+    @Enumerated(EnumType.STRING)
+    private BillingCycle billingCycle;
+    
+    @ElementCollection
+    @CollectionTable(name = "plan_features")
+    private Set<String> features;
+    
+    private Integer trialDays;
+    
+    private Integer maxUsers;
+    
+    private BigDecimal setupFee;
+    
+    @Enumerated(EnumType.STRING)
+    private PlanStatus status;
+    
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    
+    public enum BillingCycle {
+        MONTHLY, QUARTERLY, YEARLY, CUSTOM
+    }
+    
+    public enum PlanStatus {
+        ACTIVE, INACTIVE, ARCHIVED
+    }
+}
+
+// model/Subscription.java
+package com.supreme.billing.model;
+
+import lombok.Data;
+import lombok.Builder;
+import javax.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "subscriptions")
+@Data
+@Builder
+public class Subscription {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private String id;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User user;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Plan plan;
+    
+    @Enumerated(EnumType.STRING)
+    private SubscriptionStatus status;
+    
+    private LocalDateTime startDate;
+    private LocalDateTime endDate;
+    private LocalDateTime trialEndDate;
+    private LocalDateTime nextBillingDate;
+    
+    private boolean autoRenew;
+    
+    private BigDecimal currentPrice;
+    
+    @Enumerated(EnumType.STRING)
+    private Currency currency;
+    
+    @OneToMany(mappedBy = "subscription", cascade = CascadeType.ALL)
+    private List<Invoice> invoices;
+    
+    @OneToMany(mappedBy = "subscription", cascade = CascadeType.ALL)
+    private List<Payment> payments;
+    
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    
+    public enum SubscriptionStatus {
+        TRIAL, ACTIVE, PAST_DUE, CANCELLED, EXPIRED, SUSPENDED
+    }
+}
+
+// model/Invoice.java
+package com.supreme.billing.model;
+
+import lombok.Data;
+import lombok.Builder;
+import javax.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Entity
+@Table(name = "invoices")
+@Data
+@Builder
+public class Invoice {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private String id;
+    
+    @Column(unique = true)
+    private String invoiceNumber;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User user;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Subscription subscription;
+    
+    private BigDecimal subtotal;
+    private BigDecimal taxAmount;
+    private BigDecimal discountAmount;
+    private BigDecimal total;
+    
+    @Enumerated(EnumType.STRING)
+    private Currency currency;
+    
+    @Enumerated(EnumType.STRING)
+    private InvoiceStatus status;
+    
+    private LocalDateTime dueDate;
+    private LocalDateTime paidAt;
+    
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL)
+    private List<InvoiceItem> items;
+    
+    private String taxId;
+    private String companyName;
+    private String billingAddress;
+    private String country;
+    
+    private LocalDateTime createdAt;
+    
+    public enum InvoiceStatus {
+        DRAFT, PENDING, PAID, OVERDUE, CANCELLED, REFUNDED
+    }
+}
+
+// model/Coupon.java
+package com.supreme.billing.model;
+
+import lombok.Data;
+import lombok.Builder;
+import javax.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "coupons")
+@Data
+@Builder
+public class Coupon {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private String id;
+    
+    @Column(unique = true, nullable = false)
+    private String code;
+    
+    private String description;
+    
+    @Enumerated(EnumType.STRING)
+    private DiscountType discountType;
+    
+    private BigDecimal discountValue;
+    
+    private Integer maxUses;
+    private Integer currentUses;
+    
+    private BigDecimal minOrderAmount;
+    
+    private LocalDateTime validFrom;
+    private LocalDateTime validUntil;
+    
+    @Enumerated(EnumType.STRING)
+    private CouponStatus status;
+    
+    private boolean stackable;
+    
+    public enum DiscountType {
+        PERCENTAGE, FIXED_AMOUNT, TRIAL_EXTENSION
+    }
+    
+    public enum CouponStatus {
+        ACTIVE, EXPIRED, EXHAUSTED, DISABLED
+    }
+}
