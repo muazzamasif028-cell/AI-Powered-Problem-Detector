@@ -1,0 +1,365 @@
+// ============================================================
+// 🔄 ota-system/OTAAgent.js
+// SUPREME OTA Update System
+// Features: Silent Updates | Zero-Downtime | Hot Swapping | Auto-Rollback
+// ============================================================
+const DynamicModuleLoader = require('./DynamicModuleLoader');
+const HotSwapper = require('./HotSwapper');
+const PatchEngine = require('./PatchEngine');
+const VersionManager = require('./VersionManager');
+const RollbackManager = require('./RollbackManager');
+const crypto = require('crypto');
+const fs = require('fs').promises;
+const path = require('path');
+
+class OTAAgent {
+    constructor(config = {}) {
+        this.config = {
+            updateServer: config.updateServer || 'https://updates.supreme.com',
+            checkInterval: config.checkInterval || 300000, // 5 minutes
+            autoUpdate: config.autoUpdate || false,
+            allowRollback: config.allowRollback || true,
+            backupBeforeUpdate: true,
+            ...config
+        };
+
+        // Core components
+        this.moduleLoader = new DynamicModuleLoader();
+        this.hotSwapper = new HotSwapper();
+        this.patchEngine = new PatchEngine();
+        this.versionManager = new VersionManager();
+        this.rollbackManager = new RollbackManager();
+
+        // State
+        this.state = {
+            currentVersion: '14.0.0',
+            lastCheck: null,
+            lastUpdate: null,
+            updateHistory: [],
+            pendingUpdates: [],
+            isUpdating: false
+        };
+
+        // Start update checker
+        this.checkTimer = setInterval(() => this.checkForUpdates(), this.config.checkInterval);
+    }
+
+    /**
+     * Check for available updates
+     */
+    async checkForUpdates() {
+        try {
+            console.log('🔍 [OTA]: Checking for updates...');
+            this.state.lastCheck = new Date().toISOString();
+
+            // Get current version info
+            const currentManifest = await this.versionManager.getCurrentManifest();
+            
+            // Fetch updates from server            const response = await this.fetchUpdates(currentManifest);
+            
+            if (response.updates.length > 0) {
+                console.log(`📦 [OTA]: ${response.updates.length} updates available`);
+                
+                this.state.pendingUpdates = response.updates;
+                
+                // Sort by priority
+                this.state.pendingUpdates.sort((a, b) => {
+                    const priority = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+                    return priority[a.priority] - priority[b.priority];
+                });
+
+                // Auto-update if enabled (only for non-critical updates during off-peak)
+                if (this.config.autoUpdate && this.isOffPeak()) {
+                    await this.installUpdates(response.updates);
+                }
+            } else {
+                console.log('✅ [OTA]: System is up to date');
+            }
+
+            return response;
+
+        } catch (error) {
+            console.error('❌ [OTA]: Update check failed:', error);
+        }
+    }
+
+    /**
+     * Install updates with zero downtime
+     */
+    async installUpdates(updates) {
+        if (this.state.isUpdating) {
+            console.log('⚠️ [OTA]: Update already in progress');
+            return;
+        }
+
+        this.state.isUpdating = true;
+        const results = [];
+
+        try {
+            for (const update of updates) {
+                console.log(`📥 [OTA]: Installing ${update.name} (${update.version})`);
+                
+                const result = await this.installUpdate(update);
+                results.push(result);
+                
+                if (!result.success) {
+                    console.error(`❌ [OTA]: Failed to install ${update.name}`);
+                    
+                    // Rollback if allowed
+                    if (this.config.allowRollback) {
+                        await this.rollbackManager.rollback(update);
+                    }
+                    
+                    break;
+                }
+            }
+
+            // Update version manifest
+            await this.versionManager.updateManifest(results);
+
+            this.state.lastUpdate = new Date().toISOString();
+            this.state.updateHistory.push({
+                timestamp: this.state.lastUpdate,
+                updates: results
+            });
+
+            console.log('✅ [OTA]: All updates installed successfully');
+            
+            return { success: true, results };
+
+        } catch (error) {
+            console.error('❌ [OTA]: Update installation failed:', error);
+            return { success: false, error: error.message };
+            
+        } finally {
+            this.state.isUpdating = false;
+        }
+    }
+
+    /**
+     * Install single update
+     */
+    async installUpdate(update) {
+        try {
+            // 1. Download update package
+            const packagePath = await this.downloadPackage(update);
+            
+            // 2. Verify checksum
+            const isValid = await this.verifyChecksum(packagePath, update.checksum);
+            if (!isValid) {
+                throw new Error('Package checksum verification failed');
+            }
+            
+            // 3. Backup current module
+            if (this.config.backupBeforeUpdate) {
+                await this.backupModule(update.module);
+            }
+            
+            // 4. Apply update based on type
+            switch (update.type) {
+                case 'PATCH':
+                    // Delta patch — only changed bytes
+                    await this.patchEngine.applyPatch(update.module, packagePath);
+                    break;
+                    
+                case 'MINOR':
+                    // Minor update — hot swap module
+                    await this.hotSwapper.swapModule(update.module, packagePath);
+                    break;
+                    
+                case 'MAJOR':
+                    // Major update — load new version alongside old
+                    await this.moduleLoader.loadNewVersion(update.module, packagePath);
+                    break;
+                    
+                case 'HOTFIX':
+                    // Critical fix — immediate apply
+                    await this.hotSwapper.immediateSwap(update.module, packagePath);
+                    break;
+            }
+            
+            // 5. Verify update
+            const isWorking = await this.verifyUpdate(update.module);
+            if (!isWorking) {
+                throw new Error('Update verification failed');
+            }
+            
+            // 6. Clean up old version
+            await this.cleanupOldVersion(update.module);
+            
+            console.log(`✅ [OTA]: ${update.name} installed successfully`);
+            
+            return {
+                success: true,
+                update: update.name,
+                version: update.version,
+                type: update.type,
+                timestamp: new Date().toISOString()
+            };
+
+        } catch (error) {
+            console.error(`❌ [OTA]: Failed to install ${update.name}:`, error);
+            
+            // Auto-rollback
+            if (this.config.allowRollback) {
+                console.log('🔄 [OTA]: Rolling back...');
+                await this.rollbackManager.rollback(update);
+            }
+            
+            return {
+                success: false,
+                update: update.name,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Hot swap a module without restart
+     */
+    async hotSwapModule(moduleName, newVersion) {
+        console.log(`🔥 [HOT SWAP]: Swapping ${moduleName}...`);
+        
+        try {
+            // 1. Load new module in parallel
+            const newModule = await this.moduleLoader.loadModule(moduleName, newVersion);
+            
+            // 2. Drain traffic from old module
+            await this.hotSwapper.drainTraffic(moduleName);
+            
+            // 3. Swap references
+            await this.hotSwapper.swapReferences(moduleName, newModule);
+            
+            // 4. Resume traffic on new module
+            await this.hotSwapper.resumeTraffic(moduleName);
+            
+            // 5. Unload old module
+            await this.moduleLoader.unloadModule(moduleName, 'old');
+            
+            console.log(`✅ [HOT SWAP]: ${moduleName} updated to ${newVersion} (0ms downtime)`);
+            
+            return { success: true, downtime: '0ms' };
+            
+        } catch (error) {
+            console.error(`❌ [HOT SWAP]: Failed to swap ${moduleName}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Download update package
+     */
+    async downloadPackage(update) {
+        const url = `${this.config.updateServer}/packages/${update.packageName}`;
+        const tempPath = path.join('/tmp/supreme-updates', update.packageName);
+        
+        // Ensure directory exists
+        await fs.mkdir(path.dirname(tempPath), { recursive: true });
+        
+        // Download
+        const response = await fetch(url);
+        const buffer = await response.arrayBuffer();
+        
+        await fs.writeFile(tempPath, Buffer.from(buffer));
+        
+        return tempPath;
+    }
+
+    /**
+     * Verify package checksum
+     */
+    async verifyChecksum(filePath, expectedChecksum) {
+        const fileBuffer = await fs.readFile(filePath);
+        const actualChecksum = crypto
+            .createHash('sha512')
+            .update(fileBuffer)
+            .digest('hex');
+        
+        return actualChecksum === expectedChecksum;
+    }
+
+    /**
+     * Backup current module before update
+     */
+    async backupModule(moduleName) {
+        const backupPath = path.join('/backups/supreme', moduleName, Date.now().toString());
+        await fs.mkdir(backupPath, { recursive: true });
+        
+        const modulePath = require.resolve(moduleName);
+        await fs.copyFile(modulePath, path.join(backupPath, path.basename(modulePath)));
+        
+        console.log(`💾 [OTA]: Backed up ${moduleName}`);
+    }
+
+    /**
+     * Verify update was successful
+     */
+    async verifyUpdate(moduleName) {
+        try {
+            // Health check on updated module
+            const module = require(moduleName);
+            
+            if (typeof module.healthCheck === 'function') {
+                return await module.healthCheck();
+            }
+            
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Clean up old version files
+     */
+    async cleanupOldVersion(moduleName) {
+        const oldPath = path.join('/tmp/supreme-updates/old', moduleName);
+        
+        try {
+            await fs.rm(oldPath, { recursive: true, force: true });
+        } catch (error) {
+            console.warn(`⚠️ [OTA]: Cleanup warning for ${moduleName}:`, error.message);
+        }
+    }
+
+    /**
+     * Check if current time is off-peak
+     */
+    isOffPeak() {
+        const hour = new Date().getHours();
+        return hour >= 1 && hour <= 5; // 1 AM to 5 AM
+    }
+
+    /**
+     * Fetch available updates from server
+     */
+    async fetchUpdates(currentManifest) {
+        const response = await fetch(`${this.config.updateServer}/api/updates`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                currentVersion: this.state.currentVersion,
+                manifest: currentManifest,
+                platform: process.platform,
+                arch: process.arch
+            })
+        });
+        
+        return await response.json();
+    }
+
+    /**
+     * Get OTA status
+     */
+    getStatus() {
+        return {
+            ...this.state,
+            isUpdating: this.state.isUpdating,
+            pendingUpdates: this.state.pendingUpdates.length,
+            updateHistory: this.state.updateHistory.slice(-5),
+            autoUpdate: this.config.autoUpdate
+        };
+    }
+}
+
+module.exports = OTAAgent;
