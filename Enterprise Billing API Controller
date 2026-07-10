@@ -1,0 +1,131 @@
+// controller/BillingController.java
+package com.supreme.billing.controller;
+
+import com.supreme.billing.dto.*;
+import com.supreme.billing.service.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import javax.validation.Valid;
+
+@RestController
+@RequestMapping("/api/v1/billing")
+@RequiredArgsConstructor
+@Tag(name = "Billing API", description = "Enterprise billing and subscription management")
+public class BillingController {
+    
+    private final BillingService billingService;
+    private final InvoiceService invoiceService;
+    private final CouponService couponService;
+    private final PlanService planService;
+    private final AnalyticsService analyticsService;
+    
+    @PostMapping("/subscribe")
+    @Operation(summary = "Create new subscription")
+    public ResponseEntity<SubscriptionResponse> subscribe(
+            @Valid @RequestBody SubscriptionRequest request) {
+        return ResponseEntity.ok(billingService.createSubscription(request));
+    }
+    
+    @PostMapping("/cancel/{subscriptionId}")
+    @Operation(summary = "Cancel subscription")
+    public ResponseEntity<InvoiceResponse> cancel(
+            @PathVariable String subscriptionId,
+            @Valid @RequestBody CancelRequest request) {
+        return ResponseEntity.ok(billingService.cancelSubscription(subscriptionId, request));
+    }
+    
+    @PostMapping("/upgrade/{subscriptionId}")
+    @Operation(summary = "Upgrade subscription plan")
+    public ResponseEntity<SubscriptionResponse> upgrade(
+            @PathVariable String subscriptionId,
+            @Valid @RequestBody UpgradeRequest request) {
+        return ResponseEntity.ok(billingService.upgradeSubscription(subscriptionId, request));
+    }
+    
+    @PostMapping("/downgrade/{subscriptionId}")
+    @Operation(summary = "Downgrade subscription plan")
+    public ResponseEntity<SubscriptionResponse> downgrade(
+            @PathVariable String subscriptionId,
+            @Valid @RequestBody DowngradeRequest request) {
+        return ResponseEntity.ok(billingService.downgradeSubscription(subscriptionId, request));
+    }
+    
+    @GetMapping("/invoices")
+    @Operation(summary = "Get customer invoices")
+    public ResponseEntity<List<InvoiceResponse>> getInvoices(
+            @RequestParam String userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(invoiceService.getUserInvoices(userId, page, size));
+    }
+    
+    @GetMapping("/invoice/{invoiceId}/pdf")
+    @Operation(summary = "Download invoice PDF")
+    public ResponseEntity<byte[]> downloadInvoice(@PathVariable String invoiceId) {
+        byte[] pdf = invoiceService.generateInvoicePdf(invoiceId);
+        return ResponseEntity.ok()
+            .header("Content-Type", "application/pdf")
+            .header("Content-Disposition", "attachment; filename=invoice-" + invoiceId + ".pdf")
+            .body(pdf);
+    }
+    
+    @PostMapping("/coupon/validate")
+    @Operation(summary = "Validate coupon code")
+    public ResponseEntity<CouponResponse> validateCoupon(
+            @Valid @RequestBody CouponValidateRequest request) {
+        return ResponseEntity.ok(couponService.validateCoupon(request));
+    }
+    
+    @PostMapping("/payment-method")
+    @Operation(summary = "Add payment method")
+    public ResponseEntity<PaymentMethodResponse> addPaymentMethod(
+            @Valid @RequestBody PaymentMethodRequest request) {
+        return ResponseEntity.ok(billingService.addPaymentMethod(request));
+    }
+    
+    @GetMapping("/usage/{subscriptionId}")
+    @Operation(summary = "Get usage metrics")
+    public ResponseEntity<UsageResponse> getUsage(@PathVariable String subscriptionId) {
+        return ResponseEntity.ok(billingService.getUsage(subscriptionId));
+    }
+    
+    // Admin endpoints
+    @GetMapping("/admin/revenue")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get revenue analytics")
+    public ResponseEntity<RevenueResponse> getRevenue(
+            @RequestParam(defaultValue = "MONTHLY") String period) {
+        return ResponseEntity.ok(analyticsService.getRevenue(period));
+    }
+    
+    @GetMapping("/admin/mrr")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BigDecimal> getMRR() {
+        return ResponseEntity.ok(analyticsService.calculateMRR());
+    }
+    
+    @GetMapping("/admin/arr")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BigDecimal> getARR() {
+        return ResponseEntity.ok(analyticsService.calculateARR());
+    }
+    
+    @GetMapping("/admin/churn")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ChurnResponse> getChurnRate(
+            @RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(analyticsService.calculateChurnRate(days));
+    }
+    
+    @PostMapping("/admin/refund/{paymentId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<RefundResponse> processRefund(
+            @PathVariable String paymentId,
+            @Valid @RequestBody RefundRequest request) {
+        return ResponseEntity.ok(billingService.processRefund(paymentId, request));
+    }
+}
