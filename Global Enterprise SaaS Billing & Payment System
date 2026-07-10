@@ -1,0 +1,1413 @@
+# ============================================
+# SUPREME ENTERPRISE BILLING SYSTEM
+# Global SaaS Payment Infrastructure
+# Pakistan + International Ready
+# ============================================
+
+import asyncio
+import hashlib
+import hmac
+import json
+import logging
+import uuid
+from datetime import datetime, timedelta
+from decimal import Decimal
+from enum import Enum
+from typing import Dict, List, Optional, Any, Union
+from dataclasses import dataclass, asdict
+from abc import ABC, abstractmethod
+import stripe
+import requests
+from cryptography.fernet import Fernet
+from fastapi import FastAPI, HTTPException, Request, Depends, Header
+from fastapi.security import HTTPBearer
+from sqlalchemy import create_engine, Column, String, Numeric, DateTime, Boolean, JSON, Integer, ForeignKey, Enum as SQLEnum
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session, relationship
+from redis import Redis
+from celery import Celery
+import boto3
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+
+# ============================================
+# CONFIGURATION & ENUMS
+# ============================================
+
+class BillingCycle(str, Enum):
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    YEARLY = "yearly"
+    CUSTOM = "custom"
+
+class PaymentStatus(str, Enum):
+    PENDING = "pending"
+    SUCCESS = "success"
+    FAILED = "failed"
+    REFUNDED = "refunded"
+    PARTIALLY_REFUNDED = "partially_refunded"
+    CHARGEBACK = "chargeback"
+
+class SubscriptionStatus(str, Enum):
+    TRIAL = "trial"
+    ACTIVE = "active"
+    PAST_DUE = "past_due"
+    CANCELED = "canceled"
+    EXPIRED = "expired"
+    SUSPENDED = "suspended"
+
+class Currency(str, Enum):
+    USD = "USD"
+    EUR = "EUR"
+    GBP = "GBP"
+    PKR = "PKR"
+    AED = "AED"
+    SAR = "SAR"
+
+class GatewayType(str, Enum):
+    STRIPE = "stripe"
+    PAYPAL = "paypal"
+    PAYFAST_PK = "payfast_pk"
+    SAFEPAY = "safepay"
+    HBL = "hbl"
+    JAZZCASH = "jazzcash"
+    EASYPAISA = "easypaisa"
+
+class InvoiceType(str, Enum):
+    SUBSCRIPTION = "subscription"
+    ONE_TIME = "one_time"
+    REFUND = "refund"
+    CREDIT_NOTE = "credit_note"
+
+# ============================================
+# DATABASE MODELS (SQLAlchemy)
+# ============================================
+
+Base = declarative_base()
+
+class Organization(Base):
+    __tablename__ = "organizations"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+    country = Column(String(2), nullable=False)  # ISO country code
+    vat_number = Column(String(50))
+    tax_exempt = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    subscriptions = relationship("Subscription", back_populates="organization")
+    invoices = relationship("Invoice", back_populates="organization")
+    payment_methods = relationship("PaymentMethod", back_populates="organization")
+
+class Plan(Base):
+    __tablename__ = "plans"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(100), nullable=False)
+    description = Column(String(500))
+    price = Column(Numeric(10, 2), nullable=False)
+    currency = Column(String(3), default="USD")
+    billing_cycle = Column(SQLEnum(BillingCycle), default=BillingCycle.MONTHLY)
+    features = Column(JSON)
+    limits = Column(JSON)
+    trial_days = Column(Integer, default=14)
+    is_public = Column(Boolean, default=True)
+    status = Column(String(20), default="active")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    organization_id = Column(String(36), ForeignKey("organizations.id"))
+    plan_id = Column(String(36), ForeignKey("plans.id"))
+    status = Column(SQLEnum(SubscriptionStatus), default=SubscriptionStatus.TRIAL)
+    current_period_start = Column(DateTime)
+    current_period_end = Column(DateTime)
+    trial_end = Column(DateTime)
+    canceled_at = Column(DateTime)
+    auto_renew = Column(Boolean, default=True)
+    quantity = Column(Integer, default=1)
+    unit_price = Column(Numeric(10, 2))
+    metadata = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    organization = relationship("Organization", back_populates="subscriptions")
+    invoices = relationship("Invoice", back_populates="subscription")
+
+class Invoice(Base):
+    __tablename__ = "invoices"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    invoice_number = Column(String(50), unique=True, nullable=False)
+    organization_id = Column(String(36), ForeignKey("organizations.id"))
+    subscription_id = Column(String(36), ForeignKey("subscriptions.id"))
+    type = Column(SQLEnum(InvoiceType))
+    amount = Column(Numeric(10, 2), nullable=False)
+    tax_amount = Column(Numeric(10, 2), default=0)
+    total_amount = Column(Numeric(10, 2), nullable=False)
+    currency = Column(String(3), default="USD")
+    status = Column(SQLEnum(PaymentStatus), default=PaymentStatus.PENDING)
+    due_date = Column(DateTime)
+    paid_at = Column(DateTime)
+    pdf_url = Column(String(500))
+    metadata = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    organization = relationship("Organization", back_populates="invoices")
+    subscription = relationship("Subscription", back_populates="invoices")
+    payment = relationship("Payment", back_populates="invoice", uselist=False)
+
+class Payment(Base):
+    __tablename__ = "payments"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    invoice_id = Column(String(36), ForeignKey("invoices.id"))
+    gateway = Column(SQLEnum(GatewayType))
+    gateway_payment_id = Column(String(255))
+    amount = Column(Numeric(10, 2), nullable=False)
+    currency = Column(String(3), default="USD")
+    status = Column(SQLEnum(PaymentStatus), default=PaymentStatus.PENDING)
+    payment_method_id = Column(String(36), ForeignKey("payment_methods.id"))
+    metadata = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    invoice = relationship("Invoice", back_populates="payment")
+
+class PaymentMethod(Base):
+    __tablename__ = "payment_methods"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    organization_id = Column(String(36), ForeignKey("organizations.id"))
+    gateway = Column(SQLEnum(GatewayType))
+    gateway_token = Column(String(500))  # Encrypted token
+    type = Column(String(50))  # card, bank_transfer, wallet
+    last_four = Column(String(4))
+    expiry_month = Column(Integer)
+    expiry_year = Column(Integer)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    organization = relationship("Organization", back_populates="payment_methods")
+
+class Coupon(Base):
+    __tablename__ = "coupons"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    code = Column(String(50), unique=True, nullable=False)
+    discount_type = Column(String(20))  # percentage, fixed
+    discount_value = Column(Numeric(10, 2))
+    max_uses = Column(Integer)
+    current_uses = Column(Integer, default=0)
+    expiry_date = Column(DateTime)
+    min_amount = Column(Numeric(10, 2))
+    plans = Column(JSON)  # Applicable plan IDs
+    status = Column(String(20), default="active")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class TaxRate(Base):
+    __tablename__ = "tax_rates"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    country = Column(String(2), nullable=False)
+    state = Column(String(100))
+    tax_type = Column(String(20))  # vat, gst, sales_tax
+    rate = Column(Numeric(5, 2), nullable=False)
+    name = Column(String(100))
+    status = Column(String(20), default="active")
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    type = Column(String(50))  # payment, refund, chargeback
+    amount = Column(Numeric(10, 2))
+    currency = Column(String(3))
+    status = Column(String(20))
+    metadata = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Refund(Base):
+    __tablename__ = "refunds"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    payment_id = Column(String(36), ForeignKey("payments.id"))
+    amount = Column(Numeric(10, 2))
+    reason = Column(String(500))
+    status = Column(String(20))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36))
+    action = Column(String(100))
+    entity_type = Column(String(50))
+    entity_id = Column(String(36))
+    changes = Column(JSON)
+    ip_address = Column(String(45))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# ============================================
+# ABSTRACT GATEWAY INTERFACE
+# ============================================
+
+class PaymentGatewayInterface(ABC):
+    @abstractmethod
+    async def create_payment(self, amount: Decimal, currency: str, metadata: Dict) -> Dict:
+        pass
+    
+    @abstractmethod
+    async def capture_payment(self, payment_id: str) -> Dict:
+        pass
+    
+    @abstractmethod
+    async def refund_payment(self, payment_id: str, amount: Optional[Decimal] = None) -> Dict:
+        pass
+    
+    @abstractmethod
+    async def create_subscription(self, customer_id: str, plan_id: str) -> Dict:
+        pass
+    
+    @abstractmethod
+    async def cancel_subscription(self, subscription_id: str) -> Dict:
+        pass
+    
+    @abstractmethod
+    async def get_payment_status(self, payment_id: str) -> Dict:
+        pass
+    
+    @abstractmethod
+    async def validate_webhook(self, payload: Dict, signature: str) -> bool:
+        pass
+
+# ============================================
+# GATEWAY IMPLEMENTATIONS
+# ============================================
+
+class StripeGateway(PaymentGatewayInterface):
+    def __init__(self, api_key: str, webhook_secret: str):
+        stripe.api_key = api_key
+        self.webhook_secret = webhook_secret
+    
+    async def create_payment(self, amount: Decimal, currency: str, metadata: Dict) -> Dict:
+        try:
+            intent = stripe.PaymentIntent.create(
+                amount=int(amount * 100),  # Convert to cents
+                currency=currency.lower(),
+                metadata=metadata,
+                automatic_payment_methods={"enabled": True}
+            )
+            return {
+                "gateway_payment_id": intent.id,
+                "client_secret": intent.client_secret,
+                "status": intent.status
+            }
+        except stripe.error.StripeError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    
+    async def capture_payment(self, payment_id: str) -> Dict:
+        intent = stripe.PaymentIntent.retrieve(payment_id)
+        return {"status": intent.status, "amount": intent.amount / 100}
+    
+    async def refund_payment(self, payment_id: str, amount: Optional[Decimal] = None) -> Dict:
+        refund_data = {"payment_intent": payment_id}
+        if amount:
+            refund_data["amount"] = int(amount * 100)
+        refund = stripe.Refund.create(**refund_data)
+        return {"refund_id": refund.id, "status": refund.status}
+    
+    async def create_subscription(self, customer_id: str, price_id: str) -> Dict:
+        subscription = stripe.Subscription.create(
+            customer=customer_id,
+            items=[{"price": price_id}],
+            payment_behavior="default_incomplete",
+            expand=["latest_invoice.payment_intent"]
+        )
+        return {
+            "subscription_id": subscription.id,
+            "status": subscription.status,
+            "client_secret": subscription.latest_invoice.payment_intent.client_secret
+        }
+    
+    async def cancel_subscription(self, subscription_id: str) -> Dict:
+        subscription = stripe.Subscription.delete(subscription_id)
+        return {"subscription_id": subscription.id, "status": subscription.status}
+    
+    async def get_payment_status(self, payment_id: str) -> Dict:
+        intent = stripe.PaymentIntent.retrieve(payment_id)
+        return {"status": intent.status}
+    
+    async def validate_webhook(self, payload: bytes, signature: str) -> bool:
+        try:
+            stripe.Webhook.construct_event(payload, signature, self.webhook_secret)
+            return True
+        except Exception:
+            return False
+
+class PayFastPKGateway(PaymentGatewayInterface):
+    def __init__(self, merchant_id: str, secret_key: str, base_url: str):
+        self.merchant_id = merchant_id
+        self.secret_key = secret_key
+        self.base_url = base_url
+    
+    async def create_payment(self, amount: Decimal, currency: str, metadata: Dict) -> Dict:
+        # PayFast Pakistan API Integration
+        payload = {
+            "merchant_id": self.merchant_id,
+            "amount": str(amount),
+            "currency": currency,
+            "order_id": metadata.get("order_id"),
+            "return_url": metadata.get("return_url"),
+            "cancel_url": metadata.get("cancel_url")
+        }
+        
+        # Generate signature
+        signature = self._generate_signature(payload)
+        payload["signature"] = signature
+        
+        response = requests.post(f"{self.base_url}/api/payment/create", json=payload)
+        return response.json()
+    
+    def _generate_signature(self, payload: Dict) -> str:
+        # Pakistan payment gateway signature generation
+        data_string = "&".join([f"{k}={v}" for k, v in sorted(payload.items())])
+        return hashlib.sha256(f"{data_string}{self.secret_key}".encode()).hexdigest()
+    
+    async def capture_payment(self, payment_id: str) -> Dict:
+        response = requests.get(f"{self.base_url}/api/payment/{payment_id}", 
+                               headers={"Authorization": f"Bearer {self.secret_key}"})
+        return response.json()
+    
+    async def refund_payment(self, payment_id: str, amount: Optional[Decimal] = None) -> Dict:
+        payload = {"payment_id": payment_id}
+        if amount:
+            payload["amount"] = str(amount)
+        
+        response = requests.post(f"{self.base_url}/api/refund", 
+                                json=payload,
+                                headers={"Authorization": f"Bearer {self.secret_key}"})
+        return response.json()
+    
+    async def create_subscription(self, customer_id: str, plan_id: str) -> Dict:
+        # PayFast subscription setup
+        pass
+    
+    async def cancel_subscription(self, subscription_id: str) -> Dict:
+        pass
+    
+    async def get_payment_status(self, payment_id: str) -> Dict:
+        response = requests.get(f"{self.base_url}/api/payment/status/{payment_id}")
+        return response.json()
+    
+    async def validate_webhook(self, payload: Dict, signature: str) -> bool:
+        computed = self._generate_signature(payload)
+        return hmac.compare_digest(computed, signature)
+
+class HBLGateway(PaymentGatewayInterface):
+    def __init__(self, client_id: str, client_secret: str, base_url: str):
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.base_url = base_url
+        self.access_token = None
+    
+    async def _get_token(self) -> str:
+        # OAuth2 token for HBL Payment Gateway
+        auth_response = requests.post(
+            f"{self.base_url}/oauth/token",
+            json={
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "grant_type": "client_credentials"
+            }
+        )
+        return auth_response.json()["access_token"]
+    
+    async def create_payment(self, amount: Decimal, currency: str, metadata: Dict) -> Dict:
+        token = await self._get_token()
+        
+        payload = {
+            "amount": str(amount),
+            "currency": currency,
+            "merchant_id": self.client_id,
+            "order_id": metadata.get("order_id"),
+            "callback_url": metadata.get("callback_url")
+        }
+        
+        response = requests.post(
+            f"{self.base_url}/api/v1/payments",
+            json=payload,
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        return response.json()
+    
+    async def capture_payment(self, payment_id: str) -> Dict:
+        token = await self._get_token()
+        response = requests.get(
+            f"{self.base_url}/api/v1/payments/{payment_id}",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        return response.json()
+    
+    async def refund_payment(self, payment_id: str, amount: Optional[Decimal] = None) -> Dict:
+        token = await self._get_token()
+        payload = {"amount": str(amount)} if amount else {}
+        
+        response = requests.post(
+            f"{self.base_url}/api/v1/payments/{payment_id}/refund",
+            json=payload,
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        return response.json()
+    
+    async def create_subscription(self, customer_id: str, plan_id: str) -> Dict:
+        token = await self._get_token()
+        # HBL subscription logic
+        pass
+    
+    async def cancel_subscription(self, subscription_id: str) -> Dict:
+        pass
+    
+    async def get_payment_status(self, payment_id: str) -> Dict:
+        token = await self._get_token()
+        response = requests.get(
+            f"{self.base_url}/api/v1/payments/{payment_id}/status",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        return response.json()
+    
+    async def validate_webhook(self, payload: Dict, signature: str) -> bool:
+        # HBL webhook validation
+        computed = hashlib.sha256(
+            f"{json.dumps(payload)}{self.client_secret}".encode()
+        ).hexdigest()
+        return hmac.compare_digest(computed, signature)
+
+class JazzCashGateway(PaymentGatewayInterface):
+    def __init__(self, merchant_id: str, password: str, base_url: str):
+        self.merchant_id = merchant_id
+        self.password = password
+        self.base_url = base_url
+    
+    async def create_payment(self, amount: Decimal, currency: str, metadata: Dict) -> Dict:
+        # JazzCash payment creation
+        payload = {
+            "pp_Version": "1.1",
+            "pp_TxnType": "MWALLET",
+            "pp_Language": "EN",
+            "pp_MerchantID": self.merchant_id,
+            "pp_Password": self.password,
+            "pp_TxnRefNo": metadata.get("order_id"),
+            "pp_Amount": str(int(amount * 100)),  # JazzCash expects amount in paisas
+            "pp_TxnCurrency": currency,
+            "pp_ReturnURL": metadata.get("return_url"),
+            "pp_BillReference": metadata.get("bill_reference", "")
+        }
+        
+        response = requests.post(f"{self.base_url}/api/payment", json=payload)
+        return response.json()
+    
+    async def capture_payment(self, payment_id: str) -> Dict:
+        pass
+    
+    async def refund_payment(self, payment_id: str, amount: Optional[Decimal] = None) -> Dict:
+        pass
+    
+    async def create_subscription(self, customer_id: str, plan_id: str) -> Dict:
+        pass
+    
+    async def cancel_subscription(self, subscription_id: str) -> Dict:
+        pass
+    
+    async def get_payment_status(self, payment_id: str) -> Dict:
+        response = requests.get(
+            f"{self.base_url}/api/payment/status/{payment_id}",
+            params={"merchant_id": self.merchant_id}
+        )
+        return response.json()
+    
+    async def validate_webhook(self, payload: Dict, signature: str) -> bool:
+        return True  # Simplified for example
+
+# ============================================
+# GATEWAY FACTORY
+# ============================================
+
+class GatewayFactory:
+    def __init__(self, config: Dict):
+        self.config = config
+        self._gateways = {}
+        self._initialize_gateways()
+    
+    def _initialize_gateways(self):
+        """Initialize all payment gateways"""
+        gateway_configs = {
+            GatewayType.STRIPE: {
+                "class": StripeGateway,
+                "params": {
+                    "api_key": self.config.get("STRIPE_SECRET_KEY"),
+                    "webhook_secret": self.config.get("STRIPE_WEBHOOK_SECRET")
+                }
+            },
+            GatewayType.PAYFAST_PK: {
+                "class": PayFastPKGateway,
+                "params": {
+                    "merchant_id": self.config.get("PAYFAST_MERCHANT_ID"),
+                    "secret_key": self.config.get("PAYFAST_SECRET_KEY"),
+                    "base_url": self.config.get("PAYFAST_BASE_URL")
+                }
+            },
+            GatewayType.HBL: {
+                "class": HBLGateway,
+                "params": {
+                    "client_id": self.config.get("HBL_CLIENT_ID"),
+                    "client_secret": self.config.get("HBL_CLIENT_SECRET"),
+                    "base_url": self.config.get("HBL_BASE_URL")
+                }
+            },
+            GatewayType.JAZZCASH: {
+                "class": JazzCashGateway,
+                "params": {
+                    "merchant_id": self.config.get("JAZZCASH_MERCHANT_ID"),
+                    "password": self.config.get("JAZZCASH_PASSWORD"),
+                    "base_url": self.config.get("JAZZCASH_BASE_URL")
+                }
+            }
+        }
+        
+        for gateway_type, config in gateway_configs.items():
+            if all(config["params"].values()):  # Only initialize if config exists
+                self._gateways[gateway_type] = config["class"](**config["params"])
+    
+    def get_gateway(self, gateway_type: GatewayType) -> PaymentGatewayInterface:
+        gateway = self._gateways.get(gateway_type)
+        if not gateway:
+            raise ValueError(f"Gateway {gateway_type} not configured")
+        return gateway
+    
+    def get_available_gateways(self) -> List[GatewayType]:
+        return list(self._gateways.keys())
+    
+    def get_gateway_by_country(self, country: str) -> List[GatewayType]:
+        """Smart gateway selection based on country"""
+        country_gateway_map = {
+            "PK": [GatewayType.PAYFAST_PK, GatewayType.HBL, GatewayType.JAZZCASH],
+            "US": [GatewayType.STRIPE],
+            "GB": [GatewayType.STRIPE],
+            "AE": [GatewayType.STRIPE]
+        }
+        return country_gateway_map.get(country, [GatewayType.STRIPE])
+
+# ============================================
+# PRICING ENGINE
+# ============================================
+
+class PricingEngine:
+    def __init__(self, db: Session):
+        self.db = db
+    
+    async def get_plan_pricing(self, plan_id: str, currency: str = "USD", 
+                               coupon_code: Optional[str] = None) -> Dict:
+        """Calculate final pricing with discounts and taxes"""
+        plan = self.db.query(Plan).filter(Plan.id == plan_id).first()
+        if not plan:
+            raise HTTPException(status_code=404, detail="Plan not found")
+        
+        base_price = plan.price
+        discount_amount = Decimal('0')
+        
+        # Apply coupon if provided
+        if coupon_code:
+            coupon = self.db.query(Coupon).filter(
+                Coupon.code == coupon_code,
+                Coupon.status == "active",
+                Coupon.expiry_date > datetime.utcnow()
+            ).first()
+            
+            if coupon and self._validate_coupon(coupon, plan.id):
+                discount_amount = self._calculate_discount(base_price, coupon)
+        
+        discounted_price = base_price - discount_amount
+        
+        # Convert currency if needed
+        if currency != plan.currency:
+            discounted_price = await self._convert_currency(
+                discounted_price, plan.currency, currency
+            )
+        
+        # Calculate tax
+        tax_amount = await self._calculate_tax(discounted_price, "US")  # Country from context
+        final_price = discounted_price + tax_amount
+        
+        return {
+            "plan_name": plan.name,
+            "base_price": base_price,
+            "discount": discount_amount,
+            "subtotal": discounted_price,
+            "tax": tax_amount,
+            "total": final_price,
+            "currency": currency,
+            "billing_cycle": plan.billing_cycle,
+            "trial_days": plan.trial_days
+        }
+    
+    def _validate_coupon(self, coupon: Coupon, plan_id: str) -> bool:
+        """Validate coupon applicability"""
+        if coupon.max_uses and coupon.current_uses >= coupon.max_uses:
+            return False
+        
+        if coupon.plans and plan_id not in coupon.plans:
+            return False
+        
+        return True
+    
+    def _calculate_discount(self, amount: Decimal, coupon: Coupon) -> Decimal:
+        """Calculate discount amount"""
+        if coupon.discount_type == "percentage":
+            return amount * (coupon.discount_value / 100)
+        else:  # fixed
+            return min(coupon.discount_value, amount)
+    
+    async def _calculate_tax(self, amount: Decimal, country: str) -> Decimal:
+        """Calculate applicable tax"""
+        tax_rate = self.db.query(TaxRate).filter(
+            TaxRate.country == country,
+            TaxRate.status == "active"
+        ).first()
+        
+        if tax_rate:
+            return amount * (tax_rate.rate / 100)
+        return Decimal('0')
+    
+    async def _convert_currency(self, amount: Decimal, from_currency: str, 
+                                to_currency: str) -> Decimal:
+        """Currency conversion using external API"""
+        # Simulated conversion rates
+        rates = {
+            ("USD", "PKR"): Decimal('280'),
+            ("USD", "EUR"): Decimal('0.92'),
+            ("USD", "GBP"): Decimal('0.79')
+        }
+        
+        if from_currency == to_currency:
+            return amount
+        
+        rate = rates.get((from_currency, to_currency), Decimal('1'))
+        return amount * rate
+
+# ============================================
+# SUBSCRIPTION MANAGER
+# ============================================
+
+class SubscriptionManager:
+    def __init__(self, db: Session, gateway_factory: GatewayFactory):
+        self.db = db
+        self.gateway_factory = gateway_factory
+    
+    async def create_subscription(self, organization_id: str, plan_id: str,
+                                 payment_method_id: str, coupon_code: Optional[str] = None,
+                                 quantity: int = 1) -> Dict:
+        """Create new subscription"""
+        # Get organization and plan
+        org = self.db.query(Organization).filter(Organization.id == organization_id).first()
+        plan = self.db.query(Plan).filter(Plan.id == plan_id).first()
+        
+        if not org or not plan:
+            raise HTTPException(status_code=404, detail="Organization or Plan not found")
+        
+        # Calculate pricing
+        pricing_engine = PricingEngine(self.db)
+        pricing = await pricing_engine.get_plan_pricing(plan_id, plan.currency, coupon_code)
+        
+        # Create subscription record
+        subscription = Subscription(
+            organization_id=organization_id,
+            plan_id=plan_id,
+            status=SubscriptionStatus.TRIAL,
+            current_period_start=datetime.utcnow(),
+            current_period_end=datetime.utcnow() + timedelta(days=plan.trial_days),
+            trial_end=datetime.utcnow() + timedelta(days=plan.trial_days),
+            quantity=quantity,
+            unit_price=pricing["total"],
+            metadata={"coupon": coupon_code} if coupon_code else {}
+        )
+        
+        self.db.add(subscription)
+        self.db.commit()
+        
+        # Schedule subscription activation after trial
+        self._schedule_trial_end(subscription.id, plan.trial_days)
+        
+        return {
+            "subscription_id": subscription.id,
+            "status": subscription.status,
+            "trial_end": subscription.trial_end,
+            "pricing": pricing
+        }
+    
+    def _schedule_trial_end(self, subscription_id: str, trial_days: int):
+        """Schedule trial end processing"""
+        # In production, use Celery or similar task queue
+        from datetime import timedelta
+        trial_end = datetime.utcnow() + timedelta(days=trial_days)
+        # celery_app.send_task("process_trial_end", args=[subscription_id], eta=trial_end)
+    
+    async def process_trial_end(self, subscription_id: str):
+        """Handle trial end - convert to paid or cancel"""
+        subscription = self.db.query(Subscription).filter(
+            Subscription.id == subscription_id
+        ).first()
+        
+        if not subscription or subscription.status != SubscriptionStatus.TRIAL:
+            return
+        
+        organization = self.db.query(Organization).filter(
+            Organization.id == subscription.organization_id
+        ).first()
+        
+        # Attempt to charge
+        try:
+            payment_method = self.db.query(PaymentMethod).filter(
+                PaymentMethod.organization_id == organization.id,
+                PaymentMethod.is_default == True
+            ).first()
+            
+            if payment_method:
+                invoice = await self._create_invoice(subscription)
+                payment_success = await self._process_payment(invoice, payment_method)
+                
+                if payment_success:
+                    subscription.status = SubscriptionStatus.ACTIVE
+                    subscription.current_period_end = datetime.utcnow() + timedelta(days=30)
+                else:
+                    subscription.status = SubscriptionStatus.PAST_DUE
+            else:
+                subscription.status = SubscriptionStatus.EXPIRED
+        
+        except Exception as e:
+            subscription.status = SubscriptionStatus.PAST_DUE
+            logging.error(f"Trial end processing failed: {e}")
+        
+        self.db.commit()
+    
+    async def _create_invoice(self, subscription: Subscription) -> Invoice:
+        """Generate invoice for subscription"""
+        plan = self.db.query(Plan).filter(Plan.id == subscription.plan_id).first()
+        
+        invoice = Invoice(
+            invoice_number=self._generate_invoice_number(),
+            organization_id=subscription.organization_id,
+            subscription_id=subscription.id,
+            type=InvoiceType.SUBSCRIPTION,
+            amount=subscription.unit_price * subscription.quantity,
+            tax_amount=0,  # Calculate based on country
+            total_amount=subscription.unit_price * subscription.quantity,
+            currency=plan.currency,
+            status=PaymentStatus.PENDING,
+            due_date=datetime.utcnow() + timedelta(days=30)
+        )
+        
+        self.db.add(invoice)
+        self.db.commit()
+        return invoice
+    
+    async def _process_payment(self, invoice: Invoice, payment_method: PaymentMethod) -> bool:
+        """Process payment through gateway"""
+        gateway = self.gateway_factory.get_gateway(payment_method.gateway)
+        
+        try:
+            result = await gateway.create_payment(
+                amount=invoice.total_amount,
+                currency=invoice.currency,
+                metadata={
+                    "invoice_id": invoice.id,
+                    "customer_id": payment_method.gateway_token
+                }
+            )
+            
+            # Record payment
+            payment = Payment(
+                invoice_id=invoice.id,
+                gateway=payment_method.gateway,
+                gateway_payment_id=result["gateway_payment_id"],
+                amount=invoice.total_amount,
+                currency=invoice.currency,
+                status=PaymentStatus.SUCCESS,
+                payment_method_id=payment_method.id
+            )
+            
+            invoice.status = PaymentStatus.SUCCESS
+            invoice.paid_at = datetime.utcnow()
+            
+            self.db.add(payment)
+            self.db.commit()
+            
+            return True
+            
+        except Exception as e:
+            logging.error(f"Payment processing failed: {e}")
+            invoice.status = PaymentStatus.FAILED
+            self.db.commit()
+            return False
+    
+    def _generate_invoice_number(self) -> str:
+        """Generate unique invoice number"""
+        year = datetime.utcnow().year
+        count = self.db.query(Invoice).filter(
+            Invoice.created_at >= f"{year}-01-01"
+        ).count()
+        return f"INV-{year}-{count + 1:05d}"
+
+# ============================================
+# INVOICE ENGINE
+# ============================================
+
+class InvoiceEngine:
+    def __init__(self, db: Session):
+        self.db = db
+        self.s3_client = boto3.client('s3')  # For PDF storage
+    
+    async def generate_invoice_pdf(self, invoice_id: str) -> str:
+        """Generate PDF invoice"""
+        invoice = self.db.query(Invoice).filter(Invoice.id == invoice_id).first()
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        
+        org = self.db.query(Organization).filter(
+            Organization.id == invoice.organization_id
+        ).first()
+        
+        # Generate HTML
+        html_content = self._generate_invoice_html(invoice, org)
+        
+        # Convert to PDF
+        pdf_content = self._html_to_pdf(html_content)
+        
+        # Upload to S3
+        pdf_key = f"invoices/{invoice.invoice_number}.pdf"
+        self.s3_client.put_object(
+            Bucket="supreme-invoices",
+            Key=pdf_key,
+            Body=pdf_content,
+            ContentType="application/pdf"
+        )
+        
+        # Generate signed URL
+        pdf_url = self.s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': 'supreme-invoices', 'Key': pdf_key},
+            ExpiresIn=3600 * 24 * 7  # 7 days
+        )
+        
+        # Update invoice with PDF URL
+        invoice.pdf_url = pdf_url
+        self.db.commit()
+        
+        return pdf_url
+    
+    def _generate_invoice_html(self, invoice: Invoice, organization: Organization) -> str:
+        """Generate HTML invoice template"""
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; }}
+                .header {{ border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }}
+                .invoice-title {{ color: #333; font-size: 32px; }}
+                .company-details {{ margin: 20px 0; }}
+                .invoice-number {{ color: #666; }}
+                table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+                th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }}
+                th {{ background-color: #f5f5f5; }}
+                .total {{ font-size: 20px; font-weight: bold; }}
+                .footer {{ margin-top: 50px; color: #666; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1 class="invoice-title">SUPREME</h1>
+                <p class="invoice-number">Invoice #{invoice.invoice_number}</p>
+                <p>Date: {invoice.created_at.strftime('%B %d, %Y')}</p>
+                <p>Due Date: {invoice.due_date.strftime('%B %d, %Y')}</p>
+            </div>
+            
+            <div class="company-details">
+                <h3>Bill To:</h3>
+                <p>{organization.name}</p>
+                <p>{organization.email}</p>
+                {f'<p>VAT: {organization.vat_number}</p>' if organization.vat_number else ''}
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Subscription - {invoice.type.value}</td>
+                        <td>{invoice.currency} {invoice.amount}</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="total">
+                <p>Total: {invoice.currency} {invoice.total_amount}</p>
+                <p>Status: {invoice.status.value.upper()}</p>
+            </div>
+            
+            <div class="footer">
+                <p>SUPREME Enterprise Platform</p>
+                <p>Thank you for your business!</p>
+            </div>
+        </body>
+        </html>
+        """
+    
+    def _html_to_pdf(self, html_content: str) -> bytes:
+        """Convert HTML to PDF"""
+        # Use WeasyPrint or similar library
+        # For now, return placeholder
+        return html_content.encode()
+
+# ============================================
+# BILLING SERVICE (Main Orchestrator)
+# ============================================
+
+class BillingService:
+    def __init__(self, db: Session, config: Dict):
+        self.db = db
+        self.config = config
+        self.gateway_factory = GatewayFactory(config)
+        self.pricing_engine = PricingEngine(db)
+        self.subscription_manager = SubscriptionManager(db, self.gateway_factory)
+        self.invoice_engine = InvoiceEngine(db)
+    
+    async def create_checkout_session(self, organization_id: str, plan_id: str,
+                                     country: str, coupon_code: Optional[str] = None,
+                                     gateway_preference: Optional[GatewayType] = None) -> Dict:
+        """Create checkout session"""
+        # Get pricing
+        pricing = await self.pricing_engine.get_plan_pricing(plan_id, "USD", coupon_code)
+        
+        # Select gateway based on country
+        if gateway_preference:
+            gateway_type = gateway_preference
+        else:
+            available_gateways = self.gateway_factory.get_gateway_by_country(country)
+            if not available_gateways:
+                raise HTTPException(status_code=400, detail="No gateway available for your country")
+            gateway_type = available_gateways[0]
+        
+        gateway = self.gateway_factory.get_gateway(gateway_type)
+        
+        # Create payment intent
+        payment_result = await gateway.create_payment(
+            amount=pricing["total"],
+            currency=pricing["currency"],
+            metadata={
+                "organization_id": organization_id,
+                "plan_id": plan_id,
+                "type": "checkout"
+            }
+        )
+        
+        return {
+            "checkout_id": payment_result["gateway_payment_id"],
+            "client_secret": payment_result.get("client_secret"),
+            "gateway": gateway_type,
+            "pricing": pricing,
+            "redirect_url": f"/checkout/{payment_result['gateway_payment_id']}"
+        }
+    
+    async def process_payment_webhook(self, gateway_type: GatewayType, 
+                                     payload: Dict, signature: str) -> Dict:
+        """Handle payment gateway webhooks"""
+        gateway = self.gateway_factory.get_gateway(gateway_type)
+        
+        # Validate webhook
+        if not await gateway.validate_webhook(payload, signature):
+            raise HTTPException(status_code=400, detail="Invalid webhook signature")
+        
+        # Process based on event type
+        event_type = payload.get("type")
+        
+        if event_type == "payment.succeeded":
+            return await self._handle_payment_success(payload)
+        elif event_type == "payment.failed":
+            return await self._handle_payment_failure(payload)
+        elif event_type == "subscription.created":
+            return await self._handle_subscription_created(payload)
+        elif event_type == "subscription.canceled":
+            return await self._handle_subscription_canceled(payload)
+        else:
+            return {"status": "ignored", "event": event_type}
+    
+    async def _handle_payment_success(self, payload: Dict) -> Dict:
+        """Handle successful payment"""
+        # Update invoice status
+        # Activate subscription
+        # Send confirmation email
+        # Unlock features
+        return {"status": "processed"}
+    
+    async def _handle_payment_failure(self, payload: Dict) -> Dict:
+        """Handle failed payment"""
+        # Update invoice status
+        # Send failure notification
+        # Schedule retry
+        return {"status": "processed"}
+    
+    async def _handle_subscription_created(self, payload: Dict) -> Dict:
+        """Handle subscription creation"""
+        return {"status": "processed"}
+    
+    async def _handle_subscription_canceled(self, payload: Dict) -> Dict:
+        """Handle subscription cancellation"""
+        return {"status": "processed"}
+    
+    async def get_billing_dashboard(self, organization_id: str) -> Dict:
+        """Get customer billing dashboard data"""
+        org = self.db.query(Organization).filter(Organization.id == organization_id).first()
+        subscriptions = self.db.query(Subscription).filter(
+            Subscription.organization_id == organization_id
+        ).all()
+        
+        invoices = self.db.query(Invoice).filter(
+            Invoice.organization_id == organization_id
+        ).order_by(Invoice.created_at.desc()).limit(10).all()
+        
+        payment_methods = self.db.query(PaymentMethod).filter(
+            PaymentMethod.organization_id == organization_id
+        ).all()
+        
+        return {
+            "organization": {
+                "name": org.name,
+                "email": org.email,
+                "country": org.country
+            },
+            "subscriptions": [{
+                "id": sub.id,
+                "plan": sub.plan_id,
+                "status": sub.status,
+                "current_period_end": sub.current_period_end,
+                "auto_renew": sub.auto_renew
+            } for sub in subscriptions],
+            "recent_invoices": [{
+                "id": inv.id,
+                "number": inv.invoice_number,
+                "amount": inv.total_amount,
+                "status": inv.status,
+                "date": inv.created_at
+            } for inv in invoices],
+            "payment_methods": [{
+                "id": pm.id,
+                "type": pm.type,
+                "last_four": pm.last_four,
+                "is_default": pm.is_default
+            } for pm in payment_methods]
+        }
+    
+    async def get_admin_analytics(self) -> Dict:
+        """Get admin analytics dashboard"""
+        total_revenue = self.db.query(
+            func.sum(Payment.amount)
+        ).filter(Payment.status == PaymentStatus.SUCCESS).scalar() or 0
+        
+        active_subscriptions = self.db.query(Subscription).filter(
+            Subscription.status == SubscriptionStatus.ACTIVE
+        ).count()
+        
+        mrr = self.db.query(
+            func.sum(Subscription.unit_price * Subscription.quantity)
+        ).filter(Subscription.status == SubscriptionStatus.ACTIVE).scalar() or 0
+        
+        # Trial conversion rate
+        total_trials = self.db.query(Subscription).filter(
+            Subscription.status.in_([SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE, SubscriptionStatus.EXPIRED])
+        ).count()
+        
+        converted_trials = self.db.query(Subscription).filter(
+            Subscription.status == SubscriptionStatus.ACTIVE
+        ).count()
+        
+        conversion_rate = (converted_trials / total_trials * 100) if total_trials > 0 else 0
+        
+        # Revenue by country
+        revenue_by_country = self.db.query(
+            Organization.country,
+            func.sum(Payment.amount)
+        ).join(Payment, Payment.invoice_id == Invoice.id)\
+         .join(Invoice, Invoice.organization_id == Organization.id)\
+         .filter(Payment.status == PaymentStatus.SUCCESS)\
+         .group_by(Organization.country).all()
+        
+        return {
+            "total_revenue": total_revenue,
+            "active_subscriptions": active_subscriptions,
+            "mrr": mrr,
+            "arr": mrr * 12,
+            "trial_conversion_rate": conversion_rate,
+            "revenue_by_country": dict(revenue_by_country),
+            "churn_rate": self._calculate_churn_rate()
+        }
+    
+    def _calculate_churn_rate(self) -> float:
+        """Calculate monthly churn rate"""
+        current_month_start = datetime.utcnow().replace(day=1)
+        previous_month_start = (current_month_start - timedelta(days=1)).replace(day=1)
+        
+        canceled = self.db.query(Subscription).filter(
+            Subscription.canceled_at >= previous_month_start,
+            Subscription.canceled_at < current_month_start
+        ).count()
+        
+        active_at_start = self.db.query(Subscription).filter(
+            Subscription.created_at < previous_month_start,
+            Subscription.status.in_([SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL])
+        ).count()
+        
+        return (canceled / active_at_start * 100) if active_at_start > 0 else 0
+
+# ============================================
+# FASTAPI APPLICATION
+# ============================================
+
+app = FastAPI(title="SUPREME Billing API", version="1.0.0")
+security = HTTPBearer()
+
+# Dependency to get billing service
+async def get_billing_service(request: Request):
+    db = request.app.state.db
+    config = request.app.state.config
+    return BillingService(db, config)
+
+# ============================================
+# API ENDPOINTS
+# ============================================
+
+@app.get("/api/plans")
+async def get_plans(billing: BillingService = Depends(get_billing_service)):
+    """Get all available plans"""
+    plans = billing.db.query(Plan).filter(Plan.is_public == True).all()
+    return [
+        {
+            "id": plan.id,
+            "name": plan.name,
+            "price": str(plan.price),
+            "currency": plan.currency,
+            "billing_cycle": plan.billing_cycle,
+            "features": plan.features,
+            "trial_days": plan.trial_days
+        }
+        for plan in plans
+    ]
+
+@app.post("/api/checkout")
+async def create_checkout(
+    plan_id: str,
+    organization_id: str,
+    country: str,
+    coupon_code: Optional[str] = None,
+    gateway: Optional[GatewayType] = None,
+    billing: BillingService = Depends(get_billing_service)
+):
+    """Create checkout session"""
+    return await billing.create_checkout_session(
+        organization_id, plan_id, country, coupon_code, gateway
+    )
+
+@app.post("/api/webhook/{gateway}")
+async def handle_webhook(
+    gateway: GatewayType,
+    request: Request,
+    billing: BillingService = Depends(get_billing_service)
+):
+    """Handle payment gateway webhooks"""
+    payload = await request.json()
+    signature = request.headers.get("X-Webhook-Signature", "")
+    
+    return await billing.process_payment_webhook(gateway, payload, signature)
+
+@app.get("/api/billing/dashboard/{organization_id}")
+async def get_billing_dashboard(
+    organization_id: str,
+    billing: BillingService = Depends(get_billing_service)
+):
+    """Get customer billing dashboard"""
+    return await billing.get_billing_dashboard(organization_id)
+
+@app.get("/api/admin/analytics")
+async def get_admin_analytics(
+    billing: BillingService = Depends(get_billing_service)
+):
+    """Get admin analytics"""
+    return await billing.get_admin_analytics()
+
+@app.post("/api/subscriptions/{subscription_id}/cancel")
+async def cancel_subscription(
+    subscription_id: str,
+    billing: BillingService = Depends(get_billing_service)
+):
+    """Cancel subscription"""
+    sub = billing.db.query(Subscription).filter(Subscription.id == subscription_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    
+    sub.status = SubscriptionStatus.CANCELED
+    sub.canceled_at = datetime.utcnow()
+    sub.auto_renew = False
+    billing.db.commit()
+    
+    return {"status": "canceled", "subscription_id": subscription_id}
+
+@app.post("/api/invoices/{invoice_id}/pdf")
+async def generate_invoice_pdf(
+    invoice_id: str,
+    billing: BillingService = Depends(get_billing_service)
+):
+    """Generate PDF invoice"""
+    pdf_url = await billing.invoice_engine.generate_invoice_pdf(invoice_id)
+    return {"pdf_url": pdf_url}
+
+@app.post("/api/coupons/validate")
+async def validate_coupon(
+    code: str,
+    plan_id: str,
+    billing: BillingService = Depends(get_billing_service)
+):
+    """Validate coupon code"""
+    coupon = billing.db.query(Coupon).filter(
+        Coupon.code == code,
+        Coupon.status == "active"
+    ).first()
+    
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Invalid coupon")
+    
+    pricing = await billing.pricing_engine.get_plan_pricing(plan_id, "USD", code)
+    return {
+        "valid": True,
+        "discount": pricing["discount"],
+        "final_price": pricing["total"]
+    }
+
+# ============================================
+# CELERY TASKS (Background Jobs)
+# ============================================
+
+# In production, configure Celery with Redis/RabbitMQ
+"""
+@celery_app.task
+def process_subscription_renewals():
+    '''Daily task to process subscription renewals'''
+    db = get_db_session()
+    subscriptions = db.query(Subscription).filter(
+        Subscription.status == SubscriptionStatus.ACTIVE,
+        Subscription.current_period_end <= datetime.utcnow() + timedelta(days=1)
+    ).all()
+    
+    for sub in subscriptions:
+        billing_service = get_billing_service()
+        try:
+            # Create invoice and process payment
+            invoice = billing_service._create_invoice(sub)
+            payment_method = db.query(PaymentMethod).filter(
+                PaymentMethod.organization_id == sub.organization_id,
+                PaymentMethod.is_default == True
+            ).first()
+            
+            if payment_method:
+                billing_service._process_payment(invoice, payment_method)
+        except Exception as e:
+            logging.error(f"Renewal failed for subscription {sub.id}: {e}")
+
+@celery_app.task
+def process_failed_payment_retry(invoice_id: str):
+    '''Retry failed payments'''
+    db = get_db_session()
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    
+    if invoice and invoice.status == PaymentStatus.FAILED:
+        # Retry logic with exponential backoff
+        retry_count = invoice.metadata.get("retry_count", 0)
+        if retry_count < 3:
+            # Attempt payment again
+            retry_delay = [1, 3, 7][retry_count]  # days
+            invoice.metadata["retry_count"] = retry_count + 1
+            invoice.metadata["next_retry"] = (datetime.utcnow() + timedelta(days=retry_delay)).isoformat()
+            db.commit()
+            
+            # Schedule next retry
+            process_failed_payment_retry.apply_async(
+                args=[invoice_id],
+                countdown=retry_delay * 86400  # Convert days to seconds
+            )
+        else:
+            # Max retries reached, suspend subscription
+            subscription = db.query(Subscription).filter(
+                Subscription.id == invoice.subscription_id
+            ).first()
+            if subscription:
+                subscription.status = SubscriptionStatus.SUSPENDED
+                db.commit()
+"""
+
+# ============================================
+# CONFIGURATION & INITIALIZATION
+# ============================================
+
+def initialize_app(db_url: str, redis_url: str, config: Dict):
+    """Initialize the FastAPI application with all dependencies"""
+    # Database
+    engine = create_engine(db_url)
+    Base.metadata.create_all(engine)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    
+    # Redis for caching and sessions
+    redis_client = Redis.from_url(redis_url)
+    
+    # Store in app state
+    app.state.db = SessionLocal()
+    app.state.redis = redis_client
+    app.state.config = config
+    
+    # Celery configuration would be here
+    # celery_app = Celery('supreme_billing', broker=redis_url)
+    
+    return app
+
+# ============================================
+# EXAMPLE CONFIGURATION
+# ============================================
+
+config = {
+    "STRIPE_SECRET_KEY": "sk_live_...",
+    "STRIPE_WEBHOOK_SECRET": "whsec_...",
+    "PAYFAST_MERCHANT_ID": "PF_MERCHANT_123",
+    "PAYFAST_SECRET_KEY": "pf_secret_key",
+    "PAYFAST_BASE_URL": "https://api.payfast.pk",
+    "HBL_CLIENT_ID": "hbl_client_123",
+    "HBL_CLIENT_SECRET": "hbl_secret",
+    "HBL_BASE_URL": "https://api.hbl.com",
+    "JAZZCASH_MERCHANT_ID": "JC_12345",
+    "JAZZCASH_PASSWORD": "jazzcash_pass",
+    "JAZZCASH_BASE_URL": "https://api.jazzcash.com.pk",
+    "DATABASE_URL": "postgresql://user:pass@localhost/supreme_billing",
+    "REDIS_URL": "redis://localhost:6379/0"
+}
+
+# Initialize the app
+app = initialize_app(config["DATABASE_URL"], config["REDIS_URL"], config)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
