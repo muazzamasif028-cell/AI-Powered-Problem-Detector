@@ -1,0 +1,120 @@
+// ============================================================
+// 🚀 routes/malbolge-cloud.routes.js
+// SUPREME Multi-Cloud API — Malbolge Powered
+// Google + Microsoft + Amazon — All in Malbolge
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const MalbolgeCloudCore = require('../malbolge-cloud/MalbolgeCloudCore');
+
+const malbolgeCloud = new MalbolgeCloudCore();
+
+// Initialize on startup
+malbolgeCloud.initializeClouds();
+
+// ============================================
+// 🔵 GOOGLE ENDPOINTS (Malbolge Encrypted)
+// ============================================
+
+router.post('/google/gmail/send', async (req, res) => {
+    const result = await malbolgeCloud.sendGmail({
+        to: req.body.to,
+        subject: req.body.subject,
+        body: req.body.body
+    });
+    res.json({ success: true, ...result, encryption: 'MALBOLGE' });
+});
+
+router.post('/google/drive/upload', async (req, res) => {
+    const result = await malbolgeCloud.uploadToDrive({
+        fileName: req.body.fileName,
+        content: req.body.content,
+        folderId: req.body.folderId
+    });
+    res.json({ success: true, ...result });
+});
+
+router.post('/google/gemini/ask', async (req, res) => {
+    const result = await malbolgeCloud.callGemini(req.body.prompt);
+    res.json({ success: true, ...result });
+});
+
+router.post('/google/maps/directions', async (req, res) => {
+    const result = await malbolgeCloud.getDirections(
+        req.body.origin,
+        req.body.destination
+    );
+    res.json({ success: true, ...result });
+});
+
+// ============================================
+// 🔴 MICROSOFT ENDPOINTS (Malbolge Encrypted)
+// ============================================
+
+router.post('/microsoft/outlook/send', async (req, res) => {
+    const result = await malbolgeCloud.sendOutlook({
+        to: req.body.to,
+        subject: req.body.subject,
+        body: req.body.body
+    });
+    res.json({ success: true, ...result });
+});
+
+router.post('/microsoft/azure/deploy', async (req, res) => {
+    const result = await malbolgeCloud.deployToAzure({
+        resourceGroup: req.body.resourceGroup
+    });
+    res.json({ success: true, ...result });
+});
+
+router.post('/microsoft/teams/message', async (req, res) => {
+    const result = await malbolgeCloud.sendTeamsMessage({
+        channelId: req.body.channelId,
+        message: req.body.message
+    });
+    res.json({ success: true, ...result });
+});
+
+// ============================================
+// 🟠 AMAZON ENDPOINTS (Malbolge Encrypted)
+// ============================================
+
+router.post('/amazon/s3/upload', async (req, res) => {
+    const result = await malbolgeCloud.uploadToS3({
+        bucket: req.body.bucket,
+        key: req.body.key,
+        content: req.body.content
+    });
+    res.json({ success: true, ...result });
+});
+
+router.post('/amazon/ec2/launch', async (req, res) => {
+    const result = await malbolgeCloud.launchEC2({
+        instanceType: req.body.instanceType,
+        ami: req.body.ami
+    });
+    res.json({ success: true, ...result });
+});
+
+router.post('/amazon/lambda/invoke', async (req, res) => {
+    const result = await malbolgeCloud.invokeLambda({
+        functionName: req.body.functionName,
+        eventPayload: req.body.payload
+    });
+    res.json({ success: true, ...result });
+});
+
+router.post('/amazon/bedrock/ask', async (req, res) => {
+    const result = await malbolgeCloud.callBedrock(req.body.prompt);
+    res.json({ success: true, ...result });
+});
+
+// ============================================
+// 🔐 SYSTEM STATUS
+// ============================================
+
+router.get('/status', (req, res) => {
+    res.json(malbolgeCloud.getStatus());
+});
+
+module.exports = router;
