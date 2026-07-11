@@ -1,0 +1,41 @@
+// ============================================================
+// 🚀 routes/safety.routes.js
+// SUPREME Safety Pillars API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const SupremeSafetyPillars = require('../safety/SupremeSafetyPillars');
+
+const safety = new SupremeSafetyPillars();
+
+// Get all pillars
+router.get('/pillars', (req, res) => {
+    res.json({
+        total: 30,
+        pillars: safety.getPillarsSummary()
+    });
+});
+
+// Get specific pillar
+router.get('/pillars/:id', (req, res) => {
+    const pillar = safety.getPillar(parseInt(req.params.id));
+    if (!pillar) return res.status(404).json({ error: 'Pillar not found' });
+    res.json(pillar);
+});
+
+// Get pillars by category
+router.get('/pillars/category/:category', (req, res) => {
+    res.json(safety.getPillarsByCategory(req.params.category));
+});
+
+// Run compliance check
+router.get('/compliance-check', (req, res) => {
+    res.json(safety.runComplianceCheck());
+});
+
+// Generate security report
+router.get('/report', (req, res) => {
+    res.json(safety.generateSecurityReport());
+});
+
+module.exports = router;
