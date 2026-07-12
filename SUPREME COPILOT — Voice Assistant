@@ -1,0 +1,67 @@
+// ============================================================
+// 🎤 vehicle/SupremeCopilot.js
+// SUPREME AI Copilot — Advisory Voice Assistant
+// Announces: Hazards | Weather | Routes | Emergencies
+// NEVER controls vehicle — ONLY advises
+// ============================================================
+
+class SupremeCopilot {
+    constructor() {
+        this.language = 'ENGLISH';
+        this.voice = 'NATURAL_AI';
+        this.announcements = [];
+        this.conversationHistory = [];
+    }
+
+    async initialize() {
+        console.log('🎤 SUPREME Copilot Ready');
+    }
+
+    async announce(recommendation) {
+        const announcement = {
+            timestamp: new Date().toISOString(),
+            type: recommendation.type,
+            priority: recommendation.priority,
+            message: recommendation.message,
+            announced: false
+        };
+
+        // Format message based on priority
+        switch (recommendation.priority) {
+            case 'CRITICAL':
+                announcement.voice = `⚠️ WARNING! ${recommendation.message}`;
+                announcement.sound = 'ALERT_SOUND';
+                break;
+            case 'HIGH':
+                announcement.voice = `Attention: ${recommendation.message}`;
+                announcement.sound = 'NOTIFICATION';
+                break;
+            default:
+                announcement.voice = recommendation.message;
+                announcement.sound = 'INFO';
+        }
+
+        this.announcements.push(announcement);
+        console.log(`🎤 COPILOT: ${announcement.voice}`);
+        
+        return announcement;
+    }
+
+    async respond(command) {
+        const response = {
+            timestamp: new Date().toISOString(),
+            command,
+            response: `I heard: "${command}". How can I assist you?`
+        };
+        
+        this.conversationHistory.push(response);
+        
+        return response;
+    }
+
+    getRecentAnnouncements(count = 10) {
+        return this.announcements.slice(-count);
+    }
+}
+
+module.exports = SupremeCopilot;
