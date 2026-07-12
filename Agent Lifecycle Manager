@@ -1,0 +1,158 @@
+// ============================================================
+// 🧠 agents/AgentLifecycleManager.js
+// SUPREME Agent Lifecycle — Full Lifecycle Management
+// Create → Deploy → Monitor → Update → Retire
+// ============================================================
+
+class AgentLifecycleManager {
+    constructor(registry, scheduler) {
+        this.registry = registry;
+        this.scheduler = scheduler;
+        
+        // Lifecycle states
+        this.states = {
+            DRAFT: 'DRAFT',
+            REVIEW: 'REVIEW',
+            APPROVED: 'APPROVED',
+            DEPLOYING: 'DEPLOYING',
+            ACTIVE: 'ACTIVE',
+            PAUSED: 'PAUSED',
+            DEGRADED: 'DEGRADED',
+            UPDATING: 'UPDATING',
+            ROLLING_BACK: 'ROLLING_BACK',
+            DEPRECATED: 'DEPRECATED',
+            RETIRED: 'RETIRED'
+        };
+        
+        // State transitions
+        this.transitions = {
+            DRAFT: ['REVIEW'],
+            REVIEW: ['APPROVED', 'DRAFT'],
+            APPROVED: ['DEPLOYING'],
+            DEPLOYING: ['ACTIVE', 'DRAFT'],
+            ACTIVE: ['PAUSED', 'DEGRADED', 'UPDATING', 'DEPRECATED'],
+            PAUSED: ['ACTIVE', 'RETIRED'],
+            DEGRADED: ['ACTIVE', 'PAUSED', 'RETIRED'],
+            UPDATING: ['ACTIVE', 'ROLLING_BACK'],
+            ROLLING_BACK: ['ACTIVE'],
+            DEPRECATED: ['RETIRED'],
+            RETIRED: [] // Final state
+        };
+    }
+
+    /**
+     * Deploy new agent version
+     */
+    async deployAgent(agentId, version) {
+        const agent = this.registry.getAgent(agentId);
+        
+        if (!agent) throw new Error('Agent not found');
+        
+        // Validate state transition
+        if (!this.canTransition(agent.status, 'DEPLOYING')) {
+            throw new Error(`Cannot deploy from state: ${agent.status}`);
+        }
+        
+        // Update status
+        await this.updateAgentStatus(agentId, 'DEPLOYING');
+        
+        try {
+            // Build container
+            await this.buildAgentContainer(agent);
+            
+            // Run smoke tests
+            await this.runSmokeTests(agent);
+            
+            // Canary deployment (1% traffic)
+            await this.canaryDeploy(agent, 1);
+            
+            // Gradual rollout
+            for (const percentage of [5, 25, 50, 100]) {
+                await this.adjustTraffic(agent, percentage);
+                await this.monitorHealth(agent, 60); // 60 seconds
+            }
+            
+            // Mark as active
+            await this.updateAgentStatus(agentId, 'ACTIVE');
+            
+            return { success: true, agentId, version, status: 'ACTIVE' };
+            
+        } catch (error) {
+            // Rollback
+            await this.updateAgentStatus(agentId, 'DRAFT');
+            throw error;
+        }
+    }
+
+    /**
+     * Retire old agent version
+     */
+    async retireAgent(agentId, reason = 'OBSOLETE') {
+        const agent = this.registry.getAgent(agentId);
+        
+        if (!agent) throw new Error('Agent not found');
+        
+        // Check no active executions
+        const activeTasks = this.scheduler.getActiveTasksForAgent(agentId);
+        
+        if (activeTasks.length > 0) {
+            throw new Error(`Cannot retire: ${activeTasks.length} active tasks`);
+        }
+        
+        // Move to deprecated
+        await this.updateAgentStatus(agentId, 'DEPRECATED');
+        
+        // Wait for grace period
+        await this.gracePeriod(3600000); // 1 hour
+        
+        // Archive agent
+        await this.archiveAgent(agent);
+        
+        // Final retirement
+        await this.updateAgentStatus(agentId, 'RETIRED');
+        
+        return { success: true, agentId, status: 'RETIRED', reason };
+    }
+
+    /**
+     * Check if state transition is valid
+     */
+    canTransition(fromState, toState) {
+        return this.transitions[fromState]?.includes(toState) || false;
+    }
+
+    /**
+     * Update agent status
+     */
+    async updateAgentStatus(agentId, newStatus) {
+        const agent = this.registry.getAgent(agentId);
+        
+        if (!agent) throw new Error('Agent not found');
+        
+        const oldStatus = agent.status;
+        agent.status = newStatus;
+        agent.updatedAt = new Date().toISOString();
+        
+        // Update registry indexes
+        this.registry.updateIndexes(agent, 'UPDATE');
+        
+        // Emit event
+        this.registry.emit('agent:statusChanged', {
+            agentId,
+            oldStatus,
+            newStatus,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Helper methods
+    async buildAgentContainer(agent) { /* Build Docker container */ }
+    async runSmokeTests(agent) { /* Run tests */ }
+    async canaryDeploy(agent, percent) { /* Canary deployment */ }
+    async adjustTraffic(agent, percent) { /* Traffic adjustment */ }
+    async monitorHealth(agent, duration) { /* Health monitoring */ }
+    async archiveAgent(agent) { /* Archive to cold storage */ }
+    gracePeriod(ms) { return new Promise(r => setTimeout(r, ms)); }
+}
+
+module.exports = AgentLifecycleManager;
