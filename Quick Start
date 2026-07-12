@@ -1,0 +1,33 @@
+// ============================================================
+// 🚀 Start SUPREME 2M Agent Platform
+// ============================================================
+const SupremeAgentPlatform = require('./agents/SupremeAgentPlatform');
+
+async function startPlatform() {
+    const platform = new SupremeAgentPlatform();
+    await platform.initialize();
+    
+    // Execute agents
+    const result1 = await platform.execute('Generate a React component for login form');
+    console.log('Result 1:', result1);
+    
+    const result2 = await platform.execute('Analyze security vulnerabilities in our system');
+    console.log('Result 2:', result2);
+    
+    // Register custom agent
+    const customAgent = await platform.registerAgent({
+        name: 'Custom Finance Analyzer',
+        category: 'FINANCE',
+        capabilities: ['ANALYSIS', 'PREDICTION'],
+        version: '1.0.0',
+        author: 'Enterprise Customer',
+        cpu: '200m',
+        memory: '256Mi'
+    });
+    console.log('Registered:', customAgent.agentId);
+    
+    console.log('\n📊 Platform Status:');
+    console.log(JSON.stringify(platform.getStatus(), null, 2));
+}
+
+startPlatform();
