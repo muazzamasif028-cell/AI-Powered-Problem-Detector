@@ -1,0 +1,45 @@
+// ============================================================
+// 🚀 SUPREME Titan X — Complete Demo
+// ============================================================
+const SupremeTitanX = require('./titan/SupremeTitanX');
+
+async function demoTitanX() {
+    console.log('🚛 Starting SUPREME Titan X Demo...\n');
+    
+    // Create Titan X
+    const titan = new SupremeTitanX({
+        vin: 'SUPREME-TITAN-2025-001',
+        fleetId: 'FLEET-PAKISTAN-01',
+        location: { lat: 24.8607, lng: 67.0011 } // Karachi
+    });
+    
+    await titan.initialize();
+    
+    // Driver gives command
+    console.log('\n👨‍✈️ Driver: "SUPREME, Lahore chalo"\n');
+    const route = await titan.processVoiceCommand('SUPREME, Lahore chalo');
+    
+    // Copilot responds
+    await titan.copilot.announce({
+        type: 'NAVIGATION',
+        priority: 'NORMAL',
+        message: 'Route optimized. Distance: 1,211 km. ETA: 14 hours with charging stop.'
+    });
+    
+    // Status check
+    console.log('\n👨‍✈️ Driver: "SUPREME, status"\n');
+    await titan.processVoiceCommand('SUPREME, status');
+    
+    // Cargo check
+    console.log('\n👨‍✈️ Driver: "SUPREME, cargo status"\n');
+    await titan.processVoiceCommand('SUPREME, cargo status');
+    
+    console.log('\n🚛 Titan X is driving autonomously...');
+    console.log('🛡️ 30 Safety Pillars monitoring...');
+    console.log('📦 Cargo intelligence active...');
+    console.log('🌐 Fleet cloud synced...');
+    
+    console.log('\n✅ SUPREME Titan X Demo Complete!\n');
+}
+
+demoTitanX();
