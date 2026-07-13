@@ -1,0 +1,690 @@
+// ============================================================
+// 🪖 helmet/SupremeHelmetOS.js
+// SUPREME Smart Helmet — Core Operating System
+// Features: Biometric Auth | Voice AI | Safety | Emergency
+// ============================================================
+const EventEmitter = require('events');
+const crypto = require('crypto');
+
+class SupremeHelmetOS extends EventEmitter {
+    constructor(helmetConfig) {
+        super();
+        
+        this.helmetId = helmetConfig.id || `HELMET-${Date.now()}`;
+        this.ownerId = helmetConfig.ownerId;
+        
+        // Helmet State
+        this.state = {
+            worn: false,
+            strapped: false,
+            visorClosed: false,
+            batteryLevel: 100,
+            connected: false,
+            authenticated: false,
+            voiceActive: false,
+            emergencyMode: false,
+            temperature: 25,
+            humidity: 45
+        };
+        
+        // Sensors
+        this.sensors = {
+            pressure: new PressureSensor(),
+            imu: new IMUSensor(),
+            proximity: new ProximitySensor(),
+            temperature: new TemperatureSensor(),
+            humidity: new HumiditySensor(),
+            light: new LightSensor()
+        };
+        
+        // Audio System
+        this.audio = {
+            microphone: new MicrophoneArray(4), // 4-mic array
+            speaker: new Speaker(),
+            noiseCancellation: new NoiseCanceller(),
+            voiceEngine: new VoiceAIEngine()
+        };
+        
+        // Security
+        this.security = {
+            biometrics: new BiometricAuth(),
+            encryption: new HelmetEncryption(),
+            keys: new KeyManager(),
+            antiTamper: new AntiTamperSystem()
+        };
+        
+        // Network
+        this.network = {
+            bluetooth: new Bluetooth53(),
+            uwb: new UWB(),
+            wifi: new WiFi(),
+            cellular: new Cellular5G()
+        };
+        
+        // AI Copilot
+        this.copilot = new HelmetCopilot();
+        
+        // Bike link
+        this.bikeLink = null;
+        this.pairedBikeId = helmetConfig.bikeId;
+        
+        // Voice commands registry
+        this.voiceCommands = new Map();
+        this.registerVoiceCommands();
+        
+        // Initialize
+        this.initialize();
+    }
+
+    /**
+     * Initialize helmet systems
+     */
+    async initialize() {
+        console.log(`🪖 Initializing SUPREME Smart Helmet: ${this.helmetId}`);
+        
+        // Initialize all sensors
+        await this.sensors.pressure.initialize();
+        await this.sensors.imu.initialize();
+        await this.sensors.proximity.initialize();
+        
+        // Initialize audio
+        await this.audio.microphone.initialize();
+        await this.audio.noiseCancellation.initialize();
+        await this.audio.voiceEngine.initialize();
+        
+        // Initialize security
+        await this.security.biometrics.initialize();
+        await this.security.encryption.initialize();
+        await this.security.antiTamper.initialize();
+        
+        // Initialize network
+        await this.network.bluetooth.initialize();
+        await this.network.uwb.initialize();
+        
+        // Start sensor monitoring (100Hz)
+        this.sensorLoop = setInterval(() => this.monitorSensors(), 10);
+        
+        // Start voice listening
+        this.startVoiceListening();
+        
+        // Connect to bike
+        if (this.pairedBikeId) {
+            await this.connectToBike(this.pairedBikeId);
+        }
+        
+        console.log('✅ SUPREME Smart Helmet Ready');
+        
+        this.emit('helmet:ready', { helmetId: this.helmetId });
+    }
+
+    /**
+     * 📡 Monitor All Sensors — 100Hz
+     */
+    async monitorSensors() {
+        // Pressure Sensor — Is helmet being worn?
+        const pressure = this.sensors.pressure.read();
+        const wasWorn = this.state.worn;
+        this.state.worn = pressure > 0.5; // Threshold
+        
+        // Helmet put on
+        if (!wasWorn && this.state.worn) {
+            await this.onHelmetPutOn();
+        }
+        
+        // Helmet taken off
+        if (wasWorn && !this.state.worn) {
+            await this.onHelmetTakenOff();
+        }
+        
+        // IMU — Detect movement, impacts, accidents
+        const imu = this.sensors.imu.read();
+        
+        // Accident detection
+        if (imu.acceleration > 10) { // >10G impact
+            await this.detectAccident(imu);
+        }
+        
+        // Rider fatigue detection
+        if (imu.headTilt > 30 && this.state.worn) { // Head tilting
+            await this.detectFatigue(imu);
+        }
+        
+        // Proximity — Is helmet near bike?
+        const proximity = this.sensors.proximity.read();
+        
+        // Temperature monitoring
+        this.state.temperature = this.sensors.temperature.read();
+        this.state.humidity = this.sensors.humidity.read();
+        
+        // Update bike link
+        if (this.bikeLink) {
+            this.bikeLink.updateHelmetState(this.state);
+        }
+    }
+
+    /**
+     * 🎤 Start Voice Listening
+     */
+    startVoiceListening() {
+        this.audio.microphone.on('audio', async (audioData) => {
+            if (!this.state.worn) return; // Only listen when worn
+            
+            // Noise cancellation
+            const cleanAudio = await this.audio.noiseCancellation.process(audioData);
+            
+            // Voice activity detection
+            const hasVoice = await this.audio.voiceEngine.detectVoice(cleanAudio);
+            
+            if (hasVoice) {
+                // Check for wake word
+                const wakeWord = await this.audio.voiceEngine.detectWakeWord(cleanAudio);
+                
+                if (wakeWord === 'SUPREME') {
+                    this.state.voiceActive = true;
+                    this.audio.speaker.play('activation_sound');
+                    
+                    // Listen for command
+                    const command = await this.audio.voiceEngine.listenForCommand(cleanAudio, 5000);
+                    
+                    if (command) {
+                        await this.processVoiceCommand(command);
+                    }
+                    
+                    this.state.voiceActive = false;
+                }
+            }
+        });
+    }
+
+    /**
+     * 🎙️ Process Voice Command
+     */
+    async processVoiceCommand(command) {
+        console.log(`🎤 Voice Command: "${command}"`);
+        
+        const lowerCommand = command.toLowerCase();
+        
+        // Find matching command
+        for (const [pattern, handler] of this.voiceCommands) {
+            if (lowerCommand.includes(pattern)) {
+                await handler(command);
+                return;
+            }
+        }
+        
+        // Unknown command
+        this.audio.speaker.speak('Command not recognized. Please try again.');
+    }
+
+    /**
+     * 📋 Register Voice Commands
+     */
+    registerVoiceCommands() {
+        // Bike Control
+        this.voiceCommands.set('start', async () => {
+            if (await this.authenticateRider()) {
+                await this.sendBikeCommand('START');
+                this.audio.speaker.speak('Bike starting. Ride safe.');
+            }
+        });
+        
+        this.voiceCommands.set('stop', async () => {
+            await this.sendBikeCommand('STOP');
+            this.audio.speaker.speak('Bike stopped.');
+        });
+        
+        this.voiceCommands.set('lock', async () => {
+            await this.sendBikeCommand('LOCK');
+            this.audio.speaker.speak('Bike locked and secured.');
+        });
+        
+        // Navigation
+        this.voiceCommands.set('navigate to', async (command) => {
+            const destination = command.replace('navigate to', '').trim();
+            await this.copilot.navigate(destination);
+        });
+        
+        this.voiceCommands.set('find charging', async () => {
+            const stations = await this.copilot.findChargingStations();
+            this.audio.speaker.speak(`Found ${stations.length} charging stations nearby.`);
+        });
+        
+        this.voiceCommands.set('take me home', async () => {
+            await this.copilot.navigate('HOME');
+        });
+        
+        // Safety
+        this.voiceCommands.set('emergency', async () => {
+            await this.triggerEmergency();
+        });
+        
+        this.voiceCommands.set('call help', async () => {
+            await this.callEmergencyServices();
+        });
+        
+        this.voiceCommands.set('reduce speed', async () => {
+            await this.sendBikeCommand('REDUCE_SPEED');
+            this.audio.speaker.speak('Reducing speed.');
+        });
+        
+        // Information
+        this.voiceCommands.set('battery status', async () => {
+            const status = await this.getBikeBatteryStatus();
+            this.audio.speaker.speak(`Battery at ${status.level} percent. Range: ${status.range} kilometers.`);
+        });
+        
+        this.voiceCommands.set('weather', async () => {
+            const weather = await this.copilot.getWeather();
+            this.audio.speaker.speak(`${weather.condition}. Temperature ${weather.temp} degrees.`);
+        });
+        
+        // Music & Calls
+        this.voiceCommands.set('play music', async () => {
+            this.audio.speaker.play('music');
+        });
+        
+        this.voiceCommands.set('answer call', async () => {
+            await this.answerPhoneCall();
+        });
+        
+        this.voiceCommands.set('reject call', async () => {
+            await this.rejectPhoneCall();
+        });
+    }
+
+    /**
+     * 🔐 Authenticate Rider (Multi-Factor)
+     */
+    async authenticateRider() {
+        console.log('🔐 Authenticating Rider...');
+        
+        const checks = {
+            helmetWorn: this.state.worn,
+            helmetStrapped: this.state.strapped,
+            voicePrint: false,
+            faceID: false,
+            phoneKey: false,
+            bikeProximity: false
+        };
+        
+        // Check 1: Helmet must be worn and strapped
+        if (!checks.helmetWorn) {
+            this.audio.speaker.speak('Please wear your helmet first.');
+            return false;
+        }
+        
+        if (!checks.helmetStrapped) {
+            this.audio.speaker.speak('Please fasten your helmet strap.');
+            return false;
+        }
+        
+        // Check 2: Voice Print Authentication
+        checks.voicePrint = await this.security.biometrics.verifyVoicePrint(
+            this.audio.microphone.getLastSample()
+        );
+        
+        // Check 3: Face ID (if helmet has camera)
+        checks.faceID = await this.security.biometrics.verifyFaceID();
+        
+        // Check 4: Phone Key Proximity
+        checks.phoneKey = await this.security.biometrics.verifyPhoneKey();
+        
+        // Check 5: Bike Proximity (UWB — must be within 2 meters)
+        checks.bikeProximity = await this.network.uwb.measureDistance(this.pairedBikeId) < 2;
+        
+        // Authentication requires at least 3 out of 5 checks
+        const passedChecks = Object.values(checks).filter(Boolean).length;
+        const authenticated = passedChecks >= 3;
+        
+        if (authenticated) {
+            console.log('✅ Rider Authenticated');
+            this.state.authenticated = true;
+            this.emit('rider:authenticated');
+        } else {
+            console.log('❌ Authentication Failed');
+            this.audio.speaker.speak('Authentication failed. Please try again.');
+            this.emit('rider:auth_failed');
+        }
+        
+        return authenticated;
+    }
+
+    /**
+     * 🪖 Helmet Put On Event
+     */
+    async onHelmetPutOn() {
+        console.log('🪖 Helmet Detected — Worn');
+        
+        // Power up systems
+        await this.audio.voiceEngine.activate();
+        
+        // Greet rider
+        setTimeout(() => {
+            this.audio.speaker.speak('SUPREME Helmet active. Say SUPREME to begin.');
+        }, 500);
+        
+        // Auto-authenticate
+        const authenticated = await this.authenticateRider();
+        
+        if (authenticated && this.bikeLink) {
+            await this.bikeLink.unlock();
+        }
+        
+        this.emit('helmet:worn', { helmetId: this.helmetId });
+    }
+
+    /**
+     * 🪖 Helmet Taken Off Event
+     */
+    async onHelmetTakenOff() {
+        console.log('🪖 Helmet Removed');
+        
+        this.state.authenticated = false;
+        
+        // Auto-lock bike
+        if (this.bikeLink) {
+            await this.bikeLink.lock();
+            this.audio.speaker.speak('Bike locked.');
+        }
+        
+        // Power save
+        await this.audio.voiceEngine.deactivate();
+        
+        this.emit('helmet:removed', { helmetId: this.helmetId });
+    }
+
+    /**
+     * 💥 Accident Detection
+     */
+    async detectAccident(imuData) {
+        console.log('💥 ACCIDENT DETECTED!');
+        
+        this.state.emergencyMode = true;
+        
+        // Alert rider
+        this.audio.speaker.speak('Are you okay? Say HELP for emergency services.', { volume: 'MAX' });
+        
+        // Wait 10 seconds for response
+        const responded = await this.waitForResponse(10000);
+        
+        if (!responded) {
+            // AUTO EMERGENCY CALL
+            await this.callEmergencyServices({
+                location: this.getLocation(),
+                helmetId: this.helmetId,
+                impactForce: imuData.acceleration,
+                time: new Date().toISOString()
+            });
+        }
+        
+        // Send alert to emergency contacts
+        await this.alertEmergencyContacts();
+        
+        // Lock bike to prevent theft
+        if (this.bikeLink) {
+            await this.bikeLink.emergencyLock();
+        }
+        
+        this.emit('accident:detected', {
+            helmetId: this.helmetId,
+            force: imuData.acceleration,
+            location: this.getLocation()
+        });
+    }
+
+    /**
+     * 😴 Fatigue Detection
+     */
+    async detectFatigue(imuData) {
+        console.log('😴 Fatigue Detected');
+        
+        this.audio.speaker.speak('You seem tired. Consider taking a break.');
+        
+        // Suggest nearby rest stops
+        const restStops = await this.copilot.findRestStops();
+        
+        if (restStops.length > 0) {
+            this.audio.speaker.speak(`There's a rest stop ${restStops[0].distance} meters ahead.`);
+        }
+        
+        // Reduce speed if severe fatigue detected
+        if (imuData.headTilt > 50) {
+            await this.sendBikeCommand('REDUCE_SPEED');
+            this.audio.speaker.speak('Speed reduced for your safety.');
+        }
+        
+        this.emit('fatigue:detected', { helmetId: this.helmetId });
+    }
+
+    /**
+     * 🔗 Connect to Bike
+     */
+    async connectToBike(bikeId) {
+        console.log(`🔗 Connecting to bike: ${bikeId}`);
+        
+        // Encrypted handshake
+        const handshake = await this.performHandshake(bikeId);
+        
+        if (handshake.success) {
+            this.bikeLink = new BikeLink(bikeId, handshake.sessionKey);
+            this.state.connected = true;
+            
+            console.log('✅ Connected to bike');
+            this.emit('bike:connected', { bikeId });
+        } else {
+            console.log('❌ Bike connection failed');
+            this.emit('bike:connection_failed', { bikeId });
+        }
+    }
+
+    /**
+     * 🤝 Encrypted Handshake with Bike
+     */
+    async performHandshake(bikeId) {
+        // Generate random challenge
+        const challenge = crypto.randomBytes(32);
+        
+        // Send challenge to bike via Bluetooth + UWB
+        const response = await this.network.bluetooth.sendHandshake(bikeId, {
+            helmetId: this.helmetId,
+            challenge: challenge.toString('hex'),
+            helmetPublicKey: this.security.keys.getPublicKey()
+        });
+        
+        // Verify bike's response
+        const verified = this.security.encryption.verifyHandshakeResponse(
+            challenge,
+            response.bikeResponse,
+            response.bikePublicKey
+        );
+        
+        if (verified) {
+            // Generate session key
+            const sessionKey = this.security.encryption.generateSessionKey(
+                this.security.keys.getPrivateKey(),
+                response.bikePublicKey
+            );
+            
+            return { success: true, sessionKey };
+        }
+        
+        return { success: false };
+    }
+
+    /**
+     * 🚨 Trigger Emergency
+     */
+    async triggerEmergency() {
+        console.log('🚨 EMERGENCY ACTIVATED');
+        
+        this.state.emergencyMode = true;
+        
+        // Flash helmet lights
+        this.sensors.light.flash('RED', 'FAST');
+        
+        // Send emergency signal to bike
+        await this.sendBikeCommand('EMERGENCY_STOP');
+        
+        // Call emergency services
+        await this.callEmergencyServices();
+        
+        // Share live location
+        await this.shareLiveLocation();
+        
+        this.emit('emergency:activated');
+    }
+
+    /**
+     * 📞 Call Emergency Services
+     */
+    async callEmergencyServices(details = {}) {
+        console.log('📞 Calling Emergency Services...');
+        
+        const emergencyData = {
+            helmetId: this.helmetId,
+            riderId: this.ownerId,
+            location: this.getLocation(),
+            timestamp: new Date().toISOString(),
+            accidentDetected: details.impactForce > 0,
+            impactForce: details.impactForce || 0,
+            vitalSigns: await this.getRiderVitalSigns()
+        };
+        
+        // Send via cellular
+        await this.network.cellular.sendEmergencyAlert(emergencyData);
+        
+        this.audio.speaker.speak('Emergency services have been notified. Help is on the way.');
+        
+        this.emit('emergency:called', emergencyData);
+    }
+
+    /**
+     * 📍 Get Location
+     */
+    getLocation() {
+        return this.network.cellular.getLocation() || { lat: 0, lng: 0 };
+    }
+
+    /**
+     * 💓 Get Rider Vital Signs
+     */
+    async getRiderVitalSigns() {
+        // Sensors in helmet can detect basic vitals
+        return {
+            heartRate: await this.sensors.proximity.getHeartRate(),
+            temperature: this.state.temperature,
+            movement: this.sensors.imu.isMoving(),
+            consciousness: this.state.worn // Simplistic
+        };
+    }
+
+    /**
+     * 📤 Send Command to Bike
+     */
+    async sendBikeCommand(command, params = {}) {
+        if (!this.bikeLink) {
+            console.log('❌ No bike connection');
+            return false;
+        }
+        
+        const encryptedCommand = await this.security.encryption.encrypt({
+            command,
+            params,
+            helmetId: this.helmetId,
+            timestamp: Date.now()
+        }, this.bikeLink.sessionKey);
+        
+        await this.bikeLink.send(encryptedCommand);
+        
+        console.log(`📤 Command sent to bike: ${command}`);
+        return true;
+    }
+
+    /**
+     * 🔋 Get Bike Battery Status
+     */
+    async getBikeBatteryStatus() {
+        if (!this.bikeLink) return { level: 0, range: 0 };
+        return await this.bikeLink.getBatteryStatus();
+    }
+
+    /**
+     * ⏱️ Wait for Rider Response
+     */
+    async waitForResponse(timeout) {
+        return new Promise((resolve) => {
+            const timer = setTimeout(() => resolve(false), timeout);
+            
+            this.audio.voiceEngine.once('speech_detected', () => {
+                clearTimeout(timer);
+                resolve(true);
+            });
+        });
+    }
+
+    /**
+     * 📞 Answer Phone Call
+     */
+    async answerPhoneCall() {
+        console.log('📞 Answering call...');
+        this.audio.speaker.speak('Call connected.');
+        await this.network.bluetooth.answerCall();
+    }
+
+    /**
+     * 📞 Reject Phone Call
+     */
+    async rejectPhoneCall() {
+        console.log('📞 Rejecting call...');
+        await this.network.bluetooth.rejectCall();
+    }
+
+    /**
+     * 👥 Alert Emergency Contacts
+     */
+    async alertEmergencyContacts() {
+        const contacts = await this.getEmergencyContacts();
+        
+        for (const contact of contacts) {
+            await this.network.cellular.sendAlert(contact, {
+                type: 'ACCIDENT',
+                helmetId: this.helmetId,
+                location: this.getLocation(),
+                time: new Date().toISOString()
+            });
+        }
+    }
+
+    /**
+     * 📍 Share Live Location
+     */
+    async shareLiveLocation() {
+        const location = this.getLocation();
+        
+        // Share with emergency contacts
+        const contacts = await this.getEmergencyContacts();
+        
+        for (const contact of contacts) {
+            await this.network.cellular.sendLocation(contact, location);
+        }
+    }
+
+    async getEmergencyContacts() {
+        return ['+923001234567', '+923009876543'];
+    }
+
+    /**
+     * 🔌 Shutdown Helmet
+     */
+    async shutdown() {
+        clearInterval(this.sensorLoop);
+        
+        if (this.bikeLink) {
+            await this.bikeLink.lock();
+        }
+        
+        console.log('🪖 Helmet shutting down...');
+    }
+}
+
+module.exports = SupremeHelmetOS;
