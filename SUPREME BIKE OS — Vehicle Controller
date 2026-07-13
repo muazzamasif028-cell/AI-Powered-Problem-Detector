@@ -1,0 +1,402 @@
+// ============================================================
+// 🏍️ bike/SupremeBikeOS.js
+// SUPREME Bike OS — Vehicle Control System
+// Helmet-First Security | Anti-Theft | Smart Control
+// ============================================================
+const EventEmitter = require('events');
+
+class SupremeBikeOS extends EventEmitter {
+    constructor(bikeConfig) {
+        super();
+        
+        this.bikeId = bikeConfig.id || `BIKE-${Date.now()}`;
+        this.model = bikeConfig.model || 'SUPREME-EBIKE-2024';
+        
+        // Bike State
+        this.state = {
+            locked: true,
+            motorOn: false,
+            speed: 0,
+            batteryLevel: 100,
+            range: 150, // km
+            mode: 'LOCKED', // LOCKED | UNLOCKED | RIDING | CHARGING | EMERGENCY
+            location: bikeConfig.location || { lat: 0, lng: 0 },
+            odometer: 0,
+            temperature: 25
+        };
+        
+        // Paired helmet
+        this.pairedHelmetId = bikeConfig.helmetId;
+        this.helmetLink = null;
+        this.helmetAuthenticated = false;
+        
+        // Security
+        this.security = {
+            immobilizer: new Immobilizer(),
+            alarm: new AlarmSystem(),
+            gps: new GPSTracker(),
+            antiTheft: new AntiTheftSystem(),
+            remoteLock: new RemoteLock()
+        };
+        
+        // Vehicle systems
+        this.systems = {
+            motor: new MotorController(),
+            battery: new BatteryManager(),
+            brakes: new BrakeSystem(),
+            lights: new LightController(),
+            horn: new Horn(),
+            display: new DisplayController()
+        };
+        
+        // Network
+        this.network = {
+            bluetooth: new Bluetooth53(),
+            uwb: new UWB(),
+            cellular: new Cellular5G(),
+            wifi: new WiFi()
+        };
+        
+        // Initialize
+        this.initialize();
+    }
+
+    /**
+     * Initialize Bike Systems
+     */
+    async initialize() {
+        console.log(`🏍️ Initializing SUPREME Bike: ${this.bikeId}`);
+        
+        // Initialize security
+        await this.security.immobilizer.activate(); // Start locked
+        await this.security.alarm.initialize();
+        await this.security.gps.initialize();
+        await this.security.antiTheft.initialize();
+        
+        // Initialize vehicle systems
+        await this.systems.motor.initialize();
+        await this.systems.battery.initialize();
+        await this.systems.brakes.initialize();
+        
+        // Initialize network
+        await this.network.bluetooth.initialize();
+        await this.network.uwb.initialize();
+        
+        // Listen for helmet connection
+        this.network.bluetooth.on('helmet:detected', async (helmetId) => {
+            if (helmetId === this.pairedHelmetId) {
+                await this.connectHelmet(helmetId);
+            }
+        });
+        
+        // Anti-theft monitoring
+        this.antiTheftLoop = setInterval(() => this.monitorAntiTheft(), 100);
+        
+        // GPS tracking
+        this.gpsLoop = setInterval(() => this.updateLocation(), 1000);
+        
+        console.log('✅ SUPREME Bike Ready — Locked & Secure');
+    }
+
+    /**
+     * 🔗 Connect to Helmet
+     */
+    async connectHelmet(helmetId) {
+        console.log(`🪖 Helmet detected: ${helmetId}`);
+        
+        // Verify helmet identity
+        const verified = await this.verifyHelmet(helmetId);
+        
+        if (!verified) {
+            console.log('❌ Helmet verification failed');
+            this.security.alarm.trigger('UNAUTHORIZED_HELMET');
+            return;
+        }
+        
+        // Establish secure link
+        this.helmetLink = await this.establishSecureLink(helmetId);
+        
+        console.log('✅ Helmet connected');
+        this.emit('helmet:connected', { helmetId });
+    }
+
+    /**
+     * 🔓 Unlock Bike (Requires Helmet Auth)
+     */
+    async unlock() {
+        if (!this.helmetAuthenticated) {
+            console.log('❌ Cannot unlock: Helmet not authenticated');
+            return false;
+        }
+        
+        console.log('🔓 Unlocking bike...');
+        
+        // Deactivate immobilizer
+        await this.security.immobilizer.deactivate();
+        
+        // Update state
+        this.state.locked = false;
+        this.state.mode = 'UNLOCKED';
+        
+        // Welcome lights
+        await this.systems.lights.welcomeSequence();
+        
+        // Display message
+        this.systems.display.show('WELCOME_RIDER');
+        
+        this.emit('bike:unlocked');
+        
+        return true;
+    }
+
+    /**
+     * 🔒 Lock Bike
+     */
+    async lock() {
+        console.log('🔒 Locking bike...');
+        
+        // Turn off motor
+        await this.systems.motor.stop();
+        
+        // Activate immobilizer
+        await this.security.immobilizer.activate();
+        
+        // Activate alarm
+        await this.security.alarm.arm();
+        
+        // Update state
+        this.state.locked = true;
+        this.state.motorOn = false;
+        this.state.mode = 'LOCKED';
+        
+        // Lock lights
+        await this.systems.lights.lockSequence();
+        
+        this.emit('bike:locked');
+        
+        return true;
+    }
+
+    /**
+     * 🚨 Emergency Lock (After Accident)
+     */
+    async emergencyLock() {
+        console.log('🚨 EMERGENCY LOCK');
+        
+        // Immediate motor cutoff
+        await this.systems.motor.emergencyStop();
+        
+        // Hazard lights
+        await this.systems.lights.hazardLights(true);
+        
+        // Lock with alarm
+        await this.lock();
+        this.state.mode = 'EMERGENCY';
+        
+        // Send location to cloud
+        await this.reportEmergency();
+        
+        this.emit('bike:emergency_lock');
+    }
+
+    /**
+     * 🏍️ Start Motor
+     */
+    async startMotor() {
+        if (this.state.locked) {
+            console.log('❌ Cannot start: Bike is locked');
+            return false;
+        }
+        
+        if (!this.helmetAuthenticated) {
+            console.log('❌ Cannot start: Rider not authenticated');
+            return false;
+        }
+        
+        console.log('🏍️ Starting motor...');
+        
+        await this.systems.motor.start();
+        this.state.motorOn = true;
+        this.state.mode = 'RIDING';
+        
+        this.emit('bike:motor_started');
+        
+        return true;
+    }
+
+    /**
+     * 🛑 Stop Motor
+     */
+    async stopMotor() {
+        console.log('🛑 Stopping motor...');
+        
+        await this.systems.motor.stop();
+        this.state.motorOn = false;
+        
+        if (!this.state.locked) {
+            this.state.mode = 'UNLOCKED';
+        }
+        
+        this.emit('bike:motor_stopped');
+    }
+
+    /**
+     * 📥 Receive Command from Helmet
+     */
+    async receiveHelmetCommand(encryptedCommand) {
+        if (!this.helmetLink) return;
+        
+        // Decrypt command
+        const command = await this.helmetLink.decrypt(encryptedCommand);
+        
+        console.log(`📥 Helmet command: ${command.command}`);
+        
+        switch (command.command) {
+            case 'START':
+                if (this.helmetAuthenticated) {
+                    await this.unlock();
+                    await this.startMotor();
+                }
+                break;
+                
+            case 'STOP':
+                await this.stopMotor();
+                break;
+                
+            case 'LOCK':
+                await this.lock();
+                break;
+                
+            case 'EMERGENCY_STOP':
+                await this.emergencyLock();
+                break;
+                
+            case 'REDUCE_SPEED':
+                await this.systems.motor.reduceSpeed(20); // Reduce by 20%
+                break;
+                
+            case 'UNLOCK':
+                await this.unlock();
+                break;
+        }
+        
+        this.emit('command:executed', command);
+    }
+
+    /**
+     * 🔍 Anti-Theft Monitoring
+     */
+    async monitorAntiTheft() {
+        if (!this.state.locked) return;
+        
+        // Check for unauthorized movement
+        const movement = await this.security.antiTheft.detectMovement();
+        
+        if (movement.detected) {
+            console.log('🚨 UNAUTHORIZED MOVEMENT DETECTED');
+            
+            // Trigger alarm
+            await this.security.alarm.trigger('MOVEMENT_DETECTED');
+            
+            // Flash lights
+            await this.systems.lights.flash('RED', 'FAST');
+            
+            // Send alert to owner
+            await this.sendTheftAlert();
+            
+            // Start GPS tracking (if not already)
+            await this.security.gps.startTracking();
+            
+            this.emit('theft:detected', movement);
+        }
+        
+        // Check helmet proximity
+        if (this.pairedHelmetId) {
+            const helmetNearby = await this.network.uwb.isDeviceNearby(this.pairedHelmetId);
+            
+            // If helmet is nearby but bike is locked, possible theft
+            if (helmetNearby && this.state.locked) {
+                // Someone might have the helmet but not authenticated
+            }
+        }
+    }
+
+    /**
+     * 📍 Update GPS Location
+     */
+    async updateLocation() {
+        const location = await this.security.gps.getLocation();
+        
+        if (location) {
+            this.state.location = location;
+            
+            // Report to cloud if bike is stolen
+            if (this.state.mode === 'EMERGENCY' || this.security.alarm.isTriggered()) {
+                await this.reportLocation();
+            }
+        }
+    }
+
+    /**
+     * 📡 Report Emergency to Cloud
+     */
+    async reportEmergency() {
+        const data = {
+            bikeId: this.bikeId,
+            location: this.state.location,
+            batteryLevel: this.state.batteryLevel,
+            timestamp: new Date().toISOString(),
+            type: 'EMERGENCY_LOCK'
+        };
+        
+        await this.network.cellular.sendEmergencyReport(data);
+    }
+
+    /**
+     * 📍 Report Location to Cloud
+     */
+    async reportLocation() {
+        await this.network.cellular.sendLocationUpdate({
+            bikeId: this.bikeId,
+            location: this.state.location,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    /**
+     * 🚨 Send Theft Alert
+     */
+    async sendTheftAlert() {
+        await this.network.cellular.sendAlert('OWNER', {
+            type: 'THEFT_DETECTED',
+            bikeId: this.bikeId,
+            location: this.state.location,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    /**
+     * 🔋 Get Battery Status
+     */
+    getBatteryStatus() {
+        return {
+            level: this.state.batteryLevel,
+            range: this.state.range,
+            charging: this.state.mode === 'CHARGING',
+            temperature: this.state.temperature
+        };
+    }
+
+    /**
+     * 🔌 Shutdown
+     */
+    async shutdown() {
+        clearInterval(this.antiTheftLoop);
+        clearInterval(this.gpsLoop);
+        
+        await this.lock();
+        console.log('🏍️ Bike shutdown complete');
+    }
+}
+
+module.exports = SupremeBikeOS;
