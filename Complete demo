@@ -1,0 +1,41 @@
+// ============================================================
+// ✈️ SUPREME APEX JET — Complete Demo
+// ============================================================
+const SupremeApexJet = require('./apex/SupremeApexJet');
+
+async function demoApexJet() {
+    console.log('✈️ Starting SUPREME APEX JET Demo...\n');
+    
+    const jet = new SupremeApexJet({
+        registration: 'APX-SUPREME-001',
+        location: { lat: 25.2048, lng: 55.2708 } // Dubai
+    });
+    
+    await jet.initialize();
+    
+    // Pilot commands
+    console.log('\n👨‍✈️ Pilot: "SUPREME, systems check"\n');
+    await jet.processVoiceCommand('SUPREME, systems check', 'PILOT');
+    
+    console.log('\n👨‍✈️ Pilot: "SUPREME, optimize route to London"\n');
+    await jet.processVoiceCommand('SUPREME, optimize route to London', 'PILOT');
+    
+    console.log('\n👨‍✈️ Pilot: "SUPREME, engage autopilot"\n');
+    await jet.processVoiceCommand('SUPREME, engage autopilot', 'PILOT');
+    
+    // Passenger commands
+    console.log('\n👤 Passenger: "SUPREME, prepare the meeting room"\n');
+    await jet.processVoiceCommand('SUPREME, prepare the meeting room', 'PASSENGER');
+    
+    console.log('\n👤 Passenger: "SUPREME, what is our ETA?"\n');
+    await jet.processVoiceCommand('SUPREME, what is our ETA?', 'PASSENGER');
+    
+    console.log('\n✈️ APEX JET cruising at FL450...');
+    console.log('🛡️ 30 Safety Pillars monitoring...');
+    console.log('🧠 AI Fuel Optimizer saving 4%...');
+    console.log('🛋️ Cabin systems active...');
+    
+    console.log('\n✅ SUPREME APEX JET Demo Complete!\n');
+}
+
+demoApexJet();
