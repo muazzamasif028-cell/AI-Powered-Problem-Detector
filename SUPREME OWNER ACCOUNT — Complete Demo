@@ -1,0 +1,100 @@
+// ============================================================
+// 👤 SUPREME OWNER ACCOUNT — Complete Demo
+// ============================================================
+const SupremeOwnerAccount = require('./account/SupremeOwnerAccount');
+const SupremeApp = require('./app/SupremeApp');
+
+async function demoOwnerAccount() {
+    console.log('👤 SUPREME OWNER ACCOUNT SYSTEM');
+    console.log('═══════════════════════════════════\n');
+    
+    // Create Owner Account
+    const account = new SupremeOwnerAccount();
+    
+    await account.createAccount({
+        name: 'Ahmed Al Rashid',
+        email: 'ahmed@supreme-owner.com',
+        phone: '+971501234567',
+        faceId: 'owner_face_data',
+        fingerprint: 'owner_fingerprint',
+        passkey: 'owner_passkey',
+        twoFactorMethod: 'AUTHENTICATOR_APP'
+    });
+    
+    // Add vehicles (simulated)
+    console.log('\n🚗 Adding vehicles to owner account...\n');
+    
+    await account.addVehicle(
+        { vin: 'SUPREME-ELITE-001', model: 'ELITE', edition: 'FOUNDER' },
+        { dealer: 'SUPREME Dubai', invoice: 'INV-2025-001' }
+    );
+    
+    await account.addVehicle(
+        { registration: 'APX-SUPREME-001', model: 'APEX-JET-ULTRA', edition: 'FOUNDER' },
+        { dealer: 'SUPREME Aviation Dubai', invoice: 'INV-2025-002' }
+    );
+    
+    await account.addVehicle(
+        { vin: 'SUPREME-LIMO-001', model: 'LIMOUSINE', edition: 'FOUNDER', protectionLevel: 'ARMORED' },
+        { dealer: 'SUPREME Motors London', invoice: 'INV-2025-003' }
+    );
+    
+    // Grant access to family member
+    console.log('\n👨‍👩‍👧‍👦 Granting access...\n');
+    
+    await account.grantAccess(
+        'SUPREME-ELITE-001',
+        { id: 'USER-002', name: 'Fatima Al Rashid', email: 'fatima@family.com' },
+        'FAMILY'
+    );
+    
+    await account.grantAccess(
+        'SUPREME-ELITE-001',
+        { id: 'USER-003', name: 'Mohammed (Driver)', email: 'driver@staff.com' },
+        'DRIVER'
+    );
+    
+    // Dashboard summary
+    console.log('\n📊 OWNER DASHBOARD:');
+    const summary = account.getDashboardSummary();
+    console.log(`   Owner: ${summary.owner.name}`);
+    console.log(`   Vehicles: ${summary.fleet.totalVehicles}`);
+    console.log(`   Active Permissions: ${summary.permissions.totalActive}`);
+    
+    // Mobile App
+    console.log('\n📱 SUPREME APP:');
+    
+    const app = new SupremeApp(account);
+    await app.login({ faceId: 'owner_face_data' });
+    
+    const homeScreen = app.getHomeScreen();
+    console.log(`   Screen: ${homeScreen.screen}`);
+    console.log(`   Vehicles on app:`);
+    
+    for (const vehicle of homeScreen.vehicles) {
+        console.log(`     ${vehicle.icon} ${vehicle.model} (${vehicle.type})`);
+    }
+    
+    console.log('\n🔒 SECURITY FEATURES:');
+    console.log('   ✅ Face ID Authentication');
+    console.log('   ✅ Fingerprint Authentication');
+    console.log('   ✅ Passkey Support');
+    console.log('   ✅ Two-Factor Authentication (2FA)');
+    console.log('   ✅ End-to-End Encryption');
+    console.log('   ✅ Hardware Security Keys');
+    console.log('   ✅ New Device Verification');
+    console.log('   ✅ Role-Based Access Control');
+    
+    console.log('\n👑 OWNER PRIVILEGES:');
+    console.log('   ✅ Full Control — All Vehicles');
+    console.log('   ✅ Grant/Revoke Access');
+    console.log('   ✅ Remote Lock/Unlock/Start/Climate');
+    console.log('   ✅ Vehicle Location (Private)');
+    console.log('   ✅ Service Booking');
+    console.log('   ✅ OTA Updates');
+    console.log('   ✅ Warranty & Insurance Tracking');
+    
+    console.log('\n✅ SUPREME Owner Account Demo Complete!\n');
+}
+
+demoOwnerAccount();
