@@ -1,0 +1,64 @@
+// ============================================================
+// 🪖 limousine/ArmoredProtection.js
+// SUPREME LIMOUSINE — Armored Protection Edition (Optional)
+// B6/B7 Ballistic | Explosion Protection | Smoke Defense
+// ============================================================
+
+class ArmoredProtection {
+    constructor(limo) {
+        this.limo = limo;
+        
+        this.specifications = {
+            ballisticLevel: 'B7', // B6 or B7
+            bodyArmor: 'COMPOSITE_STEEL_TITANIUM',
+            glassThickness: '75mm_MULTI_LAYER',
+            glassRating: '7.62x51mm_NATO_BALL',
+            floorProtection: 'DM51_GRENADE_RESISTANT',
+            roofProtection: 'DRONE_ATTACK_RESISTANT',
+            tires: 'RUN_FLAT_REINFORCED',
+            fuelTank: 'SELF_SEALING',
+            batteryArmor: 'BALLISTIC_ENCLOSURE'
+        };
+        
+        this.systems = {
+            smokeDefense: new SmokeDefenseSystem(),
+            emergencyEscape: new EmergencyEscapeSystem(),
+            oxygenSupply: new EmergencyOxygenSystem(),
+            fireSuppression: new FireSuppressionSystem('MILITARY_GRADE'),
+            empProtection: new EMPProtection(),
+            nbcProtection: new NBCProtection() // Nuclear, Biological, Chemical
+        };
+    }
+
+    async initialize() {
+        console.log('  🪖 Armored Protection System Active');
+        console.log('     • Ballistic Level: B7');
+        console.log('     • Multi-Layer Composite Armor');
+        console.log('     • 75mm Bullet-Resistant Glass');
+        console.log('     • Run-Flat Reinforced Tires');
+        console.log('     • Explosion Protection (Floor + Roof)');
+        console.log('     • Smoke Defense System');
+        console.log('     • Emergency Escape System');
+        console.log('     • EMP + NBC Protection');
+    }
+
+    async armorToMaximum() {
+        // Activate all protection to maximum level
+        await this.systems.smokeDefense.arm();
+        await this.systems.emergencyEscape.arm();
+        await this.systems.fireSuppression.arm();
+        
+        return { success: true, protectionLevel: 'MAXIMUM' };
+    }
+
+    getStatus() {
+        return {
+            ballisticLevel: this.specifications.ballisticLevel,
+            glassIntegrity: '100%',
+            armorStatus: 'ACTIVE',
+            systemsReady: Object.keys(this.systems).length
+        };
+    }
+}
+
+module.exports = ArmoredProtection;
