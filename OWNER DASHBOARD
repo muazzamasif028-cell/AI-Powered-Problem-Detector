@@ -1,0 +1,61 @@
+// ============================================================
+// 📊 apex/OwnerDashboard.js
+// SUPREME APEX JET — Owner Dashboard
+// Live Status | Maintenance | Fuel | Security | Remote Control
+// ============================================================
+
+class OwnerDashboard {
+    constructor(jet) {
+        this.jet = jet;
+        this.data = {
+            liveStatus: {},
+            maintenance: {},
+            fuel: {},
+            flightHistory: [],
+            securityAlerts: [],
+            remoteControls: {}
+        };
+    }
+
+    async update() {
+        this.data.liveStatus = {
+            aircraft: this.jet.registration,
+            phase: this.jet.state.phase,
+            location: this.jet.state.location,
+            altitude: this.jet.state.altitude,
+            speed: this.jet.state.speed,
+            destination: this.jet.state.destination,
+            eta: this.jet.state.eta,
+            fuel: this.jet.state.fuelLevel,
+            passengers: this.jet.state.passengers,
+            cabinTemp: this.jet.state.cabinTemp,
+            lastUpdate: new Date().toISOString()
+        };
+        
+        this.data.maintenance = await this.jet.agents.maintenance.getReport();
+        this.data.fuel = await this.jet.agents.fuel.getAnalytics();
+        this.data.securityAlerts = this.jet.security.getActiveAlerts();
+    }
+
+    getDashboard() {
+        return {
+            aircraft: this.jet.registration,
+            model: this.jet.model,
+            value: '$80M - $150M USD',
+            liveStatus: this.data.liveStatus,
+            maintenance: this.data.maintenance,
+            fuel: this.data.fuel,
+            flightHistory: this.data.flightHistory.slice(-10),
+            securityAlerts: this.data.securityAlerts,
+            quickActions: [
+                'View Live Cameras',
+                'Contact Pilot',
+                'Adjust Cabin Temperature',
+                'View Maintenance Schedule',
+                'Download Flight Report'
+            ]
+        };
+    }
+}
+
+module.exports = OwnerDashboard;
