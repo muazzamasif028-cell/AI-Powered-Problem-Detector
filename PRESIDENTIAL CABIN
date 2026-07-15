@@ -1,0 +1,157 @@
+// ============================================================
+// 👑 limousine/PresidentialCabin.js
+// SUPREME LIMOUSINE — Presidential Cabin
+// 4 Massage Seats | Smart Glass | Mini Bar | Cinema Mode
+// ============================================================
+
+class PresidentialCabin {
+    constructor(limo) {
+        this.limo = limo;
+        
+        this.seats = {
+            principal: {
+                position: 'EXECUTIVE',
+                massage: 'SHIATSU',
+                heat: 'ADAPTIVE',
+                ventilation: 'AUTO',
+                recline: 'COMFORT',
+                footrest: 'EXTENDED'
+            },
+            companion: {
+                position: 'EXECUTIVE',
+                massage: 'OFF',
+                heat: 'AUTO',
+                ventilation: 'AUTO',
+                recline: 'NORMAL'
+            },
+            rearLeft: {
+                massage: 'OFF',
+                heat: 'AUTO',
+                recline: 'NORMAL'
+            },
+            rearRight: {
+                massage: 'OFF',
+                heat: 'AUTO',
+                recline: 'NORMAL'
+            }
+        };
+        
+        this.state = {
+            temperature: 22,
+            lighting: 'WELCOME',
+            smartGlass: 'TRANSPARENT',
+            privacyShield: 'INACTIVE',
+            acousticShield: 'INACTIVE',
+            miniBar: 'STOCKED',
+            refrigerator: 'COOLING',
+            coffeeMachine: 'READY',
+            airQuality: 'PURIFIED',
+            noise: 'WHISPER_QUIET',
+            meetingMode: false,
+            cinemaMode: false
+        };
+        
+        this.amenities = {
+            miniBar: 'FULLY_STOCKED',
+            refrigerator: 'DUAL_ZONE',
+            coffeeMachine: 'ESPRESSO_CAPUCCINO',
+            tables: 'EXECUTIVE_FOLD_OUT',
+            charging: 'WIRELESS_FAST',
+            airPurifier: 'MEDICAL_GRADE_HEPA',
+            fragrance: 'BESPOKE_SIGNATURE'
+        };
+    }
+
+    async initialize() {
+        console.log('  👑 Presidential Cabin Ready');
+        console.log('     • 4 Executive Massage Seats');
+        console.log('     • Smart Glass Privacy Windows');
+        console.log('     • Mini Bar + Refrigerator + Coffee');
+        console.log('     • Acoustic Shield Technology');
+        console.log('     • Medical-Grade Air Purification');
+    }
+
+    async welcomePrincipal() {
+        this.state.lighting = 'WELCOME';
+        this.state.smartGlass = 'TRANSPARENT';
+        
+        // Adjust seat to principal's saved preferences
+        this.seats.principal.position = 'EXECUTIVE';
+        this.seats.principal.massage = 'SHIATSU';
+        
+        // Activate signature fragrance
+        this.state.fragrance = 'BESPOKE_SIGNATURE';
+        
+        return { success: true };
+    }
+
+    async setTemperature(temp) {
+        this.state.temperature = Math.max(18, Math.min(28, temp));
+        return { success: true, temperature: this.state.temperature };
+    }
+
+    async setSmartGlass(mode) {
+        const modes = ['TRANSPARENT', 'SEMI_OPAQUE', 'OPAQUE', 'ONE_WAY'];
+        if (modes.includes(mode)) {
+            this.state.smartGlass = mode;
+        }
+        return { success: true, glass: this.state.smartGlass };
+    }
+
+    async activatePrivacyMode() {
+        this.state.smartGlass = 'OPAQUE';
+        this.state.privacyShield = 'ACTIVE';
+        this.state.acousticShield = 'ACTIVE';
+        return { success: true, privacy: 'MAXIMUM' };
+    }
+
+    async activateAcousticShield() {
+        this.state.acousticShield = 'ACTIVE';
+        return { success: true, message: 'Cabin is now soundproof' };
+    }
+
+    async deactivateAcousticShield() {
+        this.state.acousticShield = 'INACTIVE';
+        return { success: true };
+    }
+
+    async activateMeetingMode() {
+        this.state.meetingMode = true;
+        this.state.lighting = 'BRIGHT';
+        
+        // Extend executive tables
+        // Activate video conferencing display
+        
+        return { 
+            success: true, 
+            message: 'Meeting mode activated. Display ready for presentations.' 
+        };
+    }
+
+    async secureForEmergency() {
+        // Secure cabin for emergency maneuver
+        this.state.lighting = 'EMERGENCY';
+        
+        // Return seats to upright position
+        // Lock all loose items
+        // Activate additional restraints
+        
+        return { success: true };
+    }
+
+    async monitor() {
+        // Monitor cabin environment
+    }
+
+    getStatus() {
+        return {
+            temperature: this.state.temperature,
+            smartGlass: this.state.smartGlass,
+            privacyMode: this.state.privacyShield === 'ACTIVE',
+            meetingMode: this.state.meetingMode,
+            cinemaMode: this.state.cinemaMode
+        };
+    }
+}
+
+module.exports = PresidentialCabin;
