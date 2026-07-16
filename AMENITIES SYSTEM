@@ -1,0 +1,101 @@
+// ============================================================
+// 🎉 yacht/YachtAmenities.js
+// SUPREME ROYAL YACHT — Luxury Amenities
+// Infinity Pool | Cinema | Spa | Gym | Beach Club
+// ============================================================
+
+class YachtAmenities {
+    constructor(yacht) {
+        this.yacht = yacht;
+        
+        this.facilities = {
+            infinityPool: {
+                location: 'SUN_DECK',
+                size: '15m x 5m',
+                temperature: '28°C',
+                heating: 'SOLAR_HEAT_PUMP',
+                status: 'READY'
+            },
+            cinema: {
+                location: 'LOWER_DECK',
+                screen: '8K_OLED_200_INCH',
+                seats: 20,
+                sound: 'DOLBY_ATMOS',
+                status: 'READY'
+            },
+            spa: {
+                location: 'SPA_DECK',
+                treatments: ['MASSAGE', 'FACIAL', 'HAMMAM', 'SAUNA'],
+                therapists: 4,
+                status: 'READY'
+            },
+            gym: {
+                location: 'UPPER_DECK',
+                equipment: 'TECHNOGYM',
+                view: 'OCEAN_VIEW',
+                status: 'READY'
+            },
+            beachClub: {
+                location: 'STERN',
+                waterToys: ['JET_SKIS', 'SEABOBS', 'PADDLE_BOARDS', 'DIVING_GEAR'],
+                tender: 'LUXURY_TENDER_12M',
+                status: 'READY'
+            },
+            dining: {
+                mainRestaurant: '24_SEATS',
+                skyLounge: '12_SEATS',
+                teppanyaki: '8_SEATS',
+                chefs: 'MICHELIN_STAR',
+                status: 'READY'
+            }
+        };
+    }
+
+    async initialize() {
+        console.log('  🎉 Amenities Ready');
+        console.log('     • Infinity Pool (15m, Heated)');
+        console.log('     • Private Cinema (200" 8K, 20 seats)');
+        console.log('     • Full Service Spa & Gym');
+        console.log('     • Beach Club with Water Toys');
+        console.log('     • Michelin Star Dining');
+    }
+
+    async activatePartyMode() {
+        this.facilities.infinityPool.status = 'PARTY';
+        this.facilities.cinema.status = 'PARTY';
+        // Activate DJ booth, lighting, etc.
+        
+        return { success: true, mode: 'PARTY_ACTIVATED' };
+    }
+
+    async preparePool() {
+        this.facilities.infinityPool.status = 'READY';
+        return { success: true, temperature: this.facilities.infinityPool.temperature };
+    }
+
+    async activateCinema() {
+        this.facilities.cinema.status = 'ACTIVE';
+        return { success: true, message: 'Cinema ready. What would you like to watch?' };
+    }
+
+    async prepareSpa() {
+        this.facilities.spa.status = 'READY';
+        return { 
+            success: true, 
+            treatments: this.facilities.spa.treatments,
+            message: 'Spa prepared. Which treatment would you like?'
+        };
+    }
+
+    getStatus() {
+        return {
+            facilities: Object.keys(this.facilities).length,
+            pool: this.facilities.infinityPool.status,
+            cinema: this.facilities.cinema.status,
+            spa: this.facilities.spa.status,
+            dining: 'MICHELIN_STAR'
+        };
+    }
+}
+
+module.exports = YachtAmenities;
