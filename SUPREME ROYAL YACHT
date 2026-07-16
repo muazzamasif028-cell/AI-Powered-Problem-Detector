@@ -1,0 +1,47 @@
+// ============================================================
+// 🛥️ SUPREME ROYAL YACHT — Complete Demo
+// ============================================================
+const SupremeRoyalYacht = require('./yacht/SupremeRoyalYacht');
+
+async function demoRoyalYacht() {
+    console.log('🛥️ SUPREME ROYAL YACHT — AI Ultra Luxury Mega Yacht');
+    console.log('═══════════════════════════════════════════════════\n');
+    
+    const yacht = new SupremeRoyalYacht({
+        imo: 'SUPREME-YACHT-2025-001',
+        name: 'SUPREME ROYAL',
+        location: { lat: 25.1, lng: 55.1 } // Dubai Marina
+    });
+    
+    await yacht.initialize();
+    
+    // Owner commands
+    console.log('\n👑 Owner: "Set course to Monaco"\n');
+    await yacht.processVoiceCommand('Set course to Monaco');
+    
+    console.log('\n👑 Owner: "Cruise speed 16"\n');
+    await yacht.processVoiceCommand('Cruise speed 16');
+    
+    console.log('\n👑 Owner: "Prepare pool"\n');
+    await yacht.processVoiceCommand('Prepare pool');
+    
+    console.log('\n👑 Owner: "Activate underwater lounge"\n');
+    await yacht.processVoiceCommand('Activate underwater lounge');
+    
+    console.log('\n👑 Owner: "Party mode"\n');
+    await yacht.processVoiceCommand('Party mode');
+    
+    console.log('\n👑 Owner: "Yacht status"\n');
+    await yacht.processVoiceCommand('Yacht status');
+    
+    console.log('\n🛥️ SUPREME ROYAL YACHT cruising...');
+    console.log('🧠 AI Captain monitoring all systems...');
+    console.log('🛡 Maritime safety systems active...');
+    console.log('🤿 Underwater lounge: 3 dolphins spotted!');
+    console.log('🎉 Infinity pool: 28°C, ready for guests');
+    console.log('🍽️ Michelin star dinner being prepared...');
+    
+    console.log('\n✅ SUPREME ROYAL YACHT Demo Complete!\n');
+}
+
+demoRoyalYacht();
