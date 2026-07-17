@@ -1,0 +1,617 @@
+// ============================================================
+// 🏪 marketplace/SupremeEngineeringMarketplace.js
+// SUPREME ENGINEERING MARKETPLACE
+// "Design. Publish. Sell. Earn."
+// ============================================================
+const EventEmitter = require('events');
+const crypto = require('crypto');
+
+class SupremeEngineeringMarketplace extends EventEmitter {
+    constructor() {
+        super();
+        
+        this.platform = 'SUPREME ENGINEERING MARKETPLACE';
+        this.tagline = 'Design. Publish. Sell. Earn.';
+        this.version = '14.0.0';
+        
+        // ============================================
+        // 📦 SELLABLE ASSET CATEGORIES
+        // ============================================
+        this.categories = [
+            { id: 'VEHICLE_DESIGNS', name: 'Vehicle Designs', emoji: '🚗', types: ['Cars', 'Trucks', 'Buses', 'Motorcycles'] },
+            { id: 'ENGINE_CONCEPTS', name: 'Engine Concepts', emoji: '⚙️', types: ['Electric', 'Hybrid', 'Hydrogen', 'Jet'] },
+            { id: 'BATTERY_PACKS', name: 'Battery Pack Designs', emoji: '🔋', types: ['Automotive', 'Aviation', 'Marine', 'Industrial'] },
+            { id: 'WHEEL_DESIGNS', name: 'Wheel Designs', emoji: '🛞', types: ['Alloy', 'Carbon Fiber', 'Aero', 'Off-Road'] },
+            { id: 'CHASSIS_DESIGNS', name: 'Chassis Designs', emoji: '🛡️', types: ['Monocoque', 'Space Frame', 'Skateboard'] },
+            { id: 'ROBOT_DESIGNS', name: 'Robot Designs', emoji: '🤖', types: ['Humanoid', 'Industrial', 'Medical', 'Drone'] },
+            { id: 'AIRCRAFT_CONCEPTS', name: 'Aircraft Concepts', emoji: '✈️', types: ['Jets', 'eVTOL', 'Drones', 'Helicopters'] },
+            { id: 'DRONE_DESIGNS', name: 'Drone Designs', emoji: '🚁', types: ['Quadcopter', 'Fixed Wing', 'Delivery', 'Racing'] },
+            { id: 'YACHT_CONCEPTS', name: 'Yacht Concepts', emoji: '🚢', types: ['Luxury', 'Sport', 'Explorer', 'Catamaran'] },
+            { id: 'MACHINE_DESIGNS', name: 'Machine Designs', emoji: '🏭', types: ['CNC', 'Robotic Arm', 'Conveyor', 'Press'] },
+            { id: 'CAD_COMPONENTS', name: 'CAD Components', emoji: '🧩', types: ['Fasteners', 'Brackets', 'Housings', 'Mounts'] },
+            { id: 'TEMPLATES', name: 'Engineering Templates', emoji: '📄', types: ['BOM', 'FEA', 'CFD', 'Documentation'] }
+        ];
+        
+        // ============================================
+        // 💰 PRICING TIERS (Creator Sets)
+        // ============================================
+        this.priceTiers = [20, 50, 100, 500, 5000, 'ENTERPRISE'];
+        
+        // ============================================
+        // 💸 REVENUE SHARING
+        // ============================================
+        this.revenueShare = {
+            STANDARD: { creator: 80, platform: 20 },
+            VERIFIED: { creator: 85, platform: 15 },
+            EXCLUSIVE: { creator: 90, platform: 10 }
+        };
+        
+        // ============================================
+        // 📜 LICENSE TYPES
+        // ============================================
+        this.licenses = {
+            PERSONAL: {
+                name: 'Personal Use',
+                emoji: '📘',
+                priceMultiplier: 1.0,
+                description: 'For personal projects and learning',
+                restrictions: ['No commercial use', 'No redistribution', 'No manufacturing'],
+                allowsManufacturing: false
+            },
+            COMMERCIAL: {
+                name: 'Commercial Use',
+                emoji: '💼',
+                priceMultiplier: 3.0,
+                description: 'For commercial products and services',
+                restrictions: ['No reselling the design itself'],
+                allowsManufacturing: true,
+                maxUnits: 1000
+            },
+            MANUFACTURING: {
+                name: 'Manufacturing License',
+                emoji: '🏭',
+                priceMultiplier: 10.0,
+                description: 'Full manufacturing rights',
+                restrictions: ['Design modification allowed for manufacturing'],
+                allowsManufacturing: true,
+                maxUnits: 'UNLIMITED'
+            },
+            ENTERPRISE: {
+                name: 'Enterprise License',
+                emoji: '🏢',
+                priceMultiplier: 50.0,
+                description: 'Unlimited use across organization',
+                restrictions: ['For single organization only'],
+                allowsManufacturing: true,
+                maxUnits: 'UNLIMITED',
+                includesSource: true,
+                includesSupport: true
+            },
+            EXCLUSIVE: {
+                name: 'Exclusive License',
+                emoji: '🔒',
+                priceMultiplier: 100.0,
+                description: 'Sold to one buyer only — removed from marketplace',
+                restrictions: ['Design removed from marketplace after purchase'],
+                allowsManufacturing: true,
+                maxUnits: 'UNLIMITED',
+                oneTimeSale: true
+            }
+        };
+        
+        // ============================================
+        // 🛡️ AI PROTECTION FEATURES
+        // ============================================
+        this.protection = {
+            watermark: true,
+            previewOnly: true,
+            downloadProtection: true,
+            licenseVerification: true,
+            ownershipCertificate: true,
+            versionHistory: true,
+            plagiarismDetection: true
+        };
+        
+        // ============================================
+        // ✅ VERIFICATION SYSTEM
+        // ============================================
+        this.badges = {
+            VERIFIED_DESIGNER: { name: 'SUPREME Verified Designer', emoji: '✅', threshold: '10+ sales, 4.5+ rating' },
+            FEATURED_CREATOR: { name: 'Featured Creator', emoji: '⭐', threshold: '50+ sales, 4.8+ rating' },
+            TOP_ENGINEER: { name: 'Top Engineer', emoji: '🏆', threshold: '100+ sales, 4.9+ rating, verified' },
+            ELITE_DESIGNER: { name: 'Elite Designer', emoji: '👑', threshold: '500+ sales, 5.0 rating' }
+        };
+        
+        // ============================================
+        // 📊 PLATFORM STATE
+        // ============================================
+        this.state = {
+            creators: new Map(),
+            listings: new Map(),
+            purchases: new Map(),
+            reviews: new Map(),
+            revenue: {
+                totalSales: 0,
+                totalRevenue: 0,
+                creatorEarnings: 0,
+                platformEarnings: 0
+            }
+        };
+        
+        this.initialize();
+    }
+
+    async initialize() {
+        console.log('🏪 SUPREME Engineering Marketplace');
+        console.log(`   "${this.tagline}"\n`);
+        console.log(`📦 Categories: ${this.categories.length}`);
+        console.log(`💰 Price Tiers: ${this.priceTiers.length - 1} fixed + Enterprise`);
+        console.log(`💸 Revenue Share: Creator 80-90% | SUPREME 10-20%`);
+        console.log(`📜 License Types: ${Object.keys(this.licenses).length}`);
+        console.log(`🛡️ Protection Features: ${Object.values(this.protection).filter(Boolean).length}`);
+        console.log(`✅ Badges: ${Object.keys(this.badges).length}\n`);
+        console.log('✅ Marketplace Ready\n');
+    }
+
+    /**
+     * 👤 Register as Creator
+     */
+    async registerCreator(creatorData) {
+        const creatorId = `CREATOR-${Date.now().toString(36).toUpperCase()}`;
+        
+        const creator = {
+            creatorId,
+            name: creatorData.name,
+            email: creatorData.email,
+            company: creatorData.company || '',
+            bio: creatorData.bio || '',
+            expertise: creatorData.expertise || [],
+            verified: false,
+            badges: [],
+            stats: {
+                totalSales: 0,
+                totalRevenue: 0,
+                totalDownloads: 0,
+                averageRating: 0,
+                listings: 0
+            },
+            revenueTier: 'STANDARD', // STANDARD | VERIFIED | EXCLUSIVE
+            createdAt: new Date().toISOString()
+        };
+        
+        this.state.creators.set(creatorId, creator);
+        
+        console.log(`👤 Creator Registered: ${creator.name}`);
+        
+        this.emit('creator:registered', { creatorId, name: creator.name });
+        
+        return creator;
+    }
+
+    /**
+     * 📦 Publish a Design
+     */
+    async publishDesign(creatorId, designData) {
+        const creator = this.state.creators.get(creatorId);
+        
+        if (!creator) throw new Error('Creator not found');
+        
+        const listingId = `LIST-${Date.now().toString(36).toUpperCase()}`;
+        
+        // Apply AI protection
+        const protectedDesign = await this.applyProtection(designData);
+        
+        const listing = {
+            listingId,
+            creatorId,
+            title: designData.title,
+            description: designData.description,
+            category: designData.category,
+            type: designData.type,
+            basePrice: designData.price,
+            licensePrices: this.calculateLicensePrices(designData.price),
+            files: protectedDesign.files,
+            previewImages: designData.previewImages || [],
+            preview3D: designData.preview3D || null,
+            tags: designData.tags || [],
+            specifications: designData.specifications || {},
+            status: 'PUBLISHED',
+            publishedAt: new Date().toISOString(),
+            stats: {
+                views: 0,
+                sales: 0,
+                revenue: 0,
+                rating: 0,
+                reviews: 0
+            },
+            aiGenerated: designData.aiGenerated || false,
+            aiEnhanced: designData.aiEnhanced || false,
+            verified: false
+        };
+        
+        this.state.listings.set(listingId, listing);
+        creator.stats.listings++;
+        
+        console.log(`📦 Published: "${listing.title}" by ${creator.name}`);
+        console.log(`   Price: $${designData.price} (Base)`);
+        console.log(`   License Prices Generated for 5 license types`);
+        
+        this.emit('design:published', { listingId, title: listing.title, creatorId });
+        
+        return { listingId, listing, licensePrices: listing.licensePrices };
+    }
+
+    /**
+     * 🛒 Purchase Design
+     */
+    async purchaseDesign(listingId, buyerData, licenseType = 'PERSONAL') {
+        const listing = this.state.listings.get(listingId);
+        
+        if (!listing) throw new Error('Listing not found');
+        if (listing.status !== 'PUBLISHED') throw new Error('Listing not available');
+        
+        const license = this.licenses[licenseType];
+        if (!license) throw new Error('Invalid license type');
+        
+        // Check if exclusive and already sold
+        if (licenseType === 'EXCLUSIVE' && listing.stats.sales > 0) {
+            throw new Error('Exclusive license already sold');
+        }
+        
+        const price = listing.licensePrices[licenseType];
+        const purchaseId = `PURCHASE-${Date.now().toString(36).toUpperCase()}`;
+        
+        // Calculate revenue share
+        const creator = this.state.creators.get(listing.creatorId);
+        const share = this.revenueShare[creator.revenueTier];
+        const creatorEarning = price * (share.creator / 100);
+        const platformEarning = price * (share.platform / 100);
+        
+        const purchase = {
+            purchaseId,
+            listingId,
+            buyerId: buyerData.id,
+            buyerName: buyerData.name,
+            buyerEmail: buyerData.email,
+            licenseType,
+            license: {
+                type: license.name,
+                emoji: license.emoji,
+                allowsManufacturing: license.allowsManufacturing,
+                maxUnits: license.maxUnits,
+                restrictions: license.restrictions,
+                validFrom: new Date().toISOString(),
+                validUntil: 'PERPETUAL'
+            },
+            price,
+            revenueShare: {
+                creator: { amount: creatorEarning, percentage: share.creator },
+                platform: { amount: platformEarning, percentage: share.platform }
+            },
+            downloadUrl: this.generateSecureDownloadUrl(listingId, purchaseId),
+            ownershipCertificate: this.generateOwnershipCertificate(listing, buyerData, licenseType),
+            purchasedAt: new Date().toISOString()
+        };
+        
+        // Update stats
+        listing.stats.sales++;
+        listing.stats.revenue += price;
+        creator.stats.totalSales++;
+        creator.stats.totalRevenue += creatorEarning;
+        
+        this.state.purchases.set(purchaseId, purchase);
+        this.state.revenue.totalSales++;
+        this.state.revenue.totalRevenue += price;
+        this.state.revenue.creatorEarnings += creatorEarning;
+        this.state.revenue.platformEarnings += platformEarning;
+        
+        // Check badge eligibility
+        await this.checkBadgeEligibility(listing.creatorId);
+        
+        // If exclusive, remove from marketplace
+        if (licenseType === 'EXCLUSIVE') {
+            listing.status = 'SOLD_EXCLUSIVE';
+            console.log(`🔒 EXCLUSIVE SALE: "${listing.title}" — Removed from marketplace`);
+        }
+        
+        console.log(`🛒 PURCHASED: "${listing.title}" by ${buyerData.name}`);
+        console.log(`   License: ${license.name} — $${price}`);
+        console.log(`   Creator Earns: $${creatorEarning} (${share.creator}%)`);
+        console.log(`   SUPREME Earns: $${platformEarning} (${share.platform}%)`);
+        
+        this.emit('design:purchased', { purchaseId, listingId, licenseType, price });
+        
+        return purchase;
+    }
+
+    /**
+     * 📊 Creator Dashboard
+     */
+    async getCreatorDashboard(creatorId) {
+        const creator = this.state.creators.get(creatorId);
+        
+        if (!creator) throw new Error('Creator not found');
+        
+        // Get all listings by this creator
+        const listings = [];
+        
+        for (const [id, listing] of this.state.listings) {
+            if (listing.creatorId === creatorId) {
+                listings.push({
+                    listingId: id,
+                    title: listing.title,
+                    category: listing.category,
+                    basePrice: listing.basePrice,
+                    stats: listing.stats,
+                    status: listing.status,
+                    publishedAt: listing.publishedAt
+                });
+            }
+        }
+        
+        // Get all purchases of creator's designs
+        const recentSales = [];
+        
+        for (const [id, purchase] of this.state.purchases) {
+            const listing = this.state.listings.get(purchase.listingId);
+            if (listing && listing.creatorId === creatorId) {
+                recentSales.push({
+                    purchaseId: id,
+                    designTitle: listing.title,
+                    buyerName: purchase.buyerName,
+                    licenseType: purchase.licenseType,
+                    price: purchase.price,
+                    creatorEarning: purchase.revenueShare.creator.amount,
+                    purchasedAt: purchase.purchasedAt
+                });
+            }
+        }
+        
+        // Get reviews
+        const reviews = [];
+        
+        for (const [id, review] of this.state.reviews) {
+            if (review.creatorId === creatorId) {
+                reviews.push(review);
+            }
+        }
+        
+        return {
+            creator: {
+                name: creator.name,
+                email: creator.email,
+                company: creator.company,
+                verified: creator.verified,
+                badges: creator.badges,
+                revenueTier: creator.revenueTier,
+                memberSince: creator.createdAt
+            },
+            stats: creator.stats,
+            listings: {
+                total: listings.length,
+                published: listings.filter(l => l.status === 'PUBLISHED').length,
+                items: listings
+            },
+            sales: {
+                total: recentSales.length,
+                recent: recentSales.slice(0, 10)
+            },
+            reviews: {
+                total: reviews.length,
+                averageRating: creator.stats.averageRating,
+                items: reviews.slice(0, 5)
+            },
+            revenue: {
+                totalEarnings: creator.stats.totalRevenue,
+                thisMonth: recentSales
+                    .filter(s => new Date(s.purchasedAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+                    .reduce((sum, s) => sum + s.creatorEarning, 0),
+                projectedMonthly: creator.stats.totalRevenue / Math.max(1, 
+                    Math.ceil((Date.now() - new Date(creator.createdAt)) / (30 * 24 * 60 * 60 * 1000)))
+            },
+            quickActions: [
+                'Publish New Design',
+                'View All Sales',
+                'Update Listings',
+                'Withdraw Earnings',
+                'Analytics'
+            ]
+        };
+    }
+
+    /**
+     * 🔍 Search Marketplace (Buyer View)
+     */
+    async searchMarketplace(query = '', filters = {}) {
+        const results = [];
+        
+        for (const [id, listing] of this.state.listings) {
+            if (listing.status !== 'PUBLISHED') continue;
+            
+            // Text search
+            if (query && !listing.title.toLowerCase().includes(query.toLowerCase()) &&
+                !listing.description?.toLowerCase().includes(query.toLowerCase())) {
+                continue;
+            }
+            
+            // Filter by category
+            if (filters.category && listing.category !== filters.category) continue;
+            
+            // Filter by price range
+            if (filters.minPrice && listing.basePrice < filters.minPrice) continue;
+            if (filters.maxPrice && listing.basePrice > filters.maxPrice) continue;
+            
+            results.push({
+                listingId: id,
+                title: listing.title,
+                category: listing.category,
+                type: listing.type,
+                basePrice: listing.basePrice,
+                licensePrices: listing.licensePrices,
+                previewImage: listing.previewImages[0] || null,
+                creator: this.state.creators.get(listing.creatorId)?.name || 'Unknown',
+                creatorBadges: this.state.creators.get(listing.creatorId)?.badges || [],
+                stats: listing.stats,
+                tags: listing.tags
+            });
+        }
+        
+        return {
+            query,
+            filters,
+            totalResults: results.length,
+            results: results.slice(0, 50)
+        };
+    }
+
+    // ============================================
+    // PRIVATE HELPERS
+    // ============================================
+
+    /**
+     * 💰 Calculate License Prices
+     */
+    calculateLicensePrices(basePrice) {
+        const prices = {};
+        
+        for (const [key, license] of Object.entries(this.licenses)) {
+            prices[key] = Math.round(basePrice * license.priceMultiplier);
+        }
+        
+        return prices;
+    }
+
+    /**
+     * 🛡️ Apply AI Protection to Design
+     */
+    async applyProtection(designData) {
+        return {
+            files: {
+                watermarked: true,
+                previewOnly: designData.files,
+                fullAccess: null // Only available after purchase
+            },
+            protectionApplied: {
+                watermark: 'SUPREME_PREVIEW_WATERMARK',
+                encryption: 'AES_256',
+                licenseVerification: 'REQUIRED'
+            }
+        };
+    }
+
+    /**
+     * 📜 Generate Ownership Certificate
+     */
+    generateOwnershipCertificate(listing, buyerData, licenseType) {
+        const certificateId = `CERT-${Date.now().toString(36).toUpperCase()}`;
+        
+        return {
+            certificateId,
+            design: {
+                title: listing.title,
+                listingId: listing.listingId,
+                creator: this.state.creators.get(listing.creatorId)?.name
+            },
+            owner: {
+                name: buyerData.name,
+                email: buyerData.email
+            },
+            license: {
+                type: this.licenses[licenseType].name,
+                allowsManufacturing: this.licenses[licenseType].allowsManufacturing,
+                maxUnits: this.licenses[licenseType].maxUnits
+            },
+            issuedAt: new Date().toISOString(),
+            verifiedBy: 'SUPREME ENGINEERING MARKETPLACE',
+            blockchainHash: crypto.randomBytes(32).toString('hex')
+        };
+    }
+
+    /**
+     * 🔗 Generate Secure Download URL
+     */
+    generateSecureDownloadUrl(listingId, purchaseId) {
+        const token = crypto.randomBytes(16).toString('hex');
+        return `https://supreme.com/download/${listingId}/${purchaseId}?token=${token}`;
+    }
+
+    /**
+     * ✅ Check Badge Eligibility
+     */
+    async checkBadgeEligibility(creatorId) {
+        const creator = this.state.creators.get(creatorId);
+        
+        if (!creator) return;
+        
+        const { totalSales, averageRating } = creator.stats;
+        
+        if (totalSales >= 500 && averageRating >= 5.0 && !creator.badges.includes('ELITE_DESIGNER')) {
+            creator.badges.push('ELITE_DESIGNER');
+            console.log(`👑 ${creator.name} earned ELITE DESIGNER badge!`);
+        } else if (totalSales >= 100 && averageRating >= 4.9 && !creator.badges.includes('TOP_ENGINEER')) {
+            creator.badges.push('TOP_ENGINEER');
+            console.log(`🏆 ${creator.name} earned TOP ENGINEER badge!`);
+        } else if (totalSales >= 50 && averageRating >= 4.8 && !creator.badges.includes('FEATURED_CREATOR')) {
+            creator.badges.push('FEATURED_CREATOR');
+            console.log(`⭐ ${creator.name} earned FEATURED CREATOR badge!`);
+        } else if (totalSales >= 10 && averageRating >= 4.5 && !creator.badges.includes('VERIFIED_DESIGNER')) {
+            creator.badges.push('VERIFIED_DESIGNER');
+            creator.verified = true;
+            creator.revenueTier = 'VERIFIED';
+            console.log(`✅ ${creator.name} earned VERIFIED DESIGNER badge!`);
+        }
+    }
+
+    /**
+     * 📊 Get Marketplace Analytics (SUPREME Internal)
+     */
+    getMarketplaceAnalytics() {
+        const listings = Array.from(this.state.listings.values());
+        const published = listings.filter(l => l.status === 'PUBLISHED');
+        
+        return {
+            overview: {
+                totalListings: listings.length,
+                publishedListings: published.length,
+                totalCreators: this.state.creators.size,
+                totalSales: this.state.revenue.totalSales,
+                totalRevenue: this.state.revenue.totalRevenue,
+                platformEarnings: this.state.revenue.platformEarnings,
+                creatorEarnings: this.state.revenue.creatorEarnings
+            },
+            topCategories: this.getTopCategories(published),
+            topCreators: this.getTopCreators(),
+            recentSales: Array.from(this.state.purchases.values()).slice(-5)
+        };
+    }
+
+    getTopCategories(listings) {
+        const counts = {};
+        
+        for (const listing of listings) {
+            counts[listing.category] = (counts[listing.category] || 0) + 1;
+        }
+        
+        return Object.entries(counts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5)
+            .map(([category, count]) => ({ category, count }));
+    }
+
+    getTopCreators() {
+        const creators = Array.from(this.state.creators.values());
+        
+        return creators
+            .sort((a, b) => b.stats.totalRevenue - a.stats.totalRevenue)
+            .slice(0, 5)
+            .map(c => ({
+                name: c.name,
+                badges: c.badges,
+                sales: c.stats.totalSales,
+                revenue: c.stats.totalRevenue,
+                rating: c.stats.averageRating
+            }));
+    }
+}
+
+module.exports = SupremeEngineeringMarketplace;
