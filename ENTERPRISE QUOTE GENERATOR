@@ -1,0 +1,118 @@
+// ============================================================
+// 📊 saas/EnterpriseQuote.js
+// SUPREME SaaS — Enterprise Quote Generator
+// Custom pricing for large organizations
+// ============================================================
+
+class EnterpriseQuote {
+    constructor(saas) {
+        this.saas = saas;
+    }
+
+    /**
+     * 📊 Generate Enterprise Quote
+     */
+    async generateQuote(requirements) {
+        const {
+            companyName,
+            industry,
+            users,
+            planType = 'ENTERPRISE',
+            deployment = 'CLOUD',
+            contractYears = 1,
+            customFeatures = []
+        } = requirements;
+
+        const basePrice = this.calculateBasePrice(planType, users);
+        const deploymentCost = deployment === 'ON_PREMISE' ? basePrice * 0.3 : 0;
+        const customFeatureCost = customFeatures.length * 5000;
+        const volumeDiscount = this.calculateVolumeDiscount(users, contractYears);
+        
+        const annualPrice = basePrice + deploymentCost + customFeatureCost;
+        const discountedPrice = annualPrice * (1 - volumeDiscount);
+        
+        return {
+            quoteId: `ENT-QUOTE-${Date.now().toString(36).toUpperCase()}`,
+            company: companyName,
+            industry,
+            plan: planType,
+            pricing: {
+                baseLicense: `$${basePrice.toLocaleString()}/year`,
+                deployment: deploymentCost > 0 ? `$${deploymentCost.toLocaleString()}/year` : 'Included',
+                customFeatures: customFeatureCost > 0 ? `$${customFeatureCost.toLocaleString()}/year` : 'None',
+                volumeDiscount: `${(volumeDiscount * 100).toFixed(0)}%`,
+                annualTotal: `$${discountedPrice.toLocaleString()}/year`,
+                perUser: `$${Math.round(discountedPrice / users).toLocaleString()}/user/year`
+            },
+            includes: this.getEnterpriseIncludes(planType, deployment),
+            implementation: {
+                estimatedTime: '8-12 weeks',
+                training: 'Included (On-site + Virtual)',
+                support: '24/7 Dedicated',
+                sla: planType === 'ULTIMATE' ? '99.99%' : '99.9%'
+            },
+            validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        };
+    }
+
+    calculateBasePrice(planType, users) {
+        const rates = {
+            ENTERPRISE: { base: 100000, perUser: 500 },
+            ULTIMATE: { base: 250000, perUser: 1000 }
+        };
+        
+        const rate = rates[planType] || rates.ENTERPRISE;
+        return rate.base + (users * rate.perUser);
+    }
+
+    calculateVolumeDiscount(users, years) {
+        let discount = 0;
+        
+        if (users >= 1000) discount += 0.25;
+        else if (users >= 500) discount += 0.20;
+        else if (users >= 100) discount += 0.10;
+        else if (users >= 50) discount += 0.05;
+        
+        if (years >= 3) discount += 0.10;
+        else if (years >= 2) discount += 0.05;
+        
+        return Math.min(discount, 0.35);
+    }
+
+    getEnterpriseIncludes(planType, deployment) {
+        const includes = [
+            'Unlimited Projects',
+            'Custom AI Models',
+            'Full CAD Export Suite',
+            'Intelligent BOM Generator',
+            'AI Documentation',
+            'Unlimited Simulations',
+            'Digital Twin Suite',
+            'Unlimited Team Collaboration',
+            'Full API Access',
+            'SSO & RBAC',
+            'Enterprise Security',
+            'Audit Logging',
+            'SOC2 / ISO27001 / GDPR Compliance'
+        ];
+        
+        if (planType === 'ULTIMATE') {
+            includes.push(
+                'Dedicated AI Cluster',
+                'White-Label Option',
+                'On-Site Training',
+                'ERP/PLM Integration',
+                'ITAR / CMMC Compliance',
+                'Executive Support'
+            );
+        }
+        
+        if (deployment === 'ON_PREMISE') {
+            includes.push('On-Premise Deployment', 'Air-Gapped Option');
+        }
+        
+        return includes;
+    }
+}
+
+module.exports = EnterpriseQuote;
