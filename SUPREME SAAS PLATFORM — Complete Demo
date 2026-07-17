@@ -1,0 +1,85 @@
+// ============================================================
+// 💰 SUPREME SAAS PLATFORM — Complete Demo
+// ============================================================
+const SupremeSaaSPlatform = require('./saas/SupremeSaaSPlatform');
+const EnterpriseQuote = require('./saas/EnterpriseQuote');
+
+async function demoSaaS() {
+    console.log('💰 SUPREME ENGINEERING STUDIO — SaaS Platform');
+    console.log('═══════════════════════════════════════════\n');
+    
+    const saas = new SupremeSaaSPlatform();
+    await saas.initialize();
+    
+    // Create tenants at different tiers
+    console.log('👤 Creating Tenants...\n');
+    
+    const student = await saas.createTenant({
+        name: 'Ahmed (Student)',
+        email: 'ahmed@student.com'
+    });
+    
+    const engineer = await saas.createTenant({
+        name: 'Sarah (Engineer)',
+        email: 'sarah@freelance.com'
+    });
+    await saas.subscribe(engineer.tenantId, 'PROFESSIONAL', 'ANNUAL');
+    
+    const startup = await saas.createTenant({
+        name: 'TechStartup Inc.',
+        email: 'team@techstartup.com'
+    });
+    await saas.subscribe(startup.tenantId, 'BUSINESS', 'MONTHLY');
+    
+    const enterprise = await saas.createTenant({
+        name: 'Global Motors Corp.',
+        email: 'engineering@globalmotors.com'
+    });
+    await saas.subscribe(enterprise.tenantId, 'ENTERPRISE', 'ANNUAL');
+    
+    // Feature access checks
+    console.log('\n🔍 Feature Access Checks:\n');
+    
+    const studentBOM = await saas.checkFeatureAccess(student.tenantId, 'BOM_GENERATOR');
+    console.log(`   Student — BOM Generator: ${studentBOM.allowed ? '✅' : '❌'} ${studentBOM.message || ''}`);
+    
+    const engineerBOM = await saas.checkFeatureAccess(engineer.tenantId, 'BOM_GENERATOR');
+    console.log(`   Engineer — BOM Generator: ${engineerBOM.allowed ? '✅' : '❌'}`);
+    
+    const startupDT = await saas.checkFeatureAccess(startup.tenantId, 'DIGITAL_TWIN');
+    console.log(`   Startup — Digital Twin: ${startupDT.allowed ? '✅' : '❌'}`);
+    
+    // Enterprise Quote
+    console.log('\n📊 Enterprise Quote for Large Company:\n');
+    
+    const quoteGen = new EnterpriseQuote(saas);
+    const quote = await quoteGen.generateQuote({
+        companyName: 'Tesla Inc.',
+        industry: 'AUTOMOTIVE',
+        users: 500,
+        planType: 'ULTIMATE',
+        deployment: 'ON_PREMISE',
+        contractYears: 3,
+        customFeatures: ['Custom AI Training', 'Bespoke Integration']
+    });
+    
+    console.log(`   Company: ${quote.company}`);
+    console.log(`   Plan: ${quote.plan}`);
+    console.log(`   Annual: ${quote.pricing.annualTotal}`);
+    console.log(`   Per User: ${quote.pricing.perUser}`);
+    console.log(`   Discount: ${quote.pricing.volumeDiscount}`);
+    
+    // Platform Analytics
+    console.log('\n📈 SUPREME Platform Analytics:\n');
+    
+    const analytics = await saas.getPlatformAnalytics();
+    console.log(`   Total Tenants: ${analytics.totalTenants}`);
+    console.log(`   MRR: $${analytics.revenue.mrr.toLocaleString()}`);
+    console.log(`   ARR: $${analytics.revenue.arr.toLocaleString()}`);
+    console.log(`   Conversion: ${analytics.conversionRate}`);
+    console.log(`   ARPU: ${analytics.averageRevenuePerUser}`);
+    
+    console.log('\n✅ SUPREME SaaS Platform Demo Complete!\n');
+}
+
+demoSaaS();
