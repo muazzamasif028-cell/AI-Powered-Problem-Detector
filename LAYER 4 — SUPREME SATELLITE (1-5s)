@@ -1,0 +1,90 @@
+// ============================================================
+// 🛰️ realtime/Layer4_Satellite.js
+// SUPREME LAYER 4 — SUPREME Satellite Network
+// Latency: 1-5 seconds | Advisory ONLY — NEVER controls vehicle
+// ============================================================
+
+class Layer4_Satellite {
+    constructor(vehicle) {
+        this.vehicle = vehicle;
+        this.layer = 4;
+        this.name = 'SUPREME_SATELLITE';
+        this.latency = { min: '1s', max: '5s' };
+        
+        // ⚠️ CRITICAL RULE
+        this.rule = 'SATELLITE_NEVER_CONTROLS_VEHICLE';
+        this.rule2 = 'SATELLITE_PROVIDES_INFORMATION_ONLY';
+        
+        // Satellite services (ADVISORY ONLY)
+        this.services = {
+            weather: new SatelliteWeatherService(),
+            disaster: new DisasterAlertService(),
+            globalRoute: new GlobalRoutePlanner(),
+            fleetMonitor: new FleetMonitoringService(),
+            ota: new OTAService()
+        };
+        
+        // Cached satellite data
+        this.cache = {
+            weather: null,
+            disasters: [],
+            globalRoute: null,
+            lastUpdate: null
+        };
+        
+        // Start satellite sync loop (SLOW — 0.2Hz)
+        this.satelliteLoop = setInterval(() => this.satelliteUpdate(), 5000); // Every 5 seconds
+    }
+
+    /**
+     * 🛰️ Satellite Update Loop — Every 5 Seconds
+     * ADVISORY ONLY — NEVER CONTROLS VEHICLE
+     */
+    async satelliteUpdate() {
+        // Weather updates (advisory)
+        this.cache.weather = await this.services.weather.getWeatherAlongRoute();
+        
+        // Disaster alerts (advisory)
+        this.cache.disasters = await this.services.disaster.checkForAlerts();
+        
+        // Fleet monitoring (advisory)
+        await this.services.fleetMonitor.reportPosition(this.vehicle.state);
+        
+        this.cache.lastUpdate = Date.now();
+        
+        // Alert if disaster detected (but vehicle decides action)
+        if (this.cache.disasters.length > 0) {
+            this.advisoryAlert({
+                type: 'DISASTER_ALERT',
+                disasters: this.cache.disasters,
+                recommendation: 'RECONSIDER_ROUTE',
+                note: 'Vehicle AI must decide final action'
+            });
+        }
+    }
+
+    /**
+     * ⚠️ ADVISORY ALERT — Vehicle decides, not satellite
+     */
+    advisoryAlert(alert) {
+        console.log(`🛰️ [Layer 4 ADVISORY]: ${alert.type}`);
+        console.log(`   Recommendation: ${alert.recommendation}`);
+        console.log(`   ⚠️ VEHICLE AI HAS FINAL AUTHORITY`);
+        
+        // Send to Layer 3/2/1 as ADVISORY
+        this.vehicle.layer3?.receiveAdvisory(alert);
+    }
+
+    /**
+     * 📡 OTA Software Update (Only when parked)
+     */
+    async checkForUpdates() {
+        if (this.vehicle.state.mode !== 'PARKED') {
+            return { available: false, reason: 'Vehicle must be parked for updates' };
+        }
+        
+        return await this.services.ota.checkForUpdates();
+    }
+}
+
+module.exports = Layer4_Satellite;
