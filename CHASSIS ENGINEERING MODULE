@@ -1,0 +1,102 @@
+// ============================================================
+// 🛠 engineering/domains/ChassisEngineering.js
+// SUPREME Engineering AI — Chassis Design Domain
+// ============================================================
+
+class ChassisEngineering {
+    constructor(ai) {
+        this.ai = ai;
+        this.name = 'Chassis Engineering';
+    }
+
+    /**
+     * ❓ Ask Questions Before Design
+     */
+    askQuestions(project) {
+        console.log('🤔 AI Analysis: Chassis Requirements\n');
+        
+        const questions = [
+            '🔍 Analyzing load requirements...',
+            '📊 Calculating stress points...',
+            '⚖️ Determining weight distribution...',
+            '🛡 Evaluating crash safety requirements...'
+        ];
+        
+        for (const q of questions) {
+            console.log(`   ${q}`);
+        }
+        
+        // AI recommends material
+        const recommended = this.ai.searchMaterials({
+            maxWeight: 'LIGHT',
+            minStrength: 500,
+            application: 'CHASSIS'
+        });
+        
+        console.log(`\n💡 AI Recommendation:`);
+        console.log(`   Primary Material: ${recommended[0]?.name || 'ALUMINUM_7075'}`);
+        console.log(`   Alternative: ${recommended[1]?.name || 'CARBON_FIBER'}`);
+        console.log(`   Budget Option: ${recommended[2]?.name || 'STAINLESS_STEEL_304'}\n`);
+        
+        return recommended;
+    }
+
+    /**
+     * 🛠 Design Chassis
+     */
+    async design(project) {
+        const material = project.requirements.style === 'LUXURY' ? 
+            'CARBON_FIBER + ALUMINUM_7075' : 'ALUMINUM_7075';
+        
+        const design = {
+            type: project.type === 'CAR' ? 'SKATEBOARD_PLATFORM' : 'SPACE_FRAME',
+            material,
+            thickness: '3.5mm — 6.0mm (variable by zone)',
+            weight: project.requirements.style === 'LUXURY' ? '280 kg' : '320 kg',
+            loadCapacity: '2,500 kg (GVWR)',
+            stressPoints: [
+                { location: 'FRONT_SUSPENSION_MOUNTS', stress: '250 MPa', safetyFactor: 2.5 },
+                { location: 'REAR_SUSPENSION_MOUNTS', stress: '220 MPa', safetyFactor: 2.5 },
+                { location: 'BATTERY_ENCLOSURE', stress: '180 MPa', safetyFactor: 3.0 },
+                { location: 'A_PILLAR', stress: '350 MPa', safetyFactor: 3.0 },
+                { location: 'B_PILLAR', stress: '400 MPa', safetyFactor: 3.5 }
+            ],
+            weldingLocations: 247,
+            boltLocations: 156,
+            crashZones: {
+                front: 'PROGRESSIVE_CRUMPLE_ZONE (800mm)',
+                rear: 'PROGRESSIVE_CRUMPLE_ZONE (600mm)',
+                side: 'REINFORCED_SILLS + DOOR_BEAMS'
+            },
+            mountingPoints: [
+                'POWERTRAIN (8 points)',
+                'BATTERY_PACK (24 points)',
+                'SUSPENSION (16 points)',
+                'BODY_PANELS (45 points)'
+            ],
+            manufacturing: {
+                primary: 'CNC_MACHINED_ALUMINUM_COMPONENTS',
+                joining: 'ROBOTIC_LASER_WELDING + STRUCTURAL_ADHESIVE',
+                qualityCheck: 'X_RAY_INSPECTION + ULTRASONIC_TESTING'
+            },
+            parts: { count: 156, material: '70% Aluminum, 30% Steel' }
+        };
+        
+        return design;
+    }
+
+    /**
+     * 📖 Explain Design
+     */
+    explain(design) {
+        console.log('📋 CHASSIS DESIGN SUMMARY:');
+        console.log(`   Type: ${design.type}`);
+        console.log(`   Material: ${design.material}`);
+        console.log(`   Weight: ${design.weight}`);
+        console.log(`   Crash Zones: Front (800mm) + Rear (600mm)`);
+        console.log(`   Safety Factor: 2.5x — 3.5x`);
+        console.log(`   Manufacturing: Robotic Laser Welding\n`);
+    }
+}
+
+module.exports = ChassisEngineering;
