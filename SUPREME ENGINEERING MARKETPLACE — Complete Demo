@@ -1,0 +1,94 @@
+// ============================================================
+// 🏪 SUPREME ENGINEERING MARKETPLACE — Complete Demo
+// ============================================================
+const SupremeEngineeringMarketplace = require('./marketplace/SupremeEngineeringMarketplace');
+
+async function demo() {
+    console.log('🏪 SUPREME ENGINEERING MARKETPLACE');
+    console.log('"Design. Publish. Sell. Earn."');
+    console.log('═══════════════════════════════════\n');
+    
+    const marketplace = new SupremeEngineeringMarketplace();
+    
+    // Register creators
+    console.log('👤 REGISTERING CREATORS:\n');
+    
+    const ahmed = await marketplace.registerCreator({
+        name: 'Ahmed Al-Rashid',
+        email: 'ahmed@engineer.com',
+        company: 'Al-Rashid Engineering',
+        bio: 'Automotive design specialist with 15 years experience',
+        expertise: ['Automotive', 'EV', 'Aerodynamics']
+    });
+    console.log(`   ✅ ${ahmed.name} registered\n`);
+    
+    const sarah = await marketplace.registerCreator({
+        name: 'Sarah Chen',
+        email: 'sarah@robotics.com',
+        company: 'Chen Robotics',
+        bio: 'Robotics engineer specializing in humanoid designs',
+        expertise: ['Robotics', 'AI', 'Mechatronics']
+    });
+    console.log(`   ✅ ${sarah.name} registered\n`);
+    
+    // Publish designs
+    console.log('📦 PUBLISHING DESIGNS:\n');
+    
+    const evChassis = await marketplace.publishDesign(ahmed.creatorId, {
+        title: 'Luxury EV Skateboard Chassis — 2025 Edition',
+        description: 'Complete skateboard chassis design for luxury electric vehicles. 800V architecture, 120kWh battery integration, aerospace-grade aluminum.',
+        category: 'CHASSIS_DESIGNS',
+        type: 'Skateboard',
+        price: 500,
+        tags: ['EV', 'Luxury', 'Skateboard', '800V'],
+        specifications: { length: '3100mm', width: '1800mm', weight: '280kg', material: 'Aluminum 7075' }
+    });
+    console.log(`   📦 "${evChassis.listing.title}" — $500 (Base)\n`);
+    
+    const robotArm = await marketplace.publishDesign(sarah.creatorId, {
+        title: 'Industrial Robot Arm — 6-Axis',
+        description: 'Complete 6-axis industrial robot arm design. 50kg payload, 2m reach, ±0.02mm repeatability.',
+        category: 'ROBOT_DESIGNS',
+        type: 'Industrial',
+        price: 1000,
+        tags: ['Robot', 'Industrial', '6-Axis', 'Manufacturing']
+    });
+    console.log(`   📦 "${robotArm.listing.title}" — $1,000 (Base)\n`);
+    
+    // Buyers purchase designs
+    console.log('🛒 PURCHASES:\n');
+    
+    const purchase1 = await marketplace.purchaseDesign(
+        evChassis.listingId,
+        { id: 'BUYER-001', name: 'Tesla Engineering Team', email: 'engineering@tesla.com' },
+        'MANUFACTURING'
+    );
+    
+    const purchase2 = await marketplace.purchaseDesign(
+        robotArm.listingId,
+        { id: 'BUYER-002', name: 'Foxconn Automation', email: 'automation@foxconn.com' },
+        'ENTERPRISE'
+    );
+    
+    // Creator Dashboards
+    console.log('\n📊 CREATOR DASHBOARD:\n');
+    
+    const ahmedDashboard = await marketplace.getCreatorDashboard(ahmed.creatorId);
+    console.log(`   👤 ${ahmedDashboard.creator.name}`);
+    console.log(`   💰 Total Earnings: $${ahmedDashboard.stats.totalRevenue}`);
+    console.log(`   📦 Listings: ${ahmedDashboard.listings.total}`);
+    console.log(`   🛒 Sales: ${ahmedDashboard.sales.total}`);
+    
+    // Marketplace Analytics
+    console.log('\n📈 MARKETPLACE ANALYTICS:\n');
+    
+    const analytics = marketplace.getMarketplaceAnalytics();
+    console.log(`   Total Listings: ${analytics.overview.publishedListings}`);
+    console.log(`   Total Sales: ${analytics.overview.totalSales}`);
+    console.log(`   Platform Revenue: $${analytics.overview.platformEarnings}`);
+    console.log(`   Creator Earnings: $${analytics.overview.creatorEarnings}`);
+    
+    console.log('\n✅ SUPREME Engineering Marketplace Demo Complete!\n');
+}
+
+demo();
