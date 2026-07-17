@@ -1,0 +1,104 @@
+// ============================================================
+// 🚦 realtime/Layer2_Infrastructure.js
+// SUPREME LAYER 2 — Road Infrastructure V2V/V2I
+// Latency: 0.01-0.1 seconds | Edge Computing
+// ============================================================
+
+class Layer2_Infrastructure {
+    constructor(vehicle) {
+        this.vehicle = vehicle;
+        this.layer = 2;
+        this.name = 'ROAD_INFRASTRUCTURE';
+        this.latency = { min: '0.01s', max: '0.1s' };
+        
+        // V2V (Vehicle-to-Vehicle)
+        this.v2v = new V2VCommunication();
+        
+        // V2I (Vehicle-to-Infrastructure)
+        this.v2i = new V2ICommunication();
+        
+        // Nearby vehicles cache
+        this.nearbyVehicles = new Map();
+        
+        // Infrastructure data
+        this.infrastructure = {
+            trafficLights: [],
+            roadSigns: [],
+            roadConditions: [],
+            edgeComputers: []
+        };
+        
+        // Start V2X loop
+        this.v2xLoop = setInterval(() => this.v2xUpdate(), 10); // 100Hz = every 10ms
+    }
+
+    /**
+     * 🔄 V2X Update Loop — 100Hz
+     * Communication with nearby vehicles and infrastructure
+     */
+    async v2xUpdate() {
+        // V2V: Get data from nearby vehicles
+        const nearbyVehicles = await this.v2v.getNearbyVehicles(500); // 500m radius
+        
+        for (const vehicle of nearbyVehicles) {
+            this.nearbyVehicles.set(vehicle.id, {
+                id: vehicle.id,
+                position: vehicle.position,
+                speed: vehicle.speed,
+                heading: vehicle.heading,
+                intent: vehicle.intent, // TURNING, BRAKING, ACCELERATING
+                hazard: vehicle.hazard, // If this vehicle detected a hazard
+                timestamp: Date.now()
+            });
+        }
+        
+        // V2I: Get data from infrastructure
+        const infraData = await this.v2i.getInfrastructureData();
+        
+        this.infrastructure.trafficLights = infraData.trafficLights || [];
+        this.infrastructure.roadSigns = infraData.roadSigns || [];
+        this.infrastructure.roadConditions = infraData.roadConditions || [];
+        
+        // Alert Layer 1 if hazard detected by nearby vehicle
+        for (const vehicle of nearbyVehicles) {
+            if (vehicle.hazard) {
+                this.alertLayer1({
+                    type: 'V2V_HAZARD_ALERT',
+                    source: vehicle.id,
+                    hazard: vehicle.hazard,
+                    location: vehicle.position,
+                    timestamp: Date.now()
+                });
+            }
+        }
+    }
+
+    /**
+     * 🚦 Smart Traffic Light Communication
+     */
+    async getTrafficLightStatus(intersection) {
+        const light = this.infrastructure.trafficLights.find(
+            l => l.intersection === intersection
+        );
+        
+        if (!light) return null;
+        
+        return {
+            intersection,
+            currentState: light.state, // RED | YELLOW | GREEN
+            timeRemaining: light.timeRemaining, // seconds until change
+            nextState: light.nextState,
+            recommendedSpeed: light.recommendedSpeed // To catch green wave
+        };
+    }
+
+    /**
+     * ⚠️ Alert Layer 1 (Vehicle AI)
+     */
+    alertLayer1(alert) {
+        // This is ADVISORY only — Layer 1 decides what to do
+        this.vehicle.layer1?.receiveInfrastructureAlert(alert);
+    }
+}
+
+module.exports = Layer2_Infrastructure;
