@@ -1,0 +1,32 @@
+// ============================================================
+// ⚡ SUPREME REAL-TIME SYSTEM — Complete Demo
+// ============================================================
+const SupremeRealTimeSystem = require('./realtime/SupremeRealTimeSystem');
+
+async function demo() {
+    console.log('⚡ SUPREME 4-LAYER REAL-TIME AUTONOMOUS SYSTEM');
+    console.log('═══════════════════════════════════════════════\n');
+    
+    const vehicle = { state: { location: { lat: 25.2, lng: 55.3 }, mode: 'DRIVING', speed: 100 } };
+    const system = new SupremeRealTimeSystem(vehicle);
+    
+    // Navigate
+    console.log('👤 Driver: "Take me to Dubai"\n');
+    const nav = await system.navigateTo('Dubai');
+    console.log(`   ETA: ${nav.route}`);
+    console.log(`   Safety: ${nav.safetyNote}\n`);
+    
+    // Emergency demonstration
+    await system.demonstrateEmergencyResponse();
+    
+    // System status
+    console.log('📊 SYSTEM STATUS:');
+    const status = system.getStatus();
+    for (const [key, layer] of Object.entries(status.layers)) {
+        console.log(`   ${layer.name}: ${layer.latency} — Authority: ${layer.authority}`);
+    }
+    
+    console.log('\n✅ SUPREME Real-Time System Demo Complete!\n');
+}
+
+demo();
