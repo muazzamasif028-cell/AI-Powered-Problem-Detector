@@ -8,7 +8,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Express](https://img.shields.io/badge/express-4.18-000000.svg?logo=express&logoColor=white)](https://expressjs.com)
 
-An AI-powered detection and diagnostics platform that ingests problems, runs specialized detectors (security, performance, crash, resource, availability, application), and returns root causes with actionable solutions.
+An AI-powered detection and diagnostics platform that ingests problems in plain language, runs pattern and metric detectors, and returns the root cause with a ranked, auto-appliable remediation plan.
 
 ---
 
@@ -52,16 +52,16 @@ The platform is built on the **MPU Core** — a central processing brain that fa
 
 ## ✨ Features
 
-- 🔍 **Multi-Detector Engine** — security, performance, crash, resource, availability and application detectors behind one API.
-- 🧠 **Root Cause Analysis** — traces a symptom back to its origin instead of reporting surface errors.
-- 💡 **Solution Engine** — turns each detection into a concrete, ranked remediation plan.
-- 🚨 **Smart Alerts** — deduplicated, severity-aware alerting with real-time delivery.
-- 🔮 **Precognition Layer** — predictive scanning to surface problems before they become incidents.
-- 🩺 **Full Diagnostics** — one-shot deep scan combining every detector into a single report.
-- 🔐 **Hardened by Default** — Helmet, CORS, JWT auth and bcrypt password hashing out of the box.
-- ⚡ **Lightweight Runtime** — plain Express + Node, no build step required to run.
-- 📊 **Health & Status Endpoints** — readiness, version and orchestrator status for monitoring.
-- 🌐 **Multi-Provider AI** — pluggable LLM providers under `supreme/ai/llm`.
+- 📥 **Natural-Language Intake** — accepts reports over `CHAT`, `EMAIL`, `API` and `SYSTEM` channels, then categorises, extracts entities and infers severity.
+- 🔍 **Pattern + Metric Detection** — 18 pattern rules and 6 metric rules across security, performance, availability, resource, crash, data, network and application, with fingerprinted alert deduplication.
+- 🧠 **Root Cause Analysis** — scores 10 competing hypotheses from text, detector agreement and metrics, and reports `STRONG` / `MODERATE` / `WEAK` consensus with the evidence behind it.
+- 💡 **Solution Engine** — maps each root cause to an ordered playbook and can auto-apply the safe steps for admins, always leaving risky steps for a human.
+- 🎯 **Confidence Scoring** — weighted `HIGH` / `MEDIUM` / `LOW` verdict over detection, analysis and solution, with an explicit recommendation (`AUTO_APPLY`, `REVIEW`, `ESCALATE`, `GATHER_DATA`).
+- 🔁 **8-Cycle Learning Loop** — feedback reweights detector patterns, grows the knowledge graph and tracks accuracy improvement against the baseline.
+- 💰 **Usage-Based Pricing** — 5 tiers with automatic tier detection, volume/annual/nonprofit discounts and revenue tracking.
+- 🔐 **Auth & Multi-Tenancy** — scrypt password hashing, HS256 JWT sessions, `SUPER_ADMIN` / `ADMIN` / `USER` roles, per-permission route guards, lockouts and an audit log.
+- 🛰️ **Satellite Control** — 72-satellite constellation simulation with live orbit propagation, ground-station visibility and command dispatch.
+- 📊 **Dashboard & Health** — one call returns platform-wide stats; `/api/health` reports per-engine readiness.
 
 ---
 
@@ -69,12 +69,16 @@ The platform is built on the **MPU Core** — a central processing brain that fa
 
 | Layer | Technology |
 | --- | --- |
-| Runtime | [Node.js](https://nodejs.org) `>=20` (ES modules) |
+| Runtime | [Node.js](https://nodejs.org) `>=20` (CommonJS) |
 | Web framework | [Express](https://expressjs.com) `^4.18` |
 | Security | [Helmet](https://helmetjs.github.io) `^7.1`, [cors](https://www.npmjs.com/package/cors) `^2.8` |
-| Auth | [jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken) `^9.0`, [bcryptjs](https://www.npmjs.com/package/bcryptjs) `^2.4` |
+| Auth | Node `crypto` — scrypt password hashing + HS256 JWTs (no external auth dependency) |
+| Sessions | [express-session](https://www.npmjs.com/package/express-session) `^1.17` |
+| Rate limiting | [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) `^7.1` |
 | Performance | [compression](https://www.npmjs.com/package/compression) `^1.7` |
 | Config | [dotenv](https://www.npmjs.com/package/dotenv) `^16.3` |
+
+State is held in memory, so the backend runs with zero external services — no database, cache or broker required.
 
 ---
 
@@ -95,52 +99,94 @@ cp .env.example .env
 #    then edit .env and fill in your own values
 
 # 4. Run
-npm start          # production
+npm start          # production  (same as: node server.js)
 npm run dev        # development, with file watching
 ```
 
-The server listens on `PORT` (default `4000`). Verify it is up:
+The server listens on `PORT` (default `5000`). Verify it is up:
 
 ```bash
-curl http://localhost:4000/api/health
+curl http://localhost:5000/api/health
+# {"ok":true,"status":"HEALTHY","enginesReady":"10/10", ...}
+```
+
+All 10 engines are initialized **before** the port binds, so a successful boot log means the API is fully ready:
+
+```
+🤫 [server] all 10 engine(s) initialized in 2ms
+🤫 [server] SUPREME PLATFORM v14.0.0 listening on http://localhost:5000
 ```
 
 ---
 
 ## 🔌 API Endpoints
 
-All routes are served under the `/api` base path.
+🔓 = public · 🔒 = requires `Authorization: Bearer <token>`
 
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/health` | Liveness probe for the platform. |
-| `GET` | `/api/info` | Platform name, version and build metadata. |
-| `GET` | `/api/status` | Aggregated subsystem status. |
-| `POST` | `/api/auth/signup` | Register a new account. |
-| `POST` | `/api/auth/signin` | Authenticate and receive a JWT. |
-| `POST` | `/api/auth/signout` | Invalidate the current session. |
-| `GET` | `/api/auth/verify` | Validate the supplied JWT. |
-| `POST` | `/api/detect/run` | Run the detector swarm over a payload. |
-| `GET` | `/api/detect/alerts` | List alerts raised by detectors. |
-| `POST` | `/api/diagnostics/full` | Full multi-detector diagnostic sweep. |
-| `POST` | `/api/diagnostics/root-cause` | Resolve the root cause of a problem. |
-| `POST` | `/api/diagnostics/solution` | Generate a remediation plan. |
-| `POST` | `/api/precognition/scan` | Predictive scan for emerging problems. |
-| `GET` | `/api/orchestrator/status` | Orchestrator state and active jobs. |
-| `POST` | `/api/orchestrator/run` | Trigger an orchestrated pipeline run. |
-| `GET` | `/api/languages/categories` | Supported language categories. |
-| `GET` | `/api/languages/search` | Search the language registry. |
-| `GET` | `/api/payment/tiers` | Available pricing tiers. |
-| `POST` | `/api/payment/process` | Process a payment. |
-| `GET` | `/api/payment/transactions` | List transactions. |
+| Method | Endpoint | Auth | Description |
+| --- | --- | --- | --- |
+| `GET` | `/` | 🔓 | Platform info, engine readiness and endpoint index. |
+| `GET` | `/dashboard` | 🔓 | Platform-wide stats: problems, detections, diagnostics, revenue, fleet. |
+| `GET` | `/api/health` | 🔓 | Health check — `200` when all 10 engines are ready, `503` otherwise. |
+| `GET` | `/api/system/status` | 🔓 | Full per-engine status, metrics and process info. |
+| `POST` | `/api/auth/signup` | 🔓 | Register an account (first user of a new company becomes its `ADMIN`). |
+| `POST` | `/api/auth/signin` | 🔓 | Authenticate and receive a JWT. |
+| `POST` | `/api/auth/signout` | 🔒 | Revoke the current session. |
+| `GET` | `/api/auth/me` | 🔒 | The authenticated user and their permissions. |
+| `POST` | `/api/problems/intake` | 🔒 | Submit a problem in natural language. |
+| `GET` | `/api/problems` | 🔒 | Intake history, filterable by category / severity / channel. |
+| `POST` | `/api/detect/run` | 🔒 | Run pattern + metric detection. |
+| `GET` | `/api/detect/alerts` | 🔒 | Active alerts, filterable by severity and category. |
+| `POST` | `/api/detect/alerts/:alertId/resolve` | 🔒 | Resolve an active alert. |
+| `POST` | `/api/diagnostics/full` | 🔒 | Full sweep: intake → detect → root cause → solution → confidence. |
+| `POST` | `/api/diagnostics/root-cause` | 🔒 | Root-cause analysis on its own. |
+| `POST` | `/api/solutions/:analysisId/generate` | 🔒 | Generate a remediation plan for an analysis. |
+| `POST` | `/api/solutions/:solutionId/auto-apply` | 🔒 | Auto-apply the safe steps (`ADMIN`+). |
+| `POST` | `/api/learning/feedback` | 🔒 | Feed an outcome back into the learning loop. |
+| `GET` | `/api/pricing/tiers` | 🔓 | The 5 pricing tiers and their limits. |
+| `POST` | `/api/pricing/quote` | 🔒 | Generate a quote with automatic tier detection. |
+| `GET` | `/api/satellite/fleet` | 🔒 | Constellation health and all 72 satellites. |
+| `GET` | `/api/satellite/track/:satelliteId` | 🔒 | Live position, telemetry and ground-station visibility. |
+| `POST` | `/api/satellite/command` | 🔒 | Send a command; mutating commands need `satellite:command`. |
 
-Example:
+**Rate limits:** 300 requests / 15 min on `/api/*`, 20 failed attempts / 15 min on sign-in and sign-up, 60 requests / min on detection and diagnostics.
+
+### Example: sign up, sign in, diagnose
 
 ```bash
-curl -X POST http://localhost:4000/api/detect/run \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{ "target": "service-api", "detectors": ["security", "performance"] }'
+BASE=http://localhost:5000
+
+# 1. Register (returns the user; the first user of a company becomes ADMIN)
+curl -X POST $BASE/api/auth/signup -H 'Content-Type: application/json' -d '{
+  "email": "you@example.com",
+  "password": "Sup3rSecret!2026",
+  "companyName": "Supreme Technologies"
+}'
+
+# 2. Sign in and capture the JWT
+TOKEN=$(curl -s -X POST $BASE/api/auth/signin -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"Sup3rSecret!2026"}' | jq -r .token)
+
+# 3. Run a full diagnostic from a plain-language report
+curl -X POST $BASE/api/diagnostics/full \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{
+    "description": "Production API is down after the deploy — users get 503 and pods are in CrashLoopBackOff with out of memory errors.",
+    "metrics": { "memoryPct": 99, "errorRatePct": 42 }
+  }'
+```
+
+The response carries the whole pipeline — `problem`, `detection`, `analysis`, `solution` and `confidence`:
+
+```json
+{
+  "ok": true,
+  "diagnostic": {
+    "detection": { "findingCount": 8, "highestSeverity": "CRITICAL" },
+    "analysis": { "rootCause": "Recent deployment introduced a regression", "consensus": "MODERATE", "confidencePct": 69.04 },
+    "solution": { "playbookId": "RC-DEPLOY-001", "risk": "MEDIUM", "autoApplyEligible": true },
+    "confidence": { "overallScore": 85.35, "level": "HIGH", "recommendation": "AUTO_APPLY" }
+  }
+}
 ```
 
 ---
@@ -149,29 +195,28 @@ curl -X POST http://localhost:4000/api/detect/run \
 
 ```
 AI-Powered-Problem-Detector/
-├── server.js                  # HTTP entry point
-├── app.js                     # Express app, middleware and mounting
+├── server.js               # Express app: boots all 10 engines, JWT auth, rate limits, routes
+├── execution-engine.js     # CoreProcessingEngine     — concurrency, timeouts, retries, metrics
+├── problem-intake.js       # ProblemIntakeSystem      — NL intake, categorisation, history
+├── basic-detector.js       # BasicDetector            — pattern + metric rules, alert lifecycle
+├── root-cause.js           # RootCauseEngine          — hypothesis scoring, consensus, evidence
+├── solution-engine.js      # SolutionEngine           — playbooks, auto-apply, success rate
+├── confidence-score.js     # ConfidenceScoringSystem  — weighted score, level, recommendation
+├── learning-loop.js        # LearningLoopEngine       — 8 cycles, reweighting, knowledge graph
+├── pricing-model.js        # PricingModelEngine       — 5 tiers, quotes, discounts, revenue
+├── auth-system.js          # AuthSystem               — users, tenants, JWT, roles, audit log
+├── satellite-control.js    # SatelliteControlSystem   — 72-satellite fleet, tracking, commands
 ├── package.json
-├── .env.example               # Documented environment template
-├── config/
-│   └── system.json            # Platform, API, database and feature config
-├── routes/
-│   ├── api.gateway.js         # Unified /api gateway
-│   ├── auth.middleware.js     # JWT / security layer
-│   └── database.config.js     # MongoDB + Redis wiring
-├── supreme/
-│   └── ai/
-│       └── llm/               # Pluggable LLM providers
-├── detectors/                 # security · performance · crash · resource ·
-│                              # availability · application detectors
-├── engines/                   # problem intake · root cause · solution ·
-│                              # precognition · orchestrator
-└── DEVOPS & CI/               # Docker, Kubernetes and CI definitions
+├── .env.example            # Documented environment template
+└── README.md
 ```
 
-> **Note:** the repository is currently a flat working tree — most modules live at the
-> root rather than in the folders above. The layout shown is the target structure the
-> files are being organised into.
+Every engine is a class exposing `initialize()`, `status()` and `shutdown()`, and is instantiated once in
+`server.js`. Routes compose engines rather than reaching into each other, so the diagnostics pipeline is
+just intake → detect → root cause → solution → confidence.
+
+> **Note:** the repository also contains an earlier flat working tree (files with `— COMPLETE` style
+> suffixes in their names). The files listed above are the live backend that `node server.js` runs.
 
 ---
 
@@ -179,26 +224,12 @@ AI-Powered-Problem-Detector/
 
 Copy `.env.example` to `.env` and set the values for your environment. Never commit a real `.env`.
 
-| Variable | Description | Example |
-| --- | --- | --- |
-| `PORT` | Port the HTTP server binds to. | `4000` |
-| `NODE_ENV` | Runtime mode. | `development` |
-| `HOST` | Bind host. | `localhost` |
-| `BASE_URL` | Public base URL of the API. | `http://localhost:4000` |
-| `MONGODB_URI` | MongoDB connection string. | `mongodb://localhost:27017/supreme-platform` |
-| `REDIS_URL` | Redis connection string. | `redis://localhost:6379` |
-| `JWT_SECRET` | Signing secret for JWTs (min. 32 chars). | `change-me` |
-| `JWT_EXPIRY` | Access token lifetime. | `24h` |
-| `SESSION_SECRET` | Session signing secret. | `change-me` |
-| `BCRYPT_SALT_ROUNDS` | bcrypt cost factor. | `12` |
-| `OPENAI_API_KEY` | OpenAI API key. | `sk-...` |
-| `ANTHROPIC_API_KEY` | Anthropic API key. | `sk-ant-...` |
-| `CORS_ORIGIN` | Allowed origin(s) for CORS. | `http://localhost:5173` |
-| `RATE_LIMIT_MAX` | Max requests per window. | `100` |
-| `RATE_LIMIT_WINDOW_MS` | Rate limit window in ms. | `900000` |
-| `LOG_LEVEL` | Logger verbosity. | `info` |
-
-Additional optional groups documented in `.env.example`: payment gateways (Stripe, PayPal, SafePay, JazzCash, EasyPaisa), email/SMTP, Twilio SMS, AWS / Google Cloud / Azure, Firebase, Supabase, Elasticsearch and feature flags (`FEATURE_*`).
+| Variable | Required | Description | Example |
+| --- | --- | --- | --- |
+| `PORT` | no | Port the HTTP server binds to. | `5000` |
+| `NODE_ENV` | no | Runtime mode — `production` enables Secure cookies and hides 5xx detail. | `development` |
+| `SESSION_SECRET` | **yes** | Signs JWTs *and* the session cookie. If unset, an ephemeral key is generated at boot and every restart invalidates existing tokens. | `openssl rand -hex 48` |
+| `ALLOWED_ORIGINS` | no | Comma-separated CORS allowlist. Empty reflects the request origin (development only). | `http://localhost:5173,http://localhost:3000` |
 
 ---
 
@@ -208,7 +239,7 @@ Contributions are welcome.
 
 1. Fork the repository and create a branch: `git checkout -b feature/my-change`
 2. Make your change, keeping it focused and consistent with the surrounding style.
-3. Verify the server still boots and `/api/health` responds.
+3. Verify the server still boots and `/api/health` reports `10/10` engines ready.
 4. Commit with a clear message: `git commit -m "Add my change"`
 5. Push and open a pull request describing what changed and why.
 
