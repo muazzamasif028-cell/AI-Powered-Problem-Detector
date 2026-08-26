@@ -1,0 +1,11 @@
+constructor(){
+
+    this.keyRegistry = new Map();
+
+    this.auditLogs = [];
+
+    this.usage = new Map();
+
+    this.revoked = new Set();
+
+}

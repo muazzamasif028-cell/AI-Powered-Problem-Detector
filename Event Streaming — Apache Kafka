@@ -1,0 +1,244 @@
+// ============================================================
+// 📨 src/services/streaming/kafka.service.js
+// SUPREME Event Streaming Service — Kafka
+// ============================================================
+const { Kafka, CompressionTypes, logLevel } = require('kafkajs');
+
+class KafkaService {
+    constructor() {
+        this.kafka = new Kafka({
+            clientId: 'supreme-os',
+            brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
+            ssl: process.env.KAFKA_SSL === 'true',
+            sasl: process.env.KAFKA_SASL === 'true' ? {
+                mechanism: 'scram-sha-256',
+                username: process.env.KAFKA_USERNAME,
+                password: process.env.KAFKA_PASSWORD
+            } : undefined,
+            logLevel: logLevel.INFO
+        });
+
+        this.producer = null;
+        this.consumers = new Map();
+        this.admin = this.kafka.admin();
+        
+        this.topics = [
+            'domain.events',
+            'billing.events',
+            'ai.events',
+            'user.events',
+            'system.events',
+            'notification.events',
+            'audit.events'
+        ];
+    }
+
+    /**
+     * Initialize Kafka
+     */
+    async initialize() {
+        console.log('📨 Initializing Kafka...');
+        
+        // Connect admin
+        await this.admin.connect();
+        
+        // Create topics if not exist
+        const existingTopics = await this.admin.listTopics();
+        
+        for (const topic of this.topics) {
+            if (!existingTopics.includes(topic)) {
+                await this.admin.createTopics({
+                    topics: [{
+                        topic,
+                        numPartitions: 6,
+                        replicationFactor: 3,
+                        configEntries: [
+                            { name: 'retention.ms', value: '604800000' }, // 7 days
+                            { name: 'compression.type', value: 'snappy' }
+                        ]
+                    }]
+                });
+                console.log(`  📝 Created topic: ${topic}`);
+            }
+        }
+
+        // Create producer
+        this.producer = this.kafka.producer({
+            allowAutoTopicCreation: false,
+            transactionTimeout: 30000,
+            idempotent: true,
+            maxInFlightRequests: 5
+        });
+
+        await this.producer.connect();
+        console.log('✅ Kafka initialized');
+    }
+
+    /**
+     * Publish event
+     */
+    async publish(topic, event, key = null) {
+        if (!this.producer) throw new Error('Kafka not initialized');
+
+        const message = {
+            key: key || event.id || Date.now().toString(),
+            value: JSON.stringify({
+                ...event,
+                timestamp: new Date().toISOString(),
+                source: 'supreme-os',
+                version: '1.0'
+            }),
+            headers: {
+                'event-type': event.type || 'unknown',
+                'source': 'supreme-os',
+                'content-type': 'application/json'
+            }
+        };
+
+        const result = await this.producer.send({
+            topic,
+            messages: [message],
+            acks: -1, // All replicas
+            compression: CompressionTypes.Snappy
+        });
+
+        return result;
+    }
+
+    /**
+     * Publish batch events
+     */
+    async publishBatch(topic, events) {
+        const messages = events.map(event => ({
+            key: event.id || Date.now().toString(),
+            value: JSON.stringify(event),
+            headers: { 'event-type': event.type }
+        }));
+
+        return this.producer.send({
+            topic,
+            messages,
+            compression: CompressionTypes.Gzip
+        });
+    }
+
+    /**
+     * Subscribe to topic
+     */
+    async subscribe(topic, groupId, handler, options = {}) {
+        const consumer = this.kafka.consumer({
+            groupId: `${groupId}-${topic}`,
+            sessionTimeout: 30000,
+            heartbeatInterval: 3000,
+            maxBytesPerPartition: 1048576, // 1MB
+            ...options
+        });
+
+        await consumer.connect();
+        await consumer.subscribe({ 
+            topic, 
+            fromBeginning: options.fromBeginning || false 
+        });
+
+        await consumer.run({
+            eachMessage: async ({ topic, partition, message }) => {
+                try {
+                    const event = JSON.parse(message.value.toString());
+                    await handler(event, { topic, partition, offset: message.offset });
+                } catch (error) {
+                    console.error(`Kafka consumer error [${topic}]:`, error.message);
+                }
+            },
+            autoCommit: true,
+            autoCommitInterval: 5000
+        });
+
+        this.consumers.set(`${groupId}-${topic}`, consumer);
+        console.log(`📥 Subscribed: ${topic} (group: ${groupId})`);
+        
+        return consumer;
+    }
+
+    /**
+     * Subscribe to domain events
+     */
+    async onDomainEvent(handler) {
+        return this.subscribe('domain.events', 'domain-service', async (event) => {
+            switch (event.type) {
+                case 'domain.registered':
+                    // Provision DNS, SSL, hosting
+                    break;
+                case 'domain.transferred':
+                    // Update nameservers
+                    break;
+                case 'domain.expired':
+                    // Send renewal reminders
+                    break;
+            }
+            await handler(event);
+        });
+    }
+
+    /**
+     * Subscribe to billing events
+     */
+    async onBillingEvent(handler) {
+        return this.subscribe('billing.events', 'billing-service', async (event) => {
+            switch (event.type) {
+                case 'payment.received':
+                    // Activate services
+                    break;
+                case 'payment.failed':
+                    // Send dunning emails
+                    break;
+                case 'refund.processed':
+                    // Deactivate services
+                    break;
+            }
+            await handler(event);
+        });
+    }
+
+    /**
+     * Get topic stats
+     */
+    async getStats() {
+        const stats = {};
+        
+        for (const topic of this.topics) {
+            try {
+                const metadata = await this.admin.fetchTopicMetadata({ topics: [topic] });
+                const offsets = await this.admin.fetchTopicOffsets(topic);
+                
+                stats[topic] = {
+                    partitions: metadata.topics[0]?.partitions.length || 0,
+                    offsets
+                };
+            } catch (error) {
+                stats[topic] = { error: error.message };
+            }
+        }
+        
+        return stats;
+    }
+
+    /**
+     * Graceful shutdown
+     */
+    async shutdown() {
+        console.log('📨 Shutting down Kafka...');
+        
+        if (this.producer) {
+            await this.producer.disconnect();
+        }
+        
+        for (const [key, consumer] of this.consumers) {
+            await consumer.disconnect();
+        }
+        
+        await this.admin.disconnect();
+        console.log('✅ Kafka shutdown complete');
+    }
+}
+
+module.exports = new KafkaService();

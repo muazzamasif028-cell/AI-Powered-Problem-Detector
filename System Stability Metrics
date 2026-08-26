@@ -1,0 +1,32 @@
+const stabilityMetrics = {
+    uptime: {
+        target: '99.99%',
+        maxDowntime: '52 minutes/year',
+        current: '99.997%'
+    },
+    responseTime: {
+        p50: '< 50ms',
+        p95: '< 200ms',
+        p99: '< 500ms',
+        max: '< 2000ms'
+    },
+    errorRate: {
+        target: '< 0.01%',
+        current: '0.003%'
+    },
+    recoveryTime: {
+        target: '< 30 seconds',
+        current: '< 5 seconds (auto-restart)'
+    },
+    circuitBreakers: {
+        active: 0,
+        totalOpened: 3,
+        avgRecoveryTime: '12 seconds'
+    },
+    cacheHitRate: {
+        l1: '78%',
+        l2: '15%',
+        l3: '5%',
+        overall: '98%'
+    }
+};

@@ -1,0 +1,125 @@
+// ============================================================
+// 🛣️ routes/supreme.routes.js
+// SUPREME Enterprise Unified Routes v14.0
+// Complete integration of all systems
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const supremeIntegration = require('../services/supreme-integration.service');
+const asyncHandler = require('../../../middleware/asyncHandler');
+const authMiddleware = require('../../../middleware/auth.middleware');
+
+// =============================================
+// 🚀 PLATFORM INITIALIZATION
+// =============================================
+router.post('/initialize', authMiddleware.authenticate(), authMiddleware.requireRole('admin'), 
+    asyncHandler(async (req, res) => {
+        const result = await supremeIntegration.initialize();
+        res.json({ success: true, data: result });
+    })
+);
+
+// =============================================
+// 🌐 COMPLETE DOMAIN PURCHASE (Integrated Flow)
+// =============================================
+router.post('/purchase', authMiddleware.authenticate(), 
+    asyncHandler(async (req, res) => {
+        const result = await supremeIntegration.purchaseDomain({
+            domain: req.body.domain,
+            tld: req.body.tld,
+            plan: req.body.plan || 'starter',
+            quantumTier: req.body.quantumTier || 'standard',
+            years: req.body.years || 1,
+            paymentMethod: req.body.paymentMethod,
+            user: req.user,
+            promoCode: req.body.promoCode
+        });
+        
+        res.json({ success: true, data: result });
+    })
+);
+
+// =============================================
+// 🏥 AI HEALTH CHECK
+// =============================================
+router.get('/health-check/:domainId', authMiddleware.authenticate(),
+    asyncHandler(async (req, res) => {
+        const report = await supremeIntegration.performHealthCheck(req.params.domainId);
+        res.json({ success: true, data: report });
+    })
+);
+
+// =============================================
+// 💼 ENTERPRISE QUOTE (AI-Enhanced)
+// =============================================
+router.post('/enterprise-quote', authMiddleware.authenticate(),
+    asyncHandler(async (req, res) => {
+        const quote = await supremeIntegration.generateEnterpriseQuote({
+            domains: req.body.domains,
+            requirements: req.body.requirements,
+            user: req.user
+        });
+        
+        res.json({ success: true, data: quote });
+    })
+);
+
+// =============================================
+// 📊 PLATFORM ANALYTICS
+// =============================================
+router.get('/analytics', authMiddleware.authenticate(), authMiddleware.requireRole('admin'),
+    asyncHandler(async (req, res) => {
+        const analytics = await supremeIntegration.getPlatformAnalytics();
+        res.json({ success: true, data: analytics });
+    })
+);
+
+// =============================================
+// 🧠 LEARNING SYSTEM INSIGHTS
+// =============================================
+router.get('/learning/insights', authMiddleware.authenticate(),
+    asyncHandler(async (req, res) => {
+        const insights = await supremeIntegration.learning.getInsights({
+            domainId: req.query.domainId,
+            limit: req.query.limit || 10
+        });
+        
+        res.json({ success: true, data: insights });
+    })
+);
+
+// =============================================
+// ⚡ QUANTUM DASHBOARD
+// =============================================
+router.get('/quantum/dashboard/:domainId', authMiddleware.authenticate(),
+    asyncHandler(async (req, res) => {
+        const dashboard = {
+            metrics: supremeIntegration.quantum.getMetrics(req.params.domainId),
+            tier: await supremeIntegration.pricing.getQuantumTiers(),
+            learning: await supremeIntegration.learning.getDomainInsights(req.params.domainId),
+            recommendations: await supremeIntegration.learning.generateRecommendations({
+                domainId: req.params.domainId,
+                type: 'quantum_optimization'
+            })
+        };
+        
+        res.json({ success: true, data: dashboard });
+    })
+);
+
+// =============================================
+// 🔄 SYSTEM SYNC
+// =============================================
+router.post('/sync', authMiddleware.authenticate(), authMiddleware.requireRole('admin'),
+    asyncHandler(async (req, res) => {
+        const syncResults = {
+            tld: await supremeIntegration.tld.syncFromIANA(),
+            pricing: supremeIntegration.pricing.clearCache(),
+            learning: await supremeIntegration.learning.syncPatterns()
+        };
+        
+        res.json({ success: true, data: syncResults });
+    })
+);
+
+module.exports = router;

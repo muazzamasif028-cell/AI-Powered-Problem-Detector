@@ -1,0 +1,243 @@
+// ============================================================
+// 🚀 scripts/clean-disk-space.js
+// SUPREME Disk Space Recovery Tool
+// Automatically cleans npm cache, temp files, and node_modules
+// ============================================================
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+class SupremeDiskCleaner {
+    constructor() {
+        this.stats = {
+            initialFreeSpace: 0,
+            finalFreeSpace: 0,
+            freedSpace: 0,
+            itemsCleaned: 0,
+            errors: 0
+        };
+    }
+
+    /**
+     * 🚀 Run Complete Cleanup
+     */
+    async runCleanup() {
+        console.log('🚀 SUPREME DISK SPACE RECOVERY TOOL');
+        console.log('═══════════════════════════════════\n');
+        
+        // Get initial space
+        this.stats.initialFreeSpace = this.getFreeSpace();
+        console.log(`📊 Initial Free Space: ${this.formatBytes(this.stats.initialFreeSpace)}\n`);
+        
+        // Step 1: Clean npm cache
+        console.log('🗑️ Step 1: Cleaning npm cache...');
+        try {
+            execSync('npm cache clean --force', { stdio: 'ignore' });
+            console.log('   ✅ npm cache cleaned');
+            this.stats.itemsCleaned++;
+        } catch (e) {
+            console.log('   ⚠️ npm cache clean warning');
+            this.stats.errors++;
+        }
+        
+        // Step 2: Clean temp folders
+        console.log('🗑️ Step 2: Cleaning temporary files...');
+        const tempPaths = [
+            os.tmpdir(),
+            path.join(process.env.LOCALAPPDATA || '', 'Temp'),
+            path.join(process.env.LOCALAPPDATA || '', 'npm-cache')
+        ];
+        
+        for (const tempPath of tempPaths) {
+            try {
+                if (fs.existsSync(tempPath)) {
+                    this.cleanDirectory(tempPath);
+                }
+            } catch (e) {
+                // Skip inaccessible paths
+            }
+        }
+        console.log('   ✅ Temp files cleaned');
+        
+        // Step 3: Find and report large node_modules
+        console.log('🔍 Step 3: Scanning for large node_modules...');
+        const homePath = os.homedir();
+        const largeDirs = this.findLargeDirectories(homePath, 500); // > 500MB
+        
+        if (largeDirs.length > 0) {
+            console.log('   📦 Large directories found:');
+            for (const dir of largeDirs.slice(0, 5)) {
+                console.log(`      ${dir.path}: ${this.formatBytes(dir.size)}`);
+            }
+        }
+        
+        // Step 4: Clean Windows Update cache
+        console.log('🗑️ Step 4: Cleaning Windows Update cache...');
+        const winUpdatePath = 'C:\\Windows\\SoftwareDistribution\\Download';
+        try {
+            if (fs.existsSync(winUpdatePath)) {
+                this.cleanDirectory(winUpdatePath);
+                console.log('   ✅ Windows Update cache cleaned');
+                this.stats.itemsCleaned++;
+            }
+        } catch (e) {
+            console.log('   ⚠️ Run as Administrator for Windows Update cleanup');
+        }
+        
+        // Step 5: Clean Recycle Bin
+        console.log('🗑️ Step 5: Emptying Recycle Bin...');
+        try {
+            execSync('cmd /c "rd /s /q C:\\$Recycle.Bin 2>nul"', { stdio: 'ignore' });
+            console.log('   ✅ Recycle Bin emptied');
+            this.stats.itemsCleaned++;
+        } catch (e) {
+            console.log('   ⚠️ Run as Administrator for Recycle Bin cleanup');
+        }
+        
+        // Get final space
+        this.stats.finalFreeSpace = this.getFreeSpace();
+        this.stats.freedSpace = this.stats.finalFreeSpace - this.stats.initialFreeSpace;
+        
+        console.log('\n📊 RESULTS:');
+        console.log(`   Initial Free: ${this.formatBytes(this.stats.initialFreeSpace)}`);
+        console.log(`   Final Free:   ${this.formatBytes(this.stats.finalFreeSpace)}`);
+        console.log(`   Freed:        ${this.formatBytes(Math.max(0, this.stats.freedSpace))}`);
+        console.log(`   Items Cleaned: ${this.stats.itemsCleaned}`);
+        console.log(`   Errors:        ${this.stats.errors}`);
+        
+        console.log('\n✅ Disk Cleanup Complete!\n');
+        
+        return this.stats;
+    }
+
+    /**
+     * 📊 Get Free Disk Space
+     */
+    getFreeSpace() {
+        try {
+            const result = execSync('wmic logicaldisk get size,freespace,caption', { encoding: 'utf8' });
+            const lines = result.trim().split('\n');
+            
+            for (const line of lines) {
+                if (line.includes('C:')) {
+                    const parts = line.trim().split(/\s+/);
+                    return parseInt(parts[2]) || 0;
+                }
+            }
+        } catch (e) {
+            // Fallback
+            return 0;
+        }
+        return 0;
+    }
+
+    /**
+     * 🗑️ Clean Directory
+     */
+    cleanDirectory(dirPath) {
+        try {
+            const files = fs.readdirSync(dirPath);
+            
+            for (const file of files) {
+                const fullPath = path.join(dirPath, file);
+                
+                try {
+                    const stat = fs.statSync(fullPath);
+                    
+                    if (stat.isDirectory()) {
+                        fs.rmSync(fullPath, { recursive: true, force: true });
+                    } else {
+                        fs.unlinkSync(fullPath);
+                    }
+                    this.stats.itemsCleaned++;
+                } catch (e) {
+                    // Skip locked files
+                }
+            }
+        } catch (e) {
+            // Directory not accessible
+        }
+    }
+
+    /**
+     * 🔍 Find Large Directories
+     */
+    findLargeDirectories(rootPath, minSizeMB = 500, maxDepth = 3) {
+        const large = [];
+        
+        try {
+            const entries = fs.readdirSync(rootPath, { withFileTypes: true });
+            
+            for (const entry of entries) {
+                if (entry.isDirectory() && !entry.name.startsWith('.') && 
+                    entry.name !== 'Windows' && entry.name !== 'Program Files' &&
+                    entry.name !== 'Program Files (x86)') {
+                    
+                    const fullPath = path.join(rootPath, entry.name);
+                    const size = this.getDirectorySize(fullPath);
+                    
+                    if (size > minSizeMB * 1024 * 1024) {
+                        large.push({ path: fullPath, size });
+                    }
+                }
+            }
+        } catch (e) {
+            // Skip
+        }
+        
+        return large.sort((a, b) => b.size - a.size);
+    }
+
+    /**
+     * 📏 Get Directory Size
+     */
+    getDirectorySize(dirPath) {
+        let size = 0;
+        
+        try {
+            const files = fs.readdirSync(dirPath);
+            
+            for (const file of files) {
+                const fullPath = path.join(dirPath, file);
+                
+                try {
+                    const stat = fs.statSync(fullPath);
+                    
+                    if (stat.isDirectory()) {
+                        size += this.getDirectorySize(fullPath);
+                    } else {
+                        size += stat.size;
+                    }
+                } catch (e) {
+                    // Skip
+                }
+            }
+        } catch (e) {
+            // Skip
+        }
+        
+        return size;
+    }
+
+    /**
+     * 📊 Format Bytes
+     */
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+}
+
+// Run if executed directly
+if (require.main === module) {
+    const cleaner = new SupremeDiskCleaner();
+    cleaner.runCleanup().then(stats => {
+        console.log(`🎯 Freed: ${cleaner.formatBytes(Math.max(0, stats.freedSpace))}`);
+    });
+}
+
+module.exports = SupremeDiskCleaner;

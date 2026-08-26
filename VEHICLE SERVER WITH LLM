@@ -1,0 +1,59 @@
+// ============================================================
+// 🚗 supreme-vehicle/server.js
+// SUPREME Vehicle with SupremeLang + LLM
+// ============================================================
+
+const express = require('express');
+const SupremeLLMEngine = require('./supreme-llm/SupremeLLMEngine');
+
+const app = express();
+app.use(express.json());
+
+// Vehicle State
+const vehicle = {
+    state: {
+        speed: 0,
+        location: { lat: 24.8607, lng: 67.0011 },
+        battery: 85,
+        mode: 'parked'
+    },
+    navigate: async (dest) => console.log(`Navigating to ${dest}`)
+};
+
+const llm = new SupremeLLMEngine(vehicle);
+
+// 🧠 Process SupremeLang Code
+app.post('/api/supremelang/execute', async (req, res) => {
+    try {
+        const { code } = req.body;
+        const result = await llm.process(code);
+        res.json({ success: true, result });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 🎤 Voice Command (Natural Language)
+app.post('/api/voice/command', async (req, res) => {
+    try {
+        const { command } = req.body;
+        
+        // Convert voice to SupremeLang via LLM
+        const supremeLangCode = await convertVoiceToSupremeLang(command);
+        const result = await llm.process(supremeLangCode);
+        
+        res.json({ success: true, command, result });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+async function convertVoiceToSupremeLang(voiceCommand) {
+    // LLM translates voice to SupremeLang
+    return `
+voice command "${voiceCommand}":
+    execute immediately
+    safety check all`;
+}
+
+app.listen(5001, () => console.log('🚗 SUPREME Vehicle LLM running on port 5001'));

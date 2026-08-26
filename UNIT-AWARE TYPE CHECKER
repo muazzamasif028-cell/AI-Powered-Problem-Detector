@@ -1,0 +1,163 @@
+// spl-v/compiler/type-checker/UnitTypeChecker.js
+
+export class UnitTypeChecker {
+    constructor() {
+        // Valid units and their categories
+        this.unitCategories = {
+            SPEED: ['kmh', 'mph', 'm/s'],
+            DISTANCE: ['km', 'm', 'cm', 'mm', 'meters'],
+            ENERGY: ['kwh', 'wh', 'joules'],
+            POWER: ['hp', 'kw', 'watts'],
+            PERCENTAGE: ['%', 'percent'],
+            TEMPERATURE: ['celsius', 'fahrenheit', 'kelvin'],
+            VOLTAGE: ['v', 'volt', 'volts'],
+            CURRENT: ['a', 'amp', 'amps', 'ma'],
+            TORQUE: ['nm', 'lb-ft'],
+            ANGLE: ['deg', 'rad', 'degrees'],
+            TIME: ['ms', 's', 'min', 'h', 'hours', 'minutes', 'seconds'],
+            FREQUENCY: ['hz', 'khz', 'mhz', 'ghz'],
+            DATA: ['gb', 'mb', 'kb', 'tb'],
+            NONE: [null, undefined, '']
+        };
+        
+        this.errors = [];
+        this.warnings = [];
+    }
+
+    /**
+     * Check entire AST for type errors
+     */
+    check(ast) {
+        this.errors = [];
+        this.warnings = [];
+        
+        for (const module of ast.modules || []) {
+            this.checkModule(module);
+        }
+        
+        return {
+            valid: this.errors.length === 0,
+            errors: this.errors,
+            warnings: this.warnings
+        };
+    }
+
+    checkModule(module) {
+        if (module instanceof VehicleNode) {
+            this.checkVehicleProperties(module.properties);
+        }
+        if (module instanceof SafetyPillarNode) {
+            this.checkSafetyPillar(module);
+        }
+        if (module.type === 'MainConfig') {
+            for (const phase of module.phases || []) {
+                for (const stmt of phase.statements || []) {
+                    if (stmt instanceof SettingNode) {
+                        this.checkSetting(stmt);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Check vehicle properties for type correctness
+     */
+    checkVehicleProperties(props) {
+        const typeRules = {
+            speed: { category: 'SPEED', required: true },
+            battery: { category: 'PERCENTAGE', required: false },
+            range: { category: 'DISTANCE', required: false },
+            temperature: { category: 'TEMPERATURE', required: false },
+            power: { category: 'POWER', required: false },
+            torque: { category: 'TORQUE', required: false },
+            voltage: { category: 'VOLTAGE', required: false },
+            tolerance: { category: 'DISTANCE', required: false }
+        };
+
+        for (const [key, value] of Object.entries(props)) {
+            const rule = typeRules[key];
+            if (rule) {
+                this.checkUnit(key, value, rule.category);
+            }
+        }
+    }
+
+    /**
+     * Check unit compatibility
+     */
+    checkUnit(name, value, expectedCategory) {
+        if (!value || !value.unit) return; // No unit to check
+        
+        const validUnits = this.unitCategories[expectedCategory] || [];
+        
+        if (!validUnits.includes(value.unit)) {
+            this.errors.push({
+                type: 'UNIT_MISMATCH',
+                message: `'${name}' has unit '${value.unit}' but expected one of: ${validUnits.join(', ')}`,
+                value: value.value,
+                unit: value.unit,
+                expected: expectedCategory
+            });
+        }
+    }
+
+    /**
+     * Check safety pillar properties
+     */
+    checkSafetyPillar(pillar) {
+        const requiredProps = ['priority', 'condition', 'action'];
+        
+        for (const prop of requiredProps) {
+            if (!pillar.properties[prop]) {
+                this.errors.push({
+                    type: 'MISSING_REQUIRED',
+                    message: `Safety pillar '${pillar.name}' is missing required property: ${prop}`
+                });
+            }
+        }
+        
+        // Check priority is valid
+        const validPriorities = ['MAXIMUM', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+        const priority = pillar.properties.priority?.value;
+        if (priority && !validPriorities.includes(priority)) {
+            this.errors.push({
+                type: 'INVALID_PRIORITY',
+                message: `Invalid priority '${priority}' for pillar '${pillar.name}'. Valid: ${validPriorities.join(', ')}`
+            });
+        }
+    }
+
+    /**
+     * Check a setting for type correctness
+     */
+    checkSetting(setting) {
+        const knownSettings = {
+            speed: { category: 'SPEED' },
+            battery: { category: 'PERCENTAGE' },
+            check_all_sensors: { category: 'NONE' },
+            verify_safety_pillars: { category: 'NONE' },
+            read_sensors: { category: 'NONE' },
+            fuse_data: { category: 'NONE' },
+            plan_path: { category: 'NONE' },
+            execute_control: { category: 'NONE' },
+            park_safely: { category: 'NONE' },
+            lock_vehicle: { category: 'NONE' }
+        };
+
+        const rule = knownSettings[setting.name];
+        if (rule && rule.category !== 'NONE') {
+            this.checkUnit(setting.name, setting.value, rule.category);
+        }
+    }
+
+    getReport() {
+        return {
+            valid: this.errors.length === 0,
+            errorCount: this.errors.length,
+            warningCount: this.warnings.length,
+            errors: this.errors,
+            warnings: this.warnings
+        };
+    }
+}

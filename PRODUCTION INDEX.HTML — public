@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- SEO Meta Tags -->
+    <title>SUPREME OS — The Operating System for AI | 120+ AI Tools in One Platform</title>
+    <meta name="description" content="SUPREME OS connects ChatGPT, Claude, Gemini, Midjourney, and 120+ AI tools in one platform. One subscription, unlimited AI. Start free today.">
+    <meta name="keywords" content="AI platform, AI operating system, ChatGPT alternative, multi-AI, AI gateway, AI agents, AI marketplace, enterprise AI">
+    <meta name="author" content="SUPREME OS">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="SUPREME OS — The Operating System for AI">
+    <meta property="og:description" content="Connect 120+ AI tools in one platform. One subscription, unlimited AI.">
+    <meta property="og:image" content="https://supreme-os.com/og-image.png">
+    <meta property="og:url" content="https://supreme-os.com">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="SUPREME OS">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="SUPREME OS — The Operating System for AI">
+    <meta name="twitter:description" content="Connect 120+ AI tools in one platform. One subscription, unlimited AI.">
+    <meta name="twitter:image" content="https://supreme-os.com/twitter-card.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' style='stop-color:#38bdf8'/><stop offset='100%' style='stop-color:#c084fc'/></linearGradient></defs><rect width='100' height='100' rx='20' fill='url(#g)'/><text y='78' x='50' text-anchor='middle' font-size='65'>⚡</text></svg>">
+    
+    <!-- Preconnect -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #030712;
+            --bg-secondary: #0f172a;
+            --bg-card: rgba(15, 23, 42, 0.6);
+            --text: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #38bdf8;
+            --accent-secondary: #818cf8;
+            --accent-tertiary: #c084fc;
+            --green: #3fb950;
+            --red: #f85149;
+            --yellow: #d29922;
+            --gradient: linear-gradient(135deg, #38bdf8, #818cf8, #c084fc);
+            --gradient-text: linear-gradient(135deg, #38bdf8, #c084fc);
+            --border: rgba(71, 85, 105, 0.3);
+            --border-light: rgba(71, 85, 105, 0.15);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --radius-xs: 6px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --max-width: 1200px;
+            --shadow-glow: 0 0 40px rgba(56, 189, 248, 0.1);
+            --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Animated Grid Background */
+        .grid-bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0; opacity: 0.03;
+            background-image: linear-gradient(rgba(56,189,248,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(56,189,248,0.3) 1px, transparent 1px);
+            background-size: 60px 60px;
+            animation: gridMove 20s linear infinite;
+        }
+        @keyframes gridMove { 0% { transform: translate(0, 0); } 100% { transform: translate(60px, 60px); } }
+
+        .bg-animation { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+        .orb { position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.12; animation: float 20s infinite ease-in-out; }
+        .orb-1 { width: 600px; height: 600px; background: #38bdf8; top: -200px; left: -200px; animation-delay: 0s; }
+        .orb-2 { width: 500px; height: 500px; background: #818cf8; bottom: -150px; right: -150px; animation-delay: -7s; }
+        .orb-3 { width: 400px; height: 400px; background: #c084fc; top: 50%; left: 50%; transform: translate(-50%, -50%); animation-delay: -14s; }
+        .orb-4 { width: 300px; height: 300px; background: #38bdf8; top: 30%; right: 10%; animation-delay: -3s; }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(100px, -50px) scale(1.1); }
+            50% { transform: translate(50px, 80px) scale(0.9); }
+            75% { transform: translate(-60px, 30px) scale(1.05); }
+        }
+
+        .container { max-width: var(--max-width); margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+        /* Navigation */
+        .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 16px 0; transition: all var(--transition); }
+        .navbar.scrolled { background: rgba(3, 7, 18, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--border-light); box-shadow: 0 4px 30px rgba(0,0,0,0.4); }
+        .navbar .container { display: flex; align-items: center; justify-content: space-between; }
+        .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-size: 22px; font-weight: 800; color: var(--text); }
+        .logo-icon { width: 40px; height: 40px; background: var(--gradient); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 0 20px rgba(56,189,248,0.3); }
+        .nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+        .nav-links a { text-decoration: none; color: var(--text-secondary); font-size: 14px; font-weight: 500; transition: color var(--transition); position: relative; }
+        .nav-links a::after { content: ''; position: absolute; bottom: -4px; left: 0; width: 0; height: 2px; background: var(--accent); transition: width var(--transition); }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links a:hover::after { width: 100%; }
+
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all var(--transition); text-decoration: none; border: none; white-space: nowrap; position: relative; overflow: hidden; }
+        .btn-primary { background: var(--gradient); color: #fff; box-shadow: 0 4px 20px rgba(56,189,248,0.3); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 35px rgba(56,189,248,0.5); }
+        .btn-primary::after { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: left 0.5s; }
+        .btn-primary:hover::after { left: 100%; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        .btn-outline:hover { border-color: var(--accent); background: rgba(56,189,248,0.05); }
+        .btn-lg { padding: 16px 32px; font-size: 16px; border-radius: var(--radius); }
+        .btn-ghost { background: transparent; color: var(--text-secondary); }
+        .btn-ghost:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+
+        .mobile-menu-btn { display: none; background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer; }
+
+        /* Hero */
+        .hero { min-height: 100vh; display: flex; align-items: center; padding: 140px 0 80px; text-align: center; }
+        .hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2); border-radius: 50px; font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 24px; animation: fadeInUp 0.6s ease; }
+        .hero-badge .dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .hero-title { font-size: clamp(42px, 7vw, 80px); font-weight: 900; line-height: 1.08; letter-spacing: -1.5px; margin-bottom: 24px; animation: fadeInUp 0.6s ease 0.1s both; }
+        .hero-title .gradient { background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .hero-subtitle { font-size: clamp(16px, 2.5vw, 20px); color: var(--text-secondary); max-width: 650px; margin: 0 auto 40px; line-height: 1.7; animation: fadeInUp 0.6s ease 0.2s both; }
+        .hero-cta { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; animation: fadeInUp 0.6s ease 0.3s both; }
+        .hero-stats { display: flex; gap: 48px; justify-content: center; margin-top: 80px; flex-wrap: wrap; animation: fadeInUp 0.6s ease 0.4s both; }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 36px; font-weight: 800; background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .stat-label { font-size: 13px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Trust Bar */
+        .trust-bar { border-top: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light); padding: 30px 0; margin-top: 60px; }
+        .trust-logos { display: flex; justify-content: center; align-items: center; gap: 60px; flex-wrap: wrap; opacity: 0.4; }
+        .trust-logo { font-size: 20px; font-weight: 700; color: var(--text-muted); letter-spacing: 1px; }
+
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Sections */
+        .section { padding: 120px 0; }
+        .section-header { text-align: center; margin-bottom: 80px; }
+        .section-label { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 2.5px; color: var(--accent); margin-bottom: 16px; }
+        .section-title { font-size: clamp(28px, 4vw, 44px); font-weight: 800; letter-spacing: -0.5px; margin-bottom: 16px; }
+        .section-subtitle { font-size: 17px; color: var(--text-secondary); max-width: 550px; margin: 0 auto; }
+
+        /* Features Grid */
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+        .feature-card { background: var(--bg-card); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--border-light); border-radius: var(--radius); padding: 36px; transition: all var(--transition); position: relative; overflow: hidden; cursor: pointer; }
+        .feature-card:hover { transform: translateY(-6px); border-color: var(--accent); box-shadow: var(--shadow-glow), var(--shadow-card); }
+        .feature-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--gradient); opacity: 0; transition: opacity var(--transition); }
+        .feature-card:hover::before { opacity: 1; }
+        .feature-icon { width: 52px; height: 52px; background: rgba(56,189,248,0.1); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 24px; transition: all var(--transition); }
+        .feature-card:hover .feature-icon { background: rgba(56,189,248,0.2); transform: scale(1.1); }
+        .feature-card h3 { font-size: 19px; font-weight: 700; margin-bottom: 10px; }
+        .feature-card p { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+
+        /* How It Works */
+        .steps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; }
+        .step-card { text-align: center; padding: 40px 24px; position: relative; }
+        .step-number { width: 64px; height: 64px; background: var(--gradient); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 800; color: #fff; margin: 0 auto 24px; box-shadow: 0 8px 30px rgba(56,189,248,0.3); }
+        .step-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+        .step-card p { font-size: 14px; color: var(--text-secondary); }
+        .step-connector { position: absolute; top: 32px; right: -16px; font-size: 24px; color: var(--accent); opacity: 0.5; }
+
+        /* Pricing */
+        .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; max-width: 1000px; margin: 0 auto; }
+        .pricing-card { background: var(--bg-card); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--border-light); border-radius: var(--radius); padding: 48px 36px; text-align: center; transition: all var(--transition); position: relative; }
+        .pricing-card.featured { border-color: var(--accent); box-shadow: 0 0 50px rgba(56,189,248,0.2); transform: scale(1.04); background: rgba(15,23,42,0.9); }
+        .pricing-card .badge { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); padding: 6px 20px; background: var(--gradient); border-radius: 50px; font-size: 12px; font-weight: 700; color: #fff; box-shadow: 0 4px 15px rgba(56,189,248,0.4); }
+        .pricing-name { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+        .pricing-price { font-size: 52px; font-weight: 900; margin-bottom: 4px; }
+        .pricing-price span { font-size: 16px; font-weight: 400; color: var(--text-muted); }
+        .pricing-desc { font-size: 14px; color: var(--text-muted); margin-bottom: 28px; }
+        .pricing-features { list-style: none; text-align: left; margin-bottom: 36px; }
+        .pricing-features li { padding: 10px 0; font-size: 14px; color: var(--text-secondary); display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        .pricing-features li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; }
+        .pricing-features li.disabled { opacity: 0.4; }
+        .pricing-features li.disabled::before { content: '—'; color: var(--text-muted); }
+
+        /* Testimonials */
+        .testimonials-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 24px; }
+        .testimonial-card { background: var(--bg-card); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--border-light); border-radius: var(--radius); padding: 32px; }
+        .testimonial-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+        .testimonial-avatar { width: 48px; height: 48px; border-radius: 50%; background: var(--gradient); display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; }
+        .testimonial-name { font-weight: 600; }
+        .testimonial-role { font-size: 13px; color: var(--text-muted); }
+        .testimonial-text { font-size: 14px; color: var(--text-secondary); line-height: 1.7; font-style: italic; }
+        .testimonial-stars { color: var(--yellow); margin-bottom: 8px; }
+
+        /* FAQ */
+        .faq-list { max-width: 700px; margin: 0 auto; }
+        .faq-item { border: 1px solid var(--border-light); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; background: var(--bg-card); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+        .faq-question { width: 100%; padding: 20px 24px; background: none; border: none; color: var(--text); font-size: 16px; font-weight: 600; text-align: left; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-family: inherit; }
+        .faq-answer { padding: 0 24px 20px; font-size: 14px; color: var(--text-secondary); line-height: 1.7; display: none; }
+        .faq-item.active .faq-answer { display: block; }
+        .faq-item.active .faq-question { color: var(--accent); }
+        .faq-arrow { transition: transform var(--transition); font-size: 12px; }
+        .faq-item.active .faq-arrow { transform: rotate(180deg); }
+
+        /* CTA */
+        .cta-section { text-align: center; padding: 100px 0; }
+        .cta-card { background: var(--bg-card); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--accent); border-radius: 24px; padding: 80px 48px; max-width: 700px; margin: 0 auto; box-shadow: 0 0 80px rgba(56,189,248,0.15); position: relative; overflow: hidden; }
+        .cta-card::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(56,189,248,0.05) 0%, transparent 70%); animation: rotate 20s linear infinite; }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .cta-card > * { position: relative; z-index: 1; }
+        .cta-card h2 { font-size: 36px; font-weight: 800; margin-bottom: 16px; }
+        .cta-card p { color: var(--text-secondary); margin-bottom: 36px; font-size: 17px; }
+        .waitlist-form { display: flex; gap: 12px; max-width: 480px; margin: 0 auto; }
+        .waitlist-form input { flex: 1; padding: 16px 20px; background: rgba(30,41,59,0.6); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 15px; font-family: inherit; transition: all var(--transition); }
+        .waitlist-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(56,189,248,0.1); }
+        .waitlist-form input::placeholder { color: var(--text-muted); opacity: 0.5; }
+
+        /* Footer */
+        .footer { border-top: 1px solid var(--border-light); padding: 60px 0 30px; }
+        .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+        .footer-brand p { color: var(--text-muted); font-size: 14px; margin-top: 12px; }
+        .footer-col h4 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; color: var(--text); }
+        .footer-col ul { list-style: none; }
+        .footer-col ul li { margin-bottom: 10px; }
+        .footer-col ul li a { color: var(--text-muted); text-decoration: none; font-size: 14px; transition: color var(--transition); }
+        .footer-col ul li a:hover { color: var(--text); }
+        .footer-bottom { display: flex; justify-content: space-between; align-items: center; padding-top: 30px; border-top: 1px solid var(--border-light); flex-wrap: wrap; gap: 16px; }
+        .footer-copy { font-size: 13px; color: var(--text-muted); }
+        .footer-social { display: flex; gap: 16px; }
+        .footer-social a { color: var(--text-muted); text-decoration: none; font-size: 20px; transition: color var(--transition); }
+        .footer-social a:hover { color: var(--accent); }
+
+        /* Toast */
+        .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .toast { padding: 14px 20px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; animation: toastIn 0.3s ease, toastOut 0.3s ease 3.5s forwards; box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(20px); max-width: 400px; }
+        .toast-success { background: rgba(63,185,80,0.15); border: 1px solid rgba(63,185,80,0.3); color: var(--green); }
+        .toast-error { background: rgba(248,81,73,0.15); border: 1px solid rgba(248,81,73,0.3); color: var(--red); }
+        @keyframes toastIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-20px); } }
+
+        /* Mobile Menu */
+        .mobile-menu { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(3,7,18,0.98); z-index: 99; flex-direction: column; align-items: center; justify-content: center; gap: 32px; }
+        .mobile-menu.active { display: flex; }
+        .mobile-menu a { color: var(--text); text-decoration: none; font-size: 20px; font-weight: 600; }
+        .mobile-menu .close-btn { position: absolute; top: 24px; right: 24px; background: none; border: none; color: var(--text); font-size: 28px; cursor: pointer; }
+
+        @media (max-width: 1024px) {
+            .footer-grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .mobile-menu-btn { display: block; }
+            .hero { padding: 120px 0 60px; }
+            .hero-stats { gap: 24px; }
+            .stat-value { font-size: 28px; }
+            .section { padding: 80px 0; }
+            .waitlist-form { flex-direction: column; }
+            .pricing-card.featured { transform: none; }
+            .footer-grid { grid-template-columns: 1fr; }
+            .footer-bottom { flex-direction: column; text-align: center; }
+            .testimonials-grid { grid-template-columns: 1fr; }
+            .step-connector { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Animated Backgrounds -->
+    <div class="grid-bg"></div>
+    <div class="bg-animation">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="orb orb-4"></div>
+    </div>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu">
+        <button class="close-btn" onclick="toggleMenu()">✕</button>
+        <a href="#features" onclick="toggleMenu()">Features</a>
+        <a href="#how-it-works" onclick="toggleMenu()">How It Works</a>
+        <a href="#pricing" onclick="toggleMenu()">Pricing</a>
+        <a href="#testimonials" onclick="toggleMenu()">Testimonials</a>
+        <a href="#faq" onclick="toggleMenu()">FAQ</a>
+        <a href="/signin" class="btn btn-outline">Sign In</a>
+        <a href="/signup" class="btn btn-primary">Get Started Free</a>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="container">
+            <a href="#" class="logo">
+                <span class="logo-icon">⚡</span>
+                SUPREME OS
+            </a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#pricing">Pricing</a></li>
+                <li><a href="#testimonials">Testimonials</a></li>
+                <li><a href="#faq">FAQ</a></li>
+            </ul>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <a href="/signin" class="btn btn-ghost nav-links-cta">Sign In</a>
+                <a href="/signup" class="btn btn-primary nav-links-cta">Get Started Free</a>
+            </div>
+            <button class="mobile-menu-btn" onclick="toggleMenu()">☰</button>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-badge"><span class="dot"></span> Now in Public Beta — 120+ AI Tools Connected</div>
+            <h1 class="hero-title">The <span class="gradient">Operating System</span><br>for Artificial Intelligence</h1>
+            <p class="hero-subtitle">Connect ChatGPT, Claude, Gemini, Midjourney, and 120+ AI tools in one platform. One subscription, one API, one dashboard — unlimited AI. Built for developers, loved by enterprises.</p>
+            <div class="hero-cta">
+                <a href="/signup" class="btn btn-primary btn-lg">🚀 Start Building Free</a>
+                <a href="#demo" class="btn btn-outline btn-lg">▶️ Watch Demo (2 min)</a>
+            </div>
+            <div class="hero-stats">
+                <div class="stat-item"><div class="stat-value">120+</div><div class="stat-label">AI Tools</div></div>
+                <div class="stat-item"><div class="stat-value">99.99%</div><div class="stat-label">Uptime</div></div>
+                <div class="stat-item"><div class="stat-value">10x</div><div class="stat-label">Cost Savings</div></div>
+                <div class="stat-item"><div class="stat-value">15K+</div><div class="stat-label">Developers</div></div>
+            </div>
+            <div class="trust-bar">
+                <div class="trust-logos">
+                    <span class="trust-logo">🏢 FORTUNE 500</span>
+                    <span class="trust-logo">🔒 SOC2 COMPLIANT</span>
+                    <span class="trust-logo">🌍 200+ COUNTRIES</span>
+                    <span class="trust-logo">⚡ 99.99% SLA</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">Why SUPREME OS</div>
+                <h2 class="section-title">Everything you need for AI. In one place.</h2>
+                <p class="section-subtitle">Stop juggling 10 different AI subscriptions. Get 120+ AI tools, unified billing, and enterprise security in a single platform.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card"><div class="feature-icon">🔌</div><h3>Universal AI Gateway</h3><p>Connect to ChatGPT, Claude, Gemini, Perplexity, and 120+ AI tools through a single API. Auto-failover, cost optimization, and smart routing built-in.</p></div>
+                <div class="feature-card"><div class="feature-icon">🧠</div><h3>AI Agent Runtime</h3><p>Build, deploy, and scale autonomous AI agents in minutes. 22 pre-built agents for coding, business, research, and more.</p></div>
+                <div class="feature-card"><div class="feature-icon">🛡️</div><h3>Trust & Verification</h3><p>10-layer AI verification engine. Every response checked for hallucinations, sources verified, accuracy scored. Enterprise-grade trust.</p></div>
+                <div class="feature-card"><div class="feature-icon">💾</div><h3>Universal Memory</h3><p>One memory across all your AI tools. ChatGPT remembers what Claude said. 1B+ memory capacity with vector search. Never lose context again.</p></div>
+                <div class="feature-card"><div class="feature-icon">💰</div><h3>Built-in Billing</h3><p>Accept payments, manage subscriptions, handle invoices — all integrated. Stripe, Paddle, PayPal. Global tax handling included.</p></div>
+                <div class="feature-card"><div class="feature-icon">🌐</div><h3>Domain & Hosting</h3><p>Register domains, deploy websites, issue SSL certificates, manage DNS, and launch AI-powered sites — all from one dashboard.</p></div>
+                <div class="feature-card"><div class="feature-icon">🔒</div><h3>Enterprise Security</h3><p>SOC 2 Type II, GDPR, HIPAA compliant. Zero-trust architecture, end-to-end encryption, audit logs. Built for the most demanding enterprises.</p></div>
+                <div class="feature-card"><div class="feature-icon">📊</div><h3>Analytics & Monitoring</h3><p>Real-time dashboards, usage analytics, cost tracking, and AI performance monitoring. Know exactly what's happening at all times.</p></div>
+                <div class="feature-card"><div class="feature-icon">🔌</div><h3>Plugin Marketplace</h3><p>Extend SUPREME OS with 500+ plugins. Slack, Discord, GitHub, Jira, Salesforce — connect your entire stack. 70/30 revenue share for developers.</p></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="section" id="how-it-works" style="background: rgba(15,23,42,0.3);">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">How It Works</div>
+                <h2 class="section-title">Get started in under 2 minutes</h2>
+                <p class="section-subtitle">No complex setup. No infrastructure headaches. Just pure AI power.</p>
+            </div>
+            <div class="steps-grid">
+                <div class="step-card">
+                    <div class="step-number">1</div>
+                    <h3>Create Account</h3>
+                    <p>Sign up with email or Google. Get instant access to the free tier with 100 AI credits.</p>
+                    <span class="step-connector">→</span>
+                </div>
+                <div class="step-card">
+                    <div class="step-number">2</div>
+                    <h3>Connect AI Tools</h3>
+                    <p>Add your API keys or use our managed providers. All 120+ AI tools available instantly.</p>
+                    <span class="step-connector">→</span>
+                </div>
+                <div class="step-card">
+                    <div class="step-number">3</div>
+                    <h3>Start Building</h3>
+                    <p>Use the dashboard, API, or SDK. Deploy AI agents, build workflows, create magic.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="section" id="pricing">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">Pricing</div>
+                <h2 class="section-title">Start free, scale as you grow</h2>
+                <p class="section-subtitle">No hidden fees. No surprises. Cancel anytime.</p>
+            </div>
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <div class="pricing-name">🚀 Starter</div>
+                    <div class="pricing-price">$0<span>/month</span></div>
+                    <p class="pricing-desc">For individuals getting started</p>
+                    <ul class="pricing-features">
+                        <li>5 AI requests per day</li>
+                        <li>1 AI agent</li>
+                        <li>Basic memory (1 hour)</li>
+                        <li>Community support</li>
+                        <li class="disabled">API access</li>
+                        <li class="disabled">Trust & Safety</li>
+                    </ul>
+                    <a href="/signup" class="btn btn-outline" style="width:100%;justify-content:center;">Get Started</a>
+                </div>
+                <div class="pricing-card featured">
+                    <div class="badge">Most Popular</div>
+                    <div class="pricing-name">⚡ Pro</div>
+                    <div class="pricing-price">$49<span>/month</span></div>
+                    <p class="pricing-desc">For professionals and startups</p>
+                    <ul class="pricing-features">
+                        <li>1,000 AI requests per day</li>
+                        <li>25 AI agents</li>
+                        <li>Full universal memory</li>
+                        <li>Priority email support</li>
+                        <li>API access (100 req/min)</li>
+                        <li>Trust & Safety verification</li>
+                        <li>All 120+ AI providers</li>
+                    </ul>
+                    <a href="/signup?plan=pro" class="btn btn-primary" style="width:100%;justify-content:center;">Start Pro</a>
+                </div>
+                <div class="pricing-card">
+                    <div class="pricing-name">🏢 Enterprise</div>
+                    <div class="pricing-price">$199<span>/month</span></div>
+                    <p class="pricing-desc">For teams and businesses</p>
+                    <ul class="pricing-features">
+                        <li>Unlimited AI requests</li>
+                        <li>Unlimited AI agents</li>
+                        <li>SSO & RBAC</li>
+                        <li>Audit logs & compliance</li>
+                        <li>Unlimited API access</li>
+                        <li>Dedicated support (24/7)</li>
+                        <li>Custom integrations</li>
+                        <li>SLA guarantee (99.99%)</li>
+                    </ul>
+                    <a href="/contact" class="btn btn-outline" style="width:100%;justify-content:center;">Contact Sales</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="section" id="testimonials" style="background: rgba(15,23,42,0.3);">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">Testimonials</div>
+                <h2 class="section-title">Loved by developers worldwide</h2>
+                <p class="section-subtitle">Join 15,000+ developers already building with SUPREME OS.</p>
+            </div>
+            <div class="testimonials-grid">
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                    <p class="testimonial-text">"SUPREME OS replaced 8 different AI subscriptions we were paying for. Now we have one bill, one API, and better results. Our AI costs dropped 60%."</p>
+                    <div class="testimonial-header">
+                        <div class="testimonial-avatar">SK</div>
+                        <div><div class="testimonial-name">Sarah Kim</div><div class="testimonial-role">CTO, TechVentures Inc.</div></div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                    <p class="testimonial-text">"The Universal Memory feature is game-changing. Claude remembers what I told ChatGPT last week. It's like having one super-intelligent assistant across all my AI tools."</p>
+                    <div class="testimonial-header">
+                        <div class="testimonial-avatar">MR</div>
+                        <div><div class="testimonial-name">Marcus Rodriguez</div><div class="testimonial-role">Lead Developer, StartupX</div></div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                    <p class="testimonial-text">"Enterprise-grade security with the simplicity of a startup tool. We passed our SOC 2 audit easily because SUPREME OS handles encryption, audit logs, and compliance automatically."</p>
+                    <div class="testimonial-header">
+                        <div class="testimonial-avatar">AL</div>
+                        <div><div class="testimonial-name">Aisha Liu</div><div class="testimonial-role">Security Engineer, CloudCorp</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">FAQ</div>
+                <h2 class="section-title">Frequently asked questions</h2>
+            </div>
+            <div class="faq-list">
+                <div class="faq-item active">
+                    <button class="faq-question" onclick="toggleFAQ(this)">What is SUPREME OS? <span class="faq-arrow">▼</span></button>
+                    <div class="faq-answer">SUPREME OS is an AI operating system that connects 120+ AI tools (ChatGPT, Claude, Gemini, Midjourney, etc.) into one unified platform. Instead of managing multiple subscriptions and APIs, you get one dashboard, one API, one bill.</div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFAQ(this)">How does pricing work? <span class="faq-arrow">▼</span></button>
+                    <div class="faq-answer">We offer a free Starter plan with 5 AI requests/day. The Pro plan ($49/mo) gives you 1,000 requests/day and full access to all features. Enterprise plans are custom-priced. You only pay for SUPREME OS — we don't mark up AI provider costs.</div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFAQ(this)">Is my data secure? <span class="faq-arrow">▼</span></button>
+                    <div class="faq-answer">Absolutely. We use AES-256 encryption at rest, TLS 1.3 in transit, and are SOC 2 Type II compliant. Enterprise customers get dedicated encryption keys, isolated infrastructure, and full audit logs.</div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFAQ(this)">Can I use my own API keys? <span class="faq-arrow">▼</span></button>
+                    <div class="faq-answer">Yes! You can bring your own API keys for any provider, or use our managed keys. You maintain full control over your costs and usage.</div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFAQ(this)">Do you offer enterprise SSO? <span class="faq-arrow">▼</span></button>
+                    <div class="faq-answer">Yes. Enterprise plans include SAML/OIDC SSO, support for Okta, Azure AD, Google Workspace, and custom identity providers. We also offer RBAC, audit logs, and compliance reports.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-card">
+                <h2>🚀 Ready to launch?</h2>
+                <p>Join 15,000+ developers already using SUPREME OS. Get early access and 50% off for the first year.</p>
+                <form class="waitlist-form" id="waitlistForm">
+                    <input type="email" placeholder="you@example.com" required id="waitlistEmail" autocomplete="email">
+                    <button type="submit" class="btn btn-primary btn-lg">Join Waitlist →</button>
+                </form>
+                <p style="margin-top:16px;font-size:13px;color:var(--text-muted);">No credit card required • Free plan available • Cancel anytime</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="logo"><span class="logo-icon">⚡</span> SUPREME OS</div>
+                    <p>The operating system for AI. Connect 120+ AI tools in one platform.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#pricing">Pricing</a></li>
+                        <li><a href="#">Changelog</a></li>
+                        <li><a href="#">Roadmap</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Developers</h4>
+                    <ul>
+                        <li><a href="#">Documentation</a></li>
+                        <li><a href="#">API Reference</a></li>
+                        <li><a href="#">SDKs</a></li>
+                        <li><a href="#">Status</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="#">About</a></li>
+                        <li><a href="#">Blog</a></li>
+                        <li><a href="#">Careers</a></li>
+                        <li><a href="#">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#">Privacy Policy</a></li>
+                        <li><a href="#">Terms of Service</a></li>
+                        <li><a href="#">GDPR</a></li>
+                        <li><a href="#">Security</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <div class="footer-copy">© 2025 SUPREME OS. All rights reserved.</div>
+                <div class="footer-social">
+                    <a href="#" title="Twitter">𝕏</a>
+                    <a href="#" title="GitHub">⌨️</a>
+                    <a href="#" title="Discord">💬</a>
+                    <a href="#" title="LinkedIn">🔗</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // Navbar scroll
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => navbar.classList.toggle('scrolled', window.scrollY > 50));
+
+        // Mobile menu
+        function toggleMenu() {
+            document.getElementById('mobileMenu').classList.toggle('active');
+        }
+
+        // FAQ toggle
+        function toggleFAQ(btn) {
+            const item = btn.parentElement;
+            const wasActive = item.classList.contains('active');
+            document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('active'));
+            if (!wasActive) item.classList.add('active');
+        }
+
+        // Waitlist form
+        document.getElementById('waitlistForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('waitlistEmail').value.trim();
+            const btn = this.querySelector('button');
+            
+            if (!email || !email.includes('@')) {
+                showToast('Please enter a valid email address.', 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span style="display:inline-block;animation:spin 0.6s linear infinite;">⟳</span> Joining...';
+
+            try {
+                await new Promise(resolve => setTimeout(resolve, 1200));
+                showToast('🎉 Welcome! Check your email for early access.', 'success');
+                this.reset();
+            } catch (error) {
+                showToast('Something went wrong. Please try again.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Join Waitlist →';
+            }
+        });
+
+        // Toast system
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3800);
+        }
+
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+
+        // Intersection Observer for animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.feature-card, .pricing-card, .testimonial-card, .step-card').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(30px)';
+            el.style.transition = 'all 0.6s ease';
+            observer.observe(el);
+        });
+
+        console.log('⚡ SUPREME OS Premium Landing Page Ready');
+        console.log('📊 Track: Page View', { timestamp: new Date().toISOString() });
+    </script>
+</body>
+</html>

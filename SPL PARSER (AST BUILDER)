@@ -1,0 +1,540 @@
+// ============================================================
+// 🔍 spl/compiler/SupremeParser.js
+// SPL v4.0 — Parser (AST Builder)
+// ============================================================
+
+class SupremeParser {
+    constructor(tokens) {
+        this.tokens = tokens;
+        this.current = 0;
+    }
+
+    parse() {
+        const program = {
+            type: 'Program',
+            body: []
+        };
+
+        while (!this.isAtEnd()) {
+            const stmt = this.parseTopLevel();
+            if (stmt) program.body.push(stmt);
+        }
+
+        return program;
+    }
+
+    parseTopLevel() {
+        if (this.match('KEYWORD')) {
+            switch (this.previous().value) {
+                case 'module': return this.parseModule();
+                case 'use': return this.parseImport();
+                case 'type': return this.parseTypeDecl();
+                case 'fn': return this.parseFunction();
+                case 'class': return this.parseClass();
+                case 'contract': return this.parseContract();
+                case 'quantum': return this.parseQuantum();
+                case 'ai': return this.parseAIModel();
+                case 'safety': return this.parseSafety();
+            }
+        }
+        return this.parseStatement();
+    }
+
+    parseModule() {
+        this.consume('IDENTIFIER', 'Expected module name');
+        const name = this.previous().value;
+        this.consume('LBRACE', "Expected '{'");
+        const body = [];
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            body.push(this.parseTopLevel());
+        }
+        this.consume('RBRACE', "Expected '}'");
+        return { type: 'Module', name, body };
+    }
+
+    parseImport() {
+        const path = [];
+        do {
+            path.push(this.consume('IDENTIFIER', 'Expected identifier').value);
+        } while (this.match('DOUBLECOLON'));
+        
+        let alias = null;
+        if (this.match('KEYWORD') && this.previous().value === 'as') {
+            alias = this.consume('IDENTIFIER', 'Expected alias').value;
+        }
+        this.consume('SEMICOLON', "Expected ';'");
+        return { type: 'Import', path, alias };
+    }
+
+    parseTypeDecl() {
+        const name = this.consume('IDENTIFIER', 'Expected type name').value;
+        this.consume('EQUALS', "Expected '='");
+        const definition = this.parseType();
+        this.consume('SEMICOLON', "Expected ';'");
+        return { type: 'TypeDecl', name, definition };
+    }
+
+    parseType() {
+        if (this.match('IDENTIFIER')) {
+            return { type: 'TypeRef', name: this.previous().value };
+        }
+        if (this.match('LBRACE')) {
+            const fields = [];
+            while (!this.check('RBRACE') && !this.isAtEnd()) {
+                const name = this.consume('IDENTIFIER', 'Expected field name').value;
+                this.consume('DOUBLECOLON', "Expected '::'");
+                const fieldType = this.parseType();
+                fields.push({ name, type: fieldType });
+                if (this.match('COMMA')) continue;
+            }
+            this.consume('RBRACE', "Expected '}'");
+            return { type: 'StructType', fields };
+        }
+        throw new Error('Expected type');
+    }
+
+    parseFunction() {
+        const name = this.consume('IDENTIFIER', 'Expected function name').value;
+        this.consume('LPAREN', "Expected '('");
+        const params = this.parseParams();
+        this.consume('RPAREN', "Expected ')'");
+        
+        let returnType = null;
+        if (this.match('ARROW')) {
+            returnType = this.parseType();
+        }
+        
+        const body = this.parseBlock();
+        return { type: 'Function', name, params, returnType, body };
+    }
+
+    parseParams() {
+        const params = [];
+        if (!this.check('RPAREN')) {
+            do {
+                const name = this.consume('IDENTIFIER', 'Expected parameter name').value;
+                this.consume('DOUBLECOLON', "Expected '::'");
+                const paramType = this.parseType();
+                let defaultValue = null;
+                if (this.match('EQUALS')) {
+                    defaultValue = this.parseExpression();
+                }
+                params.push({ name, type: paramType, default: defaultValue });
+            } while (this.match('COMMA'));
+        }
+        return params;
+    }
+
+    parseClass() {
+        const name = this.consume('IDENTIFIER', 'Expected class name').value;
+        
+        let superClass = null;
+        if (this.match('COLON')) {
+            superClass = [];
+            do {
+                superClass.push(this.consume('IDENTIFIER', 'Expected parent class').value);
+            } while (this.match('COMMA'));
+        }
+        
+        this.consume('LBRACE', "Expected '{'");
+        const members = [];
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            members.push(this.parseClassMember());
+        }
+        this.consume('RBRACE', "Expected '}'");
+        
+        return { type: 'Class', name, superClass, members };
+    }
+
+    parseClassMember() {
+        if (this.match('KEYWORD')) {
+            if (this.previous().value === 'let' || this.previous().value === 'var') {
+                return this.parseVarDecl();
+            }
+            if (this.previous().value === 'fn') {
+                return this.parseFunction();
+            }
+            if (this.previous().value === 'init') {
+                return this.parseConstructor();
+            }
+        }
+        throw new Error('Expected class member');
+    }
+
+    parseConstructor() {
+        this.consume('LPAREN', "Expected '('");
+        const params = this.parseParams();
+        this.consume('RPAREN', "Expected ')'");
+        const body = this.parseBlock();
+        return { type: 'Constructor', params, body };
+    }
+
+    parseContract() {
+        const name = this.consume('IDENTIFIER', 'Expected contract name').value;
+        this.consume('LBRACE', "Expected '{'");
+        const members = [];
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            members.push(this.parseTopLevel());
+        }
+        this.consume('RBRACE', "Expected '}'");
+        return { type: 'Contract', name, members };
+    }
+
+    parseQuantum() {
+        const name = this.consume('IDENTIFIER', 'Expected quantum module name').value;
+        this.consume('LBRACE', "Expected '{'");
+        const members = [];
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            members.push(this.parseQuantumStmt());
+        }
+        this.consume('RBRACE', "Expected '}'");
+        return { type: 'QuantumModule', name, members };
+    }
+
+    parseQuantumStmt() {
+        if (this.check('KEYWORD') && this.peek().value === 'qubit') {
+            this.advance();
+            this.consume('COLON', "Expected ':'");
+            const qubits = [];
+            do {
+                qubits.push(this.consume('IDENTIFIER', 'Expected qubit name').value);
+            } while (this.match('COMMA'));
+            this.consume('SEMICOLON', "Expected ';'");
+            return { type: 'QubitDecl', qubits };
+        }
+        if (this.check('KEYWORD') && this.peek().value === 'measure') {
+            this.advance();
+            const qubit = this.consume('IDENTIFIER', 'Expected qubit name').value;
+            this.consume('ARROW', "Expected '->'");
+            const classical = this.consume('IDENTIFIER', 'Expected classical bit').value;
+            this.consume('SEMICOLON', "Expected ';'");
+            return { type: 'MeasureStmt', qubit, classical };
+        }
+        // Gate
+        const gate = this.consume('IDENTIFIER', 'Expected gate name').value;
+        this.consume('LPAREN', "Expected '('");
+        const args = [];
+        while (!this.check('RPAREN')) {
+            args.push(this.consume('IDENTIFIER', 'Expected argument').value);
+            if (!this.match('COMMA')) break;
+        }
+        this.consume('RPAREN', "Expected ')'");
+        this.consume('SEMICOLON', "Expected ';'");
+        return { type: 'GateStmt', gate, args };
+    }
+
+    parseAIModel() {
+        this.consume('KEYWORD'); // 'model'
+        const name = this.consume('IDENTIFIER', 'Expected model name').value;
+        this.consume('LBRACE', "Expected '{'");
+        const members = [];
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            members.push(this.parseTopLevel());
+        }
+        this.consume('RBRACE', "Expected '}'");
+        return { type: 'AIModel', name, members };
+    }
+
+    parseSafety() {
+        this.consume('KEYWORD'); // 'rule'
+        const name = this.consume('IDENTIFIER', 'Expected rule name').value;
+        const body = this.parseBlock();
+        return { type: 'SafetyRule', name, body };
+    }
+
+    parseStatement() {
+        if (this.match('KEYWORD')) {
+            switch (this.previous().value) {
+                case 'let': case 'var': return this.parseVarDecl();
+                case 'if': return this.parseIfStmt();
+                case 'for': return this.parseForStmt();
+                case 'while': return this.parseWhileStmt();
+                case 'return': return this.parseReturnStmt();
+                case 'guard': return this.parseGuardStmt();
+                case 'match': return this.parseMatchStmt();
+                case 'spawn': return this.parseSpawnStmt();
+                case 'concurrent': return this.parseConcurrentStmt();
+                case 'query': return this.parseQueryStmt();
+            }
+        }
+        return this.parseExpressionStmt();
+    }
+
+    parseVarDecl() {
+        const mutable = this.previous().value === 'var';
+        const name = this.consume('IDENTIFIER', 'Expected variable name').value;
+        let type = null;
+        if (this.match('DOUBLECOLON')) {
+            type = this.parseType();
+        }
+        this.consume('EQUALS', "Expected '='");
+        const value = this.parseExpression();
+        this.consume('SEMICOLON', "Expected ';'");
+        return { type: 'VarDecl', name, varType: type, value, mutable };
+    }
+
+    parseIfStmt() {
+        const condition = this.parseExpression();
+        const thenBlock = this.parseBlock();
+        let elseBlock = null;
+        if (this.match('KEYWORD') && this.previous().value === 'else') {
+            if (this.match('KEYWORD') && this.previous().value === 'if') {
+                elseBlock = this.parseIfStmt();
+            } else {
+                elseBlock = this.parseBlock();
+            }
+        }
+        return { type: 'IfStmt', condition, thenBlock, elseBlock };
+    }
+
+    parseForStmt() {
+        const iterator = this.consume('IDENTIFIER', 'Expected iterator').value;
+        this.consume('KEYWORD'); // 'in'
+        const iterable = this.parseExpression();
+        const body = this.parseBlock();
+        return { type: 'ForStmt', iterator, iterable, body };
+    }
+
+    parseWhileStmt() {
+        const condition = this.parseExpression();
+        const body = this.parseBlock();
+        return { type: 'WhileStmt', condition, body };
+    }
+
+    parseReturnStmt() {
+        let value = null;
+        if (!this.check('SEMICOLON')) {
+            value = this.parseExpression();
+        }
+        this.consume('SEMICOLON', "Expected ';'");
+        return { type: 'ReturnStmt', value };
+    }
+
+    parseGuardStmt() {
+        const condition = this.parseExpression();
+        const body = this.parseBlock();
+        let elseBlock = null;
+        if (this.match('KEYWORD') && this.previous().value === 'else') {
+            elseBlock = this.parseBlock();
+        }
+        return { type: 'GuardStmt', condition, body, elseBlock };
+    }
+
+    parseMatchStmt() {
+        const expr = this.parseExpression();
+        this.consume('LBRACE', "Expected '{'");
+        const cases = [];
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            cases.push(this.parseMatchCase());
+        }
+        this.consume('RBRACE', "Expected '}'");
+        return { type: 'MatchStmt', expression: expr, cases };
+    }
+
+    parseMatchCase() {
+        const pattern = this.parsePattern();
+        this.consume('FATARROW', "Expected '=>'");
+        const body = this.parseBlock();
+        return { type: 'MatchCase', pattern, body };
+    }
+
+    parsePattern() {
+        if (this.match('NUMBER')) return { type: 'LiteralPattern', value: this.previous().value };
+        if (this.match('STRING')) return { type: 'LiteralPattern', value: this.previous().value };
+        if (this.match('KEYWORD') && ['true', 'false'].includes(this.previous().value)) {
+            return { type: 'LiteralPattern', value: this.previous().value === 'true' };
+        }
+        if (this.match('IDENTIFIER')) return { type: 'VariablePattern', name: this.previous().value };
+        throw new Error('Expected pattern');
+    }
+
+    parseSpawnStmt() {
+        const body = this.parseBlock();
+        return { type: 'SpawnStmt', body };
+    }
+
+    parseConcurrentStmt() {
+        this.consume('KEYWORD'); // 'fn'
+        const name = this.consume('IDENTIFIER', 'Expected function name').value;
+        this.consume('LPAREN', "Expected '('");
+        const params = this.parseParams();
+        this.consume('RPAREN', "Expected ')'");
+        const body = this.parseBlock();
+        return { type: 'ConcurrentFn', name, params, body };
+    }
+
+    parseQueryStmt() {
+        const name = this.consume('IDENTIFIER', 'Expected query name').value;
+        this.consume('LBRACE', "Expected '{'");
+        this.consume('KEYWORD'); // 'from'
+        const iterator = this.consume('IDENTIFIER', 'Expected iterator').value;
+        this.consume('KEYWORD'); // 'in'
+        const source = this.parseExpression();
+        let where = null, orderby = null, select = null;
+        if (this.match('KEYWORD') && this.previous().value === 'where') {
+            where = this.parseExpression();
+        }
+        if (this.match('KEYWORD') && this.previous().value === 'orderby') {
+            orderby = this.parseExpression();
+        }
+        if (this.match('KEYWORD') && this.previous().value === 'select') {
+            select = this.parseExpression();
+        }
+        this.consume('RBRACE', "Expected '}'");
+        return { type: 'QueryStmt', name, iterator, source, where, orderby, select };
+    }
+
+    parseExpressionStmt() {
+        const expr = this.parseExpression();
+        this.consume('SEMICOLON', "Expected ';'");
+        return { type: 'ExpressionStmt', expression: expr };
+    }
+
+    parseExpression() {
+        return this.parseAssignment();
+    }
+
+    parseAssignment() {
+        const expr = this.parseLogical();
+        if (this.match('EQUALS')) {
+            const value = this.parseAssignment();
+            return { type: 'Assignment', target: expr, value };
+        }
+        return expr;
+    }
+
+    parseLogical() {
+        let left = this.parseComparison();
+        while (this.match('AND') || this.match('OR')) {
+            const op = this.previous().value;
+            const right = this.parseComparison();
+            left = { type: 'BinaryExpr', operator: op, left, right };
+        }
+        return left;
+    }
+
+    parseComparison() {
+        let left = this.parseAdditive();
+        if (this.match('EQEQ') || this.match('NEQ') || this.match('LT') || this.match('GT') || this.match('LTE') || this.match('GTE')) {
+            const op = this.previous().value;
+            const right = this.parseAdditive();
+            left = { type: 'BinaryExpr', operator: op, left, right };
+        }
+        return left;
+    }
+
+    parseAdditive() {
+        let left = this.parseMultiplicative();
+        while (this.match('PLUS') || this.match('MINUS')) {
+            const op = this.previous().value;
+            const right = this.parseMultiplicative();
+            left = { type: 'BinaryExpr', operator: op, left, right };
+        }
+        return left;
+    }
+
+    parseMultiplicative() {
+        let left = this.parseUnary();
+        while (this.match('STAR') || this.match('SLASH') || this.match('PERCENT')) {
+            const op = this.previous().value;
+            const right = this.parseUnary();
+            left = { type: 'BinaryExpr', operator: op, left, right };
+        }
+        return left;
+    }
+
+    parseUnary() {
+        if (this.match('MINUS') || this.match('NOT')) {
+            const op = this.previous().value;
+            const expr = this.parseUnary();
+            return { type: 'UnaryExpr', operator: op, expr };
+        }
+        return this.parsePrimary();
+    }
+
+    parsePrimary() {
+        if (this.match('NUMBER')) return { type: 'NumberLiteral', value: this.previous().value };
+        if (this.match('STRING')) return { type: 'StringLiteral', value: this.previous().value };
+        if (this.match('KEYWORD') && ['true', 'false'].includes(this.previous().value)) {
+            return { type: 'BoolLiteral', value: this.previous().value === 'true' };
+        }
+        if (this.match('IDENTIFIER')) {
+            const name = this.previous().value;
+            if (this.match('LPAREN')) {
+                const args = [];
+                while (!this.check('RPAREN')) {
+                    args.push(this.parseExpression());
+                    if (!this.match('COMMA')) break;
+                }
+                this.consume('RPAREN', "Expected ')'");
+                return { type: 'FunctionCall', name, arguments: args };
+            }
+            if (this.match('DOT')) {
+                const member = this.consume('IDENTIFIER', 'Expected member name').value;
+                return { type: 'MemberAccess', object: { type: 'Identifier', name }, member };
+            }
+            return { type: 'Identifier', name };
+        }
+        if (this.match('LPAREN')) {
+            const expr = this.parseExpression();
+            this.consume('RPAREN', "Expected ')'");
+            return expr;
+        }
+        if (this.match('LBRACE')) {
+            const fields = [];
+            while (!this.check('RBRACE') && !this.isAtEnd()) {
+                const name = this.consume('IDENTIFIER', 'Expected field name').value;
+                this.consume('COLON', "Expected ':'");
+                const value = this.parseExpression();
+                fields.push({ name, value });
+                if (this.match('COMMA')) continue;
+            }
+            this.consume('RBRACE', "Expected '}'");
+            return { type: 'ObjectLiteral', fields };
+        }
+        if (this.match('PIPE')) {
+            const params = this.parseParams();
+            this.consume('PIPE', "Expected '|'");
+            this.consume('FATARROW', "Expected '=>'");
+            const body = this.parseExpression();
+            return { type: 'LambdaExpr', params, body };
+        }
+        throw new Error(`Unexpected token: ${this.peek()?.value}`);
+    }
+
+    parseBlock() {
+        this.consume('LBRACE', "Expected '{'");
+        const statements = [];
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            statements.push(this.parseStatement());
+        }
+        this.consume('RBRACE', "Expected '}'");
+        return { type: 'Block', statements };
+    }
+
+    // Helpers
+    peek() { return this.tokens[this.current]; }
+    previous() { return this.tokens[this.current - 1]; }
+    isAtEnd() { return this.peek()?.type === 'EOF'; }
+    check(type) { return this.peek()?.type === type; }
+    
+    advance() {
+        if (!this.isAtEnd()) this.current++;
+        return this.previous();
+    }
+
+    match(type) {
+        if (this.check(type)) {
+            this.advance();
+            return true;
+        }
+        return false;
+    }
+
+    consume(type, message) {
+        if (this.check(type)) return this.advance();
+        throw new Error(`${message} at line ${this.peek()?.line}`);
+    }
+}
+
+module.exports = SupremeParser;

@@ -1,0 +1,87 @@
+// supreme-safety/AuditTrail.js
+// Immutable, tamper-proof audit logging
+
+export class AuditTrail {
+    constructor() {
+        this.chain = [];
+        this.blockchain = new BlockchainLogger();
+    }
+
+    /**
+     * Log an event to immutable audit trail
+     */
+    async log(event) {
+        const entry = {
+            id: this.generateHash(event),
+            timestamp: new Date().toISOString(),
+            event: event.type,
+            actor: event.actor,
+            target: event.target,
+            action: event.action,
+            reason: event.reason,
+            evidence: event.evidence,
+            previousHash: this.getLastHash()
+        };
+
+        // Add to local chain
+        this.chain.push(entry);
+
+        // Anchor to blockchain for immutability
+        await this.blockchain.anchor(entry);
+
+        return entry;
+    }
+
+    /**
+     * Verify audit trail integrity
+     */
+    async verifyIntegrity() {
+        for (let i = 1; i < this.chain.length; i++) {
+            const current = this.chain[i];
+            const previous = this.chain[i - 1];
+            
+            if (current.previousHash !== this.generateHash(previous)) {
+                return { valid: false, tamperedAt: i };
+            }
+        }
+
+        return { valid: true, entries: this.chain.length };
+    }
+
+    /**
+     * Get audit trail for a company
+     */
+    getCompanyAudit(companyId) {
+        return this.chain.filter(entry => 
+            entry.target === companyId || entry.actor === companyId
+        );
+    }
+
+    /**
+     * Export audit for legal/compliance
+     */
+    exportAudit(companyId, format = 'PDF') {
+        const audit = this.getCompanyAudit(companyId);
+        
+        return {
+            companyId,
+            totalEntries: audit.length,
+            generatedAt: new Date().toISOString(),
+            format,
+            data: audit
+        };
+    }
+
+    generateHash(data) {
+        return require('crypto')
+            .createHash('sha256')
+            .update(JSON.stringify(data))
+            .digest('hex');
+    }
+
+    getLastHash() {
+        return this.chain.length > 0 
+            ? this.generateHash(this.chain[this.chain.length - 1])
+            : '0'.repeat(64);
+    }
+}

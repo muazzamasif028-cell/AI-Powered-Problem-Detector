@@ -1,0 +1,155 @@
+// supreme-safety/enforcement/CapabilityControlPlane.js
+// Fine-grained capability isolation
+// Suspicious company ki poori infrastructure destroy nahi hoti
+
+export class CapabilityControlPlane {
+    constructor() {
+        this.capabilities = {
+            API: {
+                status: 'ENABLED', // ENABLED | RESTRICTED | BLOCKED
+                isolator: new APIIsolation()
+            },
+            NETWORK: {
+                status: 'ENABLED',
+                isolator: new NetworkIsolation()
+            },
+            DEPLOY: {
+                status: 'ENABLED', // ENABLED | FROZEN
+                isolator: new DeploymentFreeze()
+            },
+            DATA: {
+                status: 'ENABLED', // ENABLED | READ_ONLY | RESTRICTED
+                isolator: new DataRestriction()
+            },
+            PAYMENTS: {
+                status: 'ENABLED', // ENABLED | HALTED
+                isolator: new PaymentHalt()
+            },
+            AGENTS: {
+                status: 'ENABLED', // ENABLED | PAUSED
+                isolator: new AgentPause()
+            }
+        };
+    }
+
+    /**
+     * Apply containment to specific capabilities
+     */
+    async applyContainment(companyId, containmentPlan) {
+        const results = [];
+        
+        for (const [capability, action] of Object.entries(containmentPlan)) {
+            const cap = this.capabilities[capability];
+            if (!cap) continue;
+
+            console.log(`🔒 ${capability}: ${action}`);
+            
+            const result = await cap.isolator.apply(companyId, action);
+            cap.status = action;
+            results.push({ capability, action, result });
+        }
+
+        return {
+            companyId,
+            appliedAt: new Date().toISOString(),
+            capabilities: results
+        };
+    }
+
+    /**
+     * Remove containment
+     */
+    async removeContainment(companyId, capabilities = []) {
+        const caps = capabilities.length > 0 
+            ? capabilities 
+            : Object.keys(this.capabilities);
+
+        const results = [];
+        
+        for (const cap of caps) {
+            const capability = this.capabilities[cap];
+            if (!capability) continue;
+
+            console.log(`🔓 ${cap}: Restoring to ENABLED`);
+            
+            await capability.isolator.remove(companyId);
+            capability.status = 'ENABLED';
+            results.push({ capability: cap, restored: true });
+        }
+
+        return {
+            companyId,
+            restoredAt: new Date().toISOString(),
+            capabilities: results
+        };
+    }
+
+    /**
+     * Get current status for a company
+     */
+    getCompanyStatus(companyId) {
+        const status = {};
+        
+        for (const [name, cap] of Object.entries(this.capabilities)) {
+            status[name] = cap.status;
+        }
+
+        return { companyId, status };
+    }
+}
+
+// Individual isolators
+export class APIIsolation {
+    async apply(companyId, action) {
+        // ENABLED → RESTRICTED → BLOCKED
+        return { apiRateLimit: action === 'RESTRICTED' ? 10 : 0 };
+    }
+    async remove(companyId) {
+        return { apiRateLimit: 'UNLIMITED' };
+    }
+}
+
+export class NetworkIsolation {
+    async apply(companyId, action) {
+        return { egressBlocked: action === 'BLOCKED' };
+    }
+    async remove(companyId) {
+        return { egressBlocked: false };
+    }
+}
+
+export class DeploymentFreeze {
+    async apply(companyId) {
+        return { deploymentsFrozen: true };
+    }
+    async remove(companyId) {
+        return { deploymentsFrozen: false };
+    }
+}
+
+export class DataRestriction {
+    async apply(companyId, action) {
+        return { accessLevel: action };
+    }
+    async remove(companyId) {
+        return { accessLevel: 'FULL' };
+    }
+}
+
+export class PaymentHalt {
+    async apply(companyId) {
+        return { paymentsHalted: true };
+    }
+    async remove(companyId) {
+        return { paymentsHalted: false };
+    }
+}
+
+export class AgentPause {
+    async apply(companyId) {
+        return { agentsPaused: true };
+    }
+    async remove(companyId) {
+        return { agentsPaused: false };
+    }
+}

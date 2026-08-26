@@ -1,0 +1,89 @@
+#!/bin/bash
+# ============================================================
+# 🗄️ infrastructure/scripts/backup.sh
+# SUPREME OS Disaster Recovery — Automated Backup
+# ============================================================
+
+set -e
+
+TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+BACKUP_DIR="/backups/supreme-os"
+RETENTION_DAYS=30
+
+echo "🔄 Starting SUPREME OS backup at $TIMESTAMP"
+
+# Create backup directory
+mkdir -p "$BACKUP_DIR/$TIMESTAMP"
+
+# =============================================
+# 📦 MONGODB BACKUP
+# =============================================
+echo "📦 Backing up MongoDB..."
+mongodump \
+    --uri="$MONGODB_URI" \
+    --out="$BACKUP_DIR/$TIMESTAMP/mongodb" \
+    --gzip
+
+# =============================================
+# 🔴 REDIS BACKUP
+# =============================================
+echo "🔴 Backing up Redis..."
+redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" BGSAVE
+cp /data/dump.rdb "$BACKUP_DIR/$TIMESTAMP/redis/"
+
+# =============================================
+# 📁 FILE STORAGE BACKUP (S3/GCS)
+# =============================================
+echo "📁 Syncing file storage..."
+if [ "$STORAGE_PROVIDER" = "aws" ]; then
+    aws s3 sync "s3://$S3_BUCKET" "$BACKUP_DIR/$TIMESTAMP/files/" || true
+elif [ "$STORAGE_PROVIDER" = "gcp" ]; then
+    gsutil -m rsync -r "gs://$GCS_BUCKET" "$BACKUP_DIR/$TIMESTAMP/files/" || true
+fi
+
+# =============================================
+# 🗜️ COMPRESS BACKUP
+# =============================================
+echo "🗜️ Compressing backup..."
+tar -czf "$BACKUP_DIR/supreme-backup-$TIMESTAMP.tar.gz" -C "$BACKUP_DIR" "$TIMESTAMP"
+
+# =============================================
+# ☁️ UPLOAD TO REMOTE STORAGE
+# =============================================
+echo "☁️ Uploading to remote storage..."
+if [ "$BACKUP_PROVIDER" = "s3" ]; then
+    aws s3 cp "$BACKUP_DIR/supreme-backup-$TIMESTAMP.tar.gz" \
+        "s3://$BACKUP_BUCKET/daily/supreme-backup-$TIMESTAMP.tar.gz" \
+        --storage-class STANDARD_IA
+elif [ "$BACKUP_PROVIDER" = "gcs" ]; then
+    gsutil cp "$BACKUP_DIR/supreme-backup-$TIMESTAMP.tar.gz" \
+        "gs://$BACKUP_BUCKET/daily/supreme-backup-$TIMESTAMP.tar.gz"
+fi
+
+# =============================================
+# 🗑️ CLEANUP OLD BACKUPS
+# =============================================
+echo "🗑️ Cleaning up backups older than $RETENTION_DAYS days..."
+find "$BACKUP_DIR" -name "supreme-backup-*.tar.gz" -mtime +$RETENTION_DAYS -delete
+find "$BACKUP_DIR" -type d -mtime +$RETENTION_DAYS -exec rm -rf {} + 2>/dev/null || true
+
+# =============================================
+# ✅ VERIFY BACKUP
+# =============================================
+echo "✅ Verifying backup..."
+if [ -f "$BACKUP_DIR/supreme-backup-$TIMESTAMP.tar.gz" ]; then
+    BACKUP_SIZE=$(du -h "$BACKUP_DIR/supreme-backup-$TIMESTAMP.tar.gz" | cut -f1)
+    echo "✅ Backup complete: supreme-backup-$TIMESTAMP.tar.gz ($BACKUP_SIZE)"
+else
+    echo "❌ Backup failed!"
+    exit 1
+fi
+
+# =============================================
+# 📊 LOG BACKUP
+# =============================================
+echo "Backup completed at $(date)" >> "$BACKUP_DIR/backup.log"
+echo "Size: $BACKUP_SIZE" >> "$BACKUP_DIR/backup.log"
+echo "---" >> "$BACKUP_DIR/backup.log"
+
+echo "🎉 Backup process complete!"

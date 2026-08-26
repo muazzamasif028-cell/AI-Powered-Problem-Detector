@@ -1,0 +1,80 @@
+# application.yml
+spring:
+  application:
+    name: supreme-billing
+  datasource:
+    url: jdbc:postgresql://localhost:5432/supreme_billing
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  cache:
+    type: redis
+  redis:
+    host: localhost
+    port: 6379
+
+# Payment Gateways Configuration
+safepay:
+  api:
+    key: ${SAFEPAY_API_KEY}
+    secret: ${SAFEPAY_API_SECRET}
+    url: https://api.safepay.com
+
+payfast:
+  merchant:
+    id: ${PAYFAST_MERCHANT_ID}
+    key: ${PAYFAST_MERCHANT_KEY}
+  api:
+    url: https://api.payfast.com.pk
+
+stripe:
+  enabled: true
+  api:
+    key: ${STRIPE_API_KEY}
+  webhook:
+    secret: ${STRIPE_WEBHOOK_SECRET}
+
+jazzcash:
+  merchant:
+    id: ${JAZZCASH_MERCHANT_ID}
+    password: ${JAZZCASH_PASSWORD}
+  api:
+    url: https://api.jazzcash.com.pk
+
+easypaisa:
+  merchant:
+    id: ${EASYPAISA_MERCHANT_ID}
+    secret: ${EASYPAISA_SECRET}
+  api:
+    url: https://api.easypaisa.com.pk
+
+# Notification
+notification:
+  email:
+    enabled: true
+    provider: sendgrid
+  sms:
+    enabled: false
+
+# Security
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+  encryption:
+    key: ${ENCRYPTION_KEY}
+  
+# Monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true

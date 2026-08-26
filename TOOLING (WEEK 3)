@@ -1,0 +1,37 @@
+const PHASE_3 = {
+    week: 3,
+    components: [
+        {
+            id: 11,
+            name: '📦 Package Manager',
+            current: '0%',
+            target: '100%',
+            file: 'splpkg.js',
+            action: 'Create CLI tool for install/update/remove packages'
+        },
+        {
+            id: 12,
+            name: '💻 CLI',
+            current: '0%',
+            target: '100%',
+            file: 'spl-cli.js',
+            action: 'Create command-line tool: spl run, spl build, spl test'
+        },
+        {
+            id: 13,
+            name: '🐛 Debugger',
+            current: '0%',
+            target: '100%',
+            file: 'spl-debugger.js',
+            action: 'Breakpoints, step-through, watch, call stack'
+        },
+        {
+            id: 14,
+            name: '🎨 Formatter',
+            current: '0%',
+            target: '100%',
+            file: 'spl-formatter.js',
+            action: 'Auto-format SPL code with consistent style'
+        }
+    ]
+};

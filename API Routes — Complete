@@ -1,0 +1,81 @@
+// ============================================================
+// 🛣️ packages/core/src/routes/index.js
+// SUPREME Main API Router
+// ============================================================
+const express = require('express');
+const router = express.Router();
+
+// Health check
+router.get('/health', (req, res) => {
+    res.json({
+        success: true,
+        platform: 'SUPREME OS',
+        version: '1.0.0',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
+// API Info
+router.get('/', (req, res) => {
+    res.json({
+        success: true,
+        platform: 'SUPREME Enterprise Platform',
+        version: '1.0.0',
+        modules: [
+            'Core Kernel',
+            'Identity Platform (Auth/RBAC/SSO)',
+            'AI Brain (Multi-LLM/Memory)',
+            'Agent OS (15 Agents)',
+            'Automation Platform',
+            'API Platform (REST/GraphQL)',
+            'Billing Platform',
+            'Cloud Platform',
+            'HyperNet',
+            'Security Platform',
+            'Monitoring Platform',
+            'Search Platform',
+            'Knowledge Platform',
+            'Marketplace'
+        ],
+        endpoints: {
+            auth: '/api/auth',
+            ai: '/api/ai',
+            agents: '/api/agents',
+            billing: '/api/billing',
+            dashboard: '/api/dashboard',
+            search: '/api/search',
+            knowledge: '/api/knowledge'
+        }
+    });
+});
+
+// Mount all module routes
+router.use('/auth', require('../../auth/src/routes/auth.routes'));
+router.use('/ai', require('../../ai-brain/src/routes/ai.routes'));
+router.use('/agents', require('../../agent-os/src/routes/agent.routes'));
+router.use('/billing', require('../../billing/src/routes/billing.routes'));
+router.use('/dashboard', require('../../dashboard/src/routes/dashboard.routes'));
+router.use('/search', require('../../search/src/routes/search.routes'));
+router.use('/knowledge', require('../../knowledge/src/routes/knowledge.routes'));
+
+// 404 handler
+router.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: 'Route not found',
+        message: `Cannot ${req.method} ${req.originalUrl}`
+    });
+});
+
+// Error handler
+router.use((err, req, res, next) => {
+    console.error('API Error:', err);
+    res.status(err.statusCode || 500).json({
+        success: false,
+        error: err.code || 'INTERNAL_ERROR',
+        message: err.message || 'Internal server error'
+    });
+});
+
+module.exports = router;

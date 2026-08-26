@@ -1,0 +1,322 @@
+// ============================================================
+// 📚 src/services/trust-safety/evidence-engine.service.js
+// SUPREME Evidence Engine — Every answer must have evidence
+// ============================================================
+
+class EvidenceEngine {
+    constructor() {
+        this.evidenceThreshold = 0.7;
+        this.requiredEvidenceTypes = ['source', 'fact', 'data'];
+        
+        this.sourceTypes = {
+            'government': { weight: 1.0, label: 'Government' },
+            'research_paper': { weight: 0.95, label: 'Research Paper' },
+            'official_company': { weight: 0.90, label: 'Official Company' },
+            'academic': { weight: 0.90, label: 'Academic Institution' },
+            'news_verified': { weight: 0.75, label: 'Verified News' },
+            'wikipedia': { weight: 0.70, label: 'Wikipedia' },
+            'documentation': { weight: 0.80, label: 'Official Documentation' },
+            'api_verified': { weight: 0.85, label: 'API Verified' },
+            'expert_opinion': { weight: 0.65, label: 'Expert Opinion' },
+            'blog': { weight: 0.30, label: 'Blog' },
+            'social_media': { weight: 0.10, label: 'Social Media' },
+            'unknown': { weight: 0.20, label: 'Unknown Source' }
+        };
+    }
+
+    /**
+     * Evaluate evidence in response
+     */
+    async evaluate(query, response, context = {}) {
+        const evaluation = {
+            passed: false,
+            score: 0,
+            details: {
+                sourcesFound: [],
+                factsFound: [],
+                dataPointsFound: [],
+                evidenceScore: 0,
+                issue: null
+            },
+            warnings: [],
+            recommendations: []
+        };
+
+        // 1. Extract sources
+        const sources = this.extractSources(response);
+        evaluation.details.sourcesFound = sources;
+
+        // 2. Extract facts
+        const facts = this.extractFacts(response);
+        evaluation.details.factsFound = facts;
+
+        // 3. Extract data points
+        const dataPoints = this.extractDataPoints(response);
+        evaluation.details.dataPointsFound = dataPoints;
+
+        // 4. Verify sources
+        const verifiedSources = await this.verifySources(sources);
+        
+        // 5. Calculate evidence score
+        const sourceScore = this.calculateSourceScore(verifiedSources);
+        const factScore = this.calculateFactScore(facts, response);
+        const dataScore = dataPoints.length > 0 ? 0.8 : 0.3;
+
+        evaluation.details.evidenceScore = (sourceScore * 0.4 + factScore * 0.35 + dataScore * 0.25);
+        evaluation.score = evaluation.details.evidenceScore;
+
+        // 6. Determine if passed
+        evaluation.passed = evaluation.score >= this.evidenceThreshold;
+
+        // 7. Generate warnings
+        if (sources.length === 0) {
+            evaluation.warnings.push('No sources cited in response');
+            evaluation.recommendations.push({
+                priority: 'high',
+                message: 'Add citations and sources to support claims'
+            });
+        }
+
+        if (facts.length === 0 && response.length > 100) {
+            evaluation.warnings.push('No verifiable facts found in response');
+        }
+
+        if (verifiedSources.filter(s => s.verified).length < sources.length * 0.5) {
+            evaluation.warnings.push('Less than 50% of sources could be verified');
+        }
+
+        // 8. Check claim-to-evidence ratio
+        const claims = this.extractClaims(response);
+        const evidenceRatio = (sources.length + facts.length) / Math.max(claims.length, 1);
+        
+        if (evidenceRatio < 0.5) {
+            evaluation.warnings.push(`Low evidence ratio: ${(evidenceRatio * 100).toFixed(0)}% of claims have evidence`);
+            evaluation.recommendations.push({
+                priority: 'high',
+                message: 'Provide evidence for unsupported claims'
+            });
+        }
+
+        evaluation.details.issue = evaluation.warnings[0] || null;
+
+        return evaluation;
+    }
+
+    /**
+     * Extract sources from text
+     */
+    extractSources(text) {
+        const sources = [];
+
+        // URL sources
+        const urls = text.match(/https?:\/\/[^\s\)]+/g) || [];
+        urls.forEach(url => {
+            sources.push({
+                type: 'url',
+                value: url,
+                domain: this.extractDomain(url),
+                sourceType: this.classifySourceType(url)
+            });
+        });
+
+        // Named sources
+        const namedPatterns = [
+            /according to ([^,.]+)/gi,
+            /source:\s*([^,.]+)/gi,
+            /reference:\s*([^,.]+)/gi,
+            /cited (?:by|from)\s+([^,.]+)/gi,
+            /as stated (?:by|in)\s+([^,.]+)/gi,
+            /reported by\s+([^,.]+)/gi,
+            /published (?:by|in)\s+([^,.]+)/gi
+        ];
+
+        namedPatterns.forEach(pattern => {
+            const matches = text.matchAll(pattern);
+            for (const match of matches) {
+                sources.push({
+                    type: 'named',
+                    value: match[1].trim(),
+                    sourceType: this.classifyNamedSource(match[1])
+                });
+            }
+        });
+
+        // Bracketed references [1], [2], etc.
+        const references = text.match(/\[(\d+)\]/g) || [];
+        references.forEach(ref => {
+            sources.push({
+                type: 'reference',
+                value: ref,
+                sourceType: 'reference'
+            });
+        });
+
+        return sources;
+    }
+
+    /**
+     * Extract facts from text
+     */
+    extractFacts(text) {
+        const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+        
+        return sentences
+            .filter(s => {
+                const hasNumber = /\d+/.test(s);
+                const hasDate = /\b(19|20)\d{2}\b/.test(s);
+                const hasStatistic = /\d+%/.test(s) || /\$\d+/.test(s);
+                const hasProperNoun = /[A-Z][a-z]+ [A-Z][a-z]+/.test(s);
+                const isFactual = /is |are |was |were |has |have |contains |includes |located |founded /.test(s);
+                
+                return hasNumber || hasDate || hasStatistic || hasProperNoun || isFactual;
+            })
+            .map(s => ({
+                text: s.trim(),
+                type: this.classifyFact(s),
+                verifiable: this.isVerifiable(s)
+            }));
+    }
+
+    /**
+     * Extract data points
+     */
+    extractDataPoints(text) {
+        const dataPoints = [];
+
+        // Numbers
+        const numbers = text.match(/\d+(?:\.\d+)?/g) || [];
+        numbers.forEach(n => {
+            const context = this.getContext(text, n);
+            dataPoints.push({ type: 'number', value: n, context });
+        });
+
+        // Percentages
+        const percentages = text.match(/\d+(?:\.\d+)?%/g) || [];
+        percentages.forEach(p => {
+            dataPoints.push({ type: 'percentage', value: p });
+        });
+
+        // Currency
+        const currency = text.match(/\$\d+(?:,\d{3})*(?:\.\d{2})?/g) || [];
+        currency.forEach(c => {
+            dataPoints.push({ type: 'currency', value: c });
+        });
+
+        // Dates
+        const dates = text.match(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4}\b/gi) || [];
+        dates.forEach(d => {
+            dataPoints.push({ type: 'date', value: d });
+        });
+
+        return dataPoints;
+    }
+
+    /**
+     * Extract claims from text
+     */
+    extractClaims(text) {
+        const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+        
+        return sentences.filter(s => {
+            const claimIndicators = [
+                'can', 'will', 'should', 'must', 'always', 'never',
+                'best', 'worst', 'most', 'least', 'all', 'none',
+                'guarantees', 'ensures', 'proves', 'demonstrates'
+            ];
+            return claimIndicators.some(indicator => 
+                s.toLowerCase().includes(indicator)
+            );
+        });
+    }
+
+    /**
+     * Verify sources
+     */
+    async verifySources(sources) {
+        return sources.map(source => ({
+            ...source,
+            verified: this.checkSourceExists(source),
+            lastVerified: new Date().toISOString()
+        }));
+    }
+
+    /**
+     * Calculate source score
+     */
+    calculateSourceScore(sources) {
+        if (sources.length === 0) return 0;
+
+        const weights = sources.map(s => {
+            const sourceType = this.sourceTypes[s.sourceType] || this.sourceTypes.unknown;
+            const verified = s.verified ? 1 : 0.3;
+            return sourceType.weight * verified;
+        });
+
+        return weights.reduce((sum, w) => sum + w, 0) / sources.length;
+    }
+
+    /**
+     * Calculate fact score
+     */
+    calculateFactScore(facts, response) {
+        if (facts.length === 0) return 0.3;
+
+        const verifiableFacts = facts.filter(f => f.verifiable);
+        return verifiableFacts.length / Math.max(facts.length, 1);
+    }
+
+    classifySourceType(url) {
+        if (url.includes('.gov')) return 'government';
+        if (url.includes('.edu')) return 'academic';
+        if (url.includes('scholar.google') || url.includes('researchgate')) return 'research_paper';
+        if (url.includes('wikipedia.org')) return 'wikipedia';
+        if (url.includes('docs.') || url.includes('documentation')) return 'documentation';
+        if (url.includes('github.com')) return 'official_company';
+        if (url.includes('medium.com') || url.includes('blog.')) return 'blog';
+        if (url.includes('twitter.com') || url.includes('facebook.com')) return 'social_media';
+        return 'unknown';
+    }
+
+    classifyNamedSource(name) {
+        const lower = name.toLowerCase();
+        if (lower.includes('government') || lower.includes('official')) return 'government';
+        if (lower.includes('university') || lower.includes('institute')) return 'academic';
+        if (lower.includes('research') || lower.includes('study')) return 'research_paper';
+        if (lower.includes('wikipedia')) return 'wikipedia';
+        return 'unknown';
+    }
+
+    classifyFact(sentence) {
+        if (/\d{4}/.test(sentence)) return 'historical';
+        if (/\d+%/.test(sentence)) return 'statistical';
+        if (/\$\d+/.test(sentence)) return 'financial';
+        return 'general';
+    }
+
+    isVerifiable(sentence) {
+        return /\d+/.test(sentence) || /[A-Z][a-z]+ [A-Z][a-z]+/.test(sentence);
+    }
+
+    getContext(text, target) {
+        const index = text.indexOf(target);
+        if (index === -1) return '';
+        const start = Math.max(0, index - 50);
+        const end = Math.min(text.length, index + target.length + 50);
+        return text.substring(start, end).trim();
+    }
+
+    extractDomain(url) {
+        try {
+            return new URL(url).hostname;
+        } catch {
+            return url;
+        }
+    }
+
+    checkSourceExists(source) {
+        // In production: Actually verify the source
+        return Math.random() > 0.2; // 80% chance of verification
+    }
+}
+
+module.exports = new EvidenceEngine();

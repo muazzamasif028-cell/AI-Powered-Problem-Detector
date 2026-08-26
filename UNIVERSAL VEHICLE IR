@@ -1,0 +1,79 @@
+// spl-v/compiler/ir/UniversalVehicleIR.js
+
+export class UniversalVehicleIR {
+    constructor() {
+        this.commands = [];
+    }
+
+    /**
+     * Generate IR from validated AST
+     */
+    generate(ast) {
+        this.commands = [];
+        
+        for (const module of ast.modules || []) {
+            this.translateModule(module);
+        }
+        
+        return {
+            version: '1.0',
+            target: 'UNIVERSAL_VEHICLE',
+            commands: this.commands,
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    translateModule(module) {
+        if (module instanceof VehicleNode) {
+            for (const [key, value] of Object.entries(module.properties)) {
+                this.commands.push({
+                    category: 'VEHICLE_CONFIG',
+                    action: `SET_${key.toUpperCase()}`,
+                    value: value?.value,
+                    unit: value?.unit
+                });
+            }
+        }
+        
+        if (module.type === 'SafetyConfig') {
+            this.commands.push({
+                category: 'SAFETY',
+                action: 'REGISTER_PILLARS',
+                count: module.count || 30,
+                pillars: module.pillars?.map(p => ({
+                    name: p.name,
+                    priority: p.properties?.priority?.value || 'HIGH'
+                }))
+            });
+        }
+        
+        if (module.type === 'CopilotConfig') {
+            for (const [key, value] of Object.entries(module.settings || {})) {
+                this.commands.push({
+                    category: 'COPILOT_CONFIG',
+                    action: `SET_${key.toUpperCase()}`,
+                    value: value?.value
+                });
+            }
+        }
+        
+        if (module.type === 'MainConfig') {
+            for (const phase of module.phases || []) {
+                this.commands.push({
+                    category: 'MAIN',
+                    action: `ENTER_PHASE`,
+                    phase: phase.phase
+                });
+                for (const stmt of phase.statements || []) {
+                    if (stmt instanceof SettingNode) {
+                        this.commands.push({
+                            category: 'MAIN',
+                            action: `EXECUTE_${stmt.name.toUpperCase()}`,
+                            value: stmt.value?.value
+                        });
+                    }
+                }
+            }
+        }
+    }
+}

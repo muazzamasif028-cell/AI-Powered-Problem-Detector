@@ -1,0 +1,756 @@
+// ============================================================
+// 🤫 SATELLITE CONTROL SYSTEM v7.0
+// ============================================================
+// Supreme Problem Detector — Satellite Fleet Command
+// Architecture: 7000+ Languages | 2.5T Nodes | 5.9B Layers | 500B Components
+// ============================================================
+// THIS FILE RUNS COMPLETELY HIDDEN BEHIND THE CANVAS
+// ============================================================
+
+class SatelliteControlSystem {
+    constructor() {
+        // =============================================
+        // SYSTEM STATE
+        // =============================================
+        this.state = {
+            initialized: false,
+            active: false,
+            totalSatellites: 0,
+            connectedSatellites: 0,
+            orbitalSlots: 0,
+            fleetStatus: 'STANDBY'
+        };
+
+        // =============================================
+        // SATELLITE FLEET
+        // =============================================
+        this.fleet = {
+            LEO: [],    // Low Earth Orbit (200-2000 km)
+            MEO: [],    // Medium Earth Orbit (2000-35786 km)
+            GEO: [],    // Geostationary Orbit (35786 km)
+            HEO: [],    // Highly Elliptical Orbit
+            POLAR: [],  // Polar Orbit
+            SSO: []     // Sun-Synchronous Orbit
+        };
+
+        // =============================================
+        // ORBITAL SLOTS
+        // =============================================
+        this.orbitalSlots = {
+            total: 720,
+            occupied: 0,
+            available: 720,
+            reserved: 0
+        };
+
+        // =============================================
+        // SATELLITE TYPES
+        // =============================================
+        this.satelliteTypes = {
+            COMMUNICATION: {
+                code: 'SAT-COM',
+                maxOrbit: 35786,
+                power: '5000W',
+                bandwidth: '100 Gbps',
+                antennas: 12
+            },
+            OBSERVATION: {
+                code: 'SAT-OBS',
+                maxOrbit: 800,
+                power: '3000W',
+                resolution: '0.3m',
+                sensors: ['Optical', 'Infrared', 'Radar']
+            },
+            NAVIGATION: {
+                code: 'SAT-NAV',
+                maxOrbit: 20200,
+                power: '2500W',
+                precision: '1m',
+                constellation: 24
+            },
+            WEATHER: {
+                code: 'SAT-WTH',
+                maxOrbit: 35786,
+                power: '4000W',
+                sensors: ['Thermal', 'Multispectral', 'Hyperspectral'],
+                coverage: 'Global'
+            },
+            SCIENCE: {
+                code: 'SAT-SCI',
+                maxOrbit: 600,
+                power: '6000W',
+                instruments: ['Spectrometer', 'Telescope', 'Particle Detector'],
+                missionDuration: '5 years'
+            },
+            SPY: {
+                code: 'SAT-SPY',
+                maxOrbit: 2000,
+                power: '8000W',
+                resolution: '0.1m',
+                stealth: true,
+                encrypted: true
+            }
+        };
+
+        // =============================================
+        // TELEMETRY DATA
+        // =============================================
+        this.telemetry = {
+            position: { x: 0, y: 0, z: 0 },
+            velocity: { x: 0, y: 0, z: 0 },
+            attitude: { roll: 0, pitch: 0, yaw: 0 },
+            power: { generation: 0, consumption: 0, battery: 0 },
+            thermal: { internal: 0, external: 0, radiator: 0 },
+            communication: { uplink: 0, downlink: 0, latency: 0 }
+        };
+
+        // =============================================
+        // GROUND STATIONS
+        // =============================================
+        this.groundStations = [];
+        this.maxGroundStations = 12;
+
+        // =============================================
+        // COMMAND QUEUE
+        // =============================================
+        this.commandQueue = [];
+        this.executedCommands = [];
+        this.maxQueueSize = 1000;
+
+        // =============================================
+        // ORBITAL MECHANICS
+        // =============================================
+        this.constants = {
+            G: 6.67430e-11,           // Gravitational constant
+            EARTH_MASS: 5.972e24,      // Earth mass (kg)
+            EARTH_RADIUS: 6371000,     // Earth radius (m)
+            MU: 3.986004418e14,        // Standard gravitational parameter
+            J2: 1.08263e-3,            // Earth's oblateness
+            SPEED_OF_LIGHT: 299792458  // m/s
+        };
+
+        console.log('🤫 [SATELLITE CONTROL]: System created');
+    }
+
+    // =============================================
+    // INITIALIZE SATELLITE CONTROL
+    // =============================================
+    initialize() {
+        console.log('🤫 [SATELLITE CONTROL]: Initializing...');
+        
+        this.createFleet();
+        this.initializeGroundStations();
+        this.state.initialized = true;
+        this.state.active = true;
+
+        console.log('🤫 [SATELLITE CONTROL]: Fleet ready');
+        console.log('🤫 [FLEET]:', this.state.totalSatellites, 'satellites in', Object.keys(this.fleet).length, 'orbits');
+        
+        return {
+            status: 'READY',
+            fleetSize: this.state.totalSatellites,
+            groundStations: this.groundStations.length,
+            orbitalSlots: this.orbitalSlots,
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    // =============================================
+    // CREATE SATELLITE FLEET
+    // =============================================
+    createFleet() {
+        const orbitConfigs = {
+            LEO: { count: 200, altitude: { min: 200, max: 2000 } },
+            MEO: { count: 50, altitude: { min: 2000, max: 35786 } },
+            GEO: { count: 30, altitude: 35786 },
+            HEO: { count: 10, altitude: { min: 500, max: 40000 } },
+            POLAR: { count: 40, altitude: { min: 300, max: 1000 } },
+            SSO: { count: 20, altitude: { min: 400, max: 800 } }
+        };
+
+        for (let [orbit, config] of Object.entries(orbitConfigs)) {
+            for (let i = 0; i < config.count; i++) {
+                const satellite = this.createSatellite(orbit, i, config);
+                this.fleet[orbit].push(satellite);
+                this.state.totalSatellites++;
+            }
+        }
+
+        this.orbitalSlots.occupied = this.state.totalSatellites;
+        this.orbitalSlots.available = this.orbitalSlots.total - this.orbitalSlots.occupied;
+    }
+
+    createSatellite(orbit, index, config) {
+        const types = Object.keys(this.satelliteTypes);
+        const type = types[Math.floor(Math.random() * types.length)];
+        const typeConfig = this.satelliteTypes[type];
+
+        const altitude = typeof config.altitude === 'object' 
+            ? config.altitude.min + Math.random() * (config.altitude.max - config.altitude.min)
+            : config.altitude;
+
+        return {
+            id: `SAT-${orbit}-${(index + 1).toString().padStart(4, '0')}`,
+            name: `${type}-${orbit}-${index + 1}`,
+            type: type,
+            typeCode: typeConfig.code,
+            orbit: orbit,
+            altitude_km: altitude.toFixed(0),
+            inclination: this.calculateInclination(orbit),
+            eccentricity: orbit === 'GEO' ? 0.0001 : Math.random() * 0.01,
+            period_minutes: this.calculateOrbitalPeriod(altitude),
+            velocity_kms: this.calculateOrbitalVelocity(altitude),
+            status: 'ACTIVE',
+            health: {
+                power: 100,
+                thermal: 100,
+                communication: 100,
+                propulsion: 100,
+                payload: 100
+            },
+            telemetry: this.generateInitialTelemetry(orbit, altitude),
+            capabilities: {
+                ...typeConfig,
+                orbitAltitude: altitude
+            },
+            lastContact: new Date().toISOString(),
+            missionElapsed: Math.floor(Math.random() * 365 * 5) + ' days'
+        };
+    }
+
+    calculateInclination(orbit) {
+        switch (orbit) {
+            case 'GEO': return 0;
+            case 'POLAR': return 90;
+            case 'SSO': return 98;
+            case 'LEO': return Math.random() * 90;
+            case 'MEO': return Math.random() * 60;
+            case 'HEO': return Math.random() * 63.4;
+            default: return Math.random() * 90;
+        }
+    }
+
+    calculateOrbitalPeriod(altitude) {
+        const R = this.constants.EARTH_RADIUS + altitude * 1000;
+        const period = 2 * Math.PI * Math.sqrt(Math.pow(R, 3) / this.constants.MU);
+        return (period / 60).toFixed(1);
+    }
+
+    calculateOrbitalVelocity(altitude) {
+        const R = this.constants.EARTH_RADIUS + altitude * 1000;
+        const velocity = Math.sqrt(this.constants.MU / R);
+        return (velocity / 1000).toFixed(3);
+    }
+
+    generateInitialTelemetry(orbit, altitude) {
+        return {
+            position: {
+                x: (this.constants.EARTH_RADIUS + altitude * 1000) * Math.cos(Math.random() * 2 * Math.PI),
+                y: (this.constants.EARTH_RADIUS + altitude * 1000) * Math.sin(Math.random() * 2 * Math.PI),
+                z: (this.constants.EARTH_RADIUS + altitude * 1000) * Math.sin(Math.random() * Math.PI)
+            },
+            velocity: {
+                x: Math.random() * 7.8 - 3.9,
+                y: Math.random() * 7.8 - 3.9,
+                z: Math.random() * 0.1 - 0.05
+            },
+            attitude: {
+                roll: Math.random() * 2 - 1,
+                pitch: Math.random() * 2 - 1,
+                yaw: Math.random() * 360
+            },
+            power: {
+                generation: Math.random() * 5000 + 2000,
+                consumption: Math.random() * 3000 + 1000,
+                battery: Math.random() * 30 + 70
+            },
+            thermal: {
+                internal: Math.random() * 20 + 15,
+                external: Math.random() * 100 - 150,
+                radiator: Math.random() * 20 + 10
+            }
+        };
+    }
+
+    // =============================================
+    // GROUND STATIONS
+    // =============================================
+    initializeGroundStations() {
+        const stations = [
+            { name: 'Houston', lat: 29.7604, lon: -95.3698 },
+            { name: 'Moscow', lat: 55.7558, lon: 37.6173 },
+            { name: 'Beijing', lat: 39.9042, lon: 116.4074 },
+            { name: 'Kourou', lat: 5.1597, lon: -52.6503 },
+            { name: 'Canberra', lat: -35.2809, lon: 149.1300 },
+            { name: 'Svalbard', lat: 78.2232, lon: 15.6267 },
+            { name: 'Singapore', lat: 1.3521, lon: 103.8198 },
+            { name: 'Dubai', lat: 25.2048, lon: 55.2708 }
+        ];
+
+        this.groundStations = stations.map((station, index) => ({
+            id: `GS-${(index + 1).toString().padStart(3, '0')}`,
+            ...station,
+            status: 'ONLINE',
+            antennas: Math.floor(Math.random() * 4) + 2,
+            trackingCapacity: Math.floor(Math.random() * 20) + 10,
+            uplinkFrequency: '14.0 - 14.5 GHz',
+            downlinkFrequency: '11.7 - 12.2 GHz'
+        }));
+    }
+
+    // =============================================
+    // SATELLITE COMMANDS
+    // =============================================
+    async sendCommand(satelliteId, command, parameters = {}) {
+        const commandId = 'CMD-' + Date.now().toString(36) + '-' + 
+                         Math.random().toString(36).substr(2, 6).toUpperCase();
+        
+        console.log(`🤫 [COMMAND]: ${commandId} → ${satelliteId}: ${command}`);
+
+        const satellite = this.findSatellite(satelliteId);
+        if (!satellite) {
+            return { commandId, status: 'FAILED', error: 'Satellite not found' };
+        }
+
+        const commandPacket = {
+            commandId,
+            satelliteId,
+            command,
+            parameters,
+            sent: new Date().toISOString(),
+            status: 'SENT',
+            priority: parameters.priority || 'NORMAL'
+        };
+
+        this.commandQueue.push(commandPacket);
+        
+        // Execute command
+        const result = await this.executeCommand(satellite, commandPacket);
+        
+        this.executedCommands.push(result);
+        if (this.executedCommands.length > this.maxQueueSize) {
+            this.executedCommands.shift();
+        }
+
+        return result;
+    }
+
+    async executeCommand(satellite, commandPacket) {
+        const { command, parameters } = commandPacket;
+        
+        switch (command) {
+            case 'ORBIT_ADJUST':
+                return this.adjustOrbit(satellite, parameters);
+            
+            case 'ATTITUDE_CONTROL':
+                return this.controlAttitude(satellite, parameters);
+            
+            case 'POWER_MANAGEMENT':
+                return this.managePower(satellite, parameters);
+            
+            case 'PAYLOAD_ACTIVATE':
+                return this.activatePayload(satellite, parameters);
+            
+            case 'COMMUNICATION_LINK':
+                return this.establishLink(satellite, parameters);
+            
+            case 'EMERGENCY_SHUTDOWN':
+                return this.emergencyShutdown(satellite);
+            
+            case 'REBOOT_SYSTEM':
+                return this.rebootSatellite(satellite);
+            
+            case 'DEPLOY_SOLAR':
+                return this.deploySolarPanels(satellite);
+            
+            case 'FIRE_THRUSTER':
+                return this.fireThruster(satellite, parameters);
+            
+            case 'SELF_DESTRUCT':
+                return this.selfDestruct(satellite, parameters);
+            
+            default:
+                return {
+                    commandId: commandPacket.commandId,
+                    status: 'FAILED',
+                    error: `Unknown command: ${command}`
+                };
+        }
+    }
+
+    // =============================================
+    // ORBIT ADJUSTMENT
+    // =============================================
+    adjustOrbit(satellite, parameters) {
+        const deltaV = parameters.deltaV || 0.1;
+        const newAltitude = parseFloat(satellite.altitude_km) + (parameters.altitudeChange || 0);
+        
+        satellite.altitude_km = newAltitude.toFixed(0);
+        satellite.velocity_kms = this.calculateOrbitalVelocity(newAltitude);
+        satellite.period_minutes = this.calculateOrbitalPeriod(newAltitude);
+        satellite.lastContact = new Date().toISOString();
+        satellite.health.propulsion -= 0.1;
+
+        return {
+            status: 'SUCCESS',
+            satellite: satellite.id,
+            command: 'ORBIT_ADJUST',
+            previousAltitude: satellite.altitude_km,
+            newAltitude: newAltitude.toFixed(0) + ' km',
+            deltaV: deltaV + ' km/s',
+            fuelRemaining: satellite.health.propulsion.toFixed(1) + '%'
+        };
+    }
+
+    // =============================================
+    // ATTITUDE CONTROL
+    // =============================================
+    controlAttitude(satellite, parameters) {
+        satellite.telemetry.attitude = {
+            roll: parameters.roll || satellite.telemetry.attitude.roll,
+            pitch: parameters.pitch || satellite.telemetry.attitude.pitch,
+            yaw: parameters.yaw || satellite.telemetry.attitude.yaw
+        };
+
+        return {
+            status: 'SUCCESS',
+            satellite: satellite.id,
+            command: 'ATTITUDE_CONTROL',
+            newAttitude: satellite.telemetry.attitude
+        };
+    }
+
+    // =============================================
+    // POWER MANAGEMENT
+    // =============================================
+    managePower(satellite, parameters) {
+        if (parameters.powerSave) {
+            satellite.telemetry.power.consumption *= 0.7;
+            satellite.health.power = Math.max(10, satellite.health.power - 5);
+        }
+
+        return {
+            status: 'SUCCESS',
+            satellite: satellite.id,
+            command: 'POWER_MANAGEMENT',
+            powerStatus: satellite.telemetry.power,
+            healthRemaining: satellite.health.power + '%'
+        };
+    }
+
+    // =============================================
+    // PAYLOAD ACTIVATION
+    // =============================================
+    activatePayload(satellite, parameters) {
+        satellite.health.payload -= 1;
+        satellite.lastContact = new Date().toISOString();
+
+        return {
+            status: 'SUCCESS',
+            satellite: satellite.id,
+            command: 'PAYLOAD_ACTIVATE',
+            payloadType: satellite.type,
+            activationTime: new Date().toISOString(),
+            dataRate: satellite.capabilities.bandwidth || '10 Gbps'
+        };
+    }
+
+    // =============================================
+    // COMMUNICATION LINK
+    // =============================================
+    establishLink(satellite, parameters) {
+        const groundStation = parameters.groundStation || this.groundStations[0].name;
+        
+        satellite.health.communication = 100;
+        satellite.lastContact = new Date().toISOString();
+        
+        this.telemetry.communication.uplink = Math.random() * 1000 + 100;
+        this.telemetry.communication.downlink = Math.random() * 1000 + 100;
+        this.telemetry.communication.latency = Math.random() * 50 + 5;
+
+        return {
+            status: 'SUCCESS',
+            satellite: satellite.id,
+            command: 'COMMUNICATION_LINK',
+            groundStation,
+            uplink: this.telemetry.communication.uplink.toFixed(1) + ' Mbps',
+            downlink: this.telemetry.communication.downlink.toFixed(1) + ' Mbps',
+            latency: this.telemetry.communication.latency.toFixed(1) + ' ms'
+        };
+    }
+
+    // =============================================
+    // EMERGENCY SHUTDOWN
+    // =============================================
+    emergencyShutdown(satellite) {
+        satellite.status = 'EMERGENCY_SHUTDOWN';
+        satellite.health.power = 5;
+        satellite.health.communication = 0;
+
+        return {
+            status: 'SUCCESS',
+            satellite: satellite.id,
+            command: 'EMERGENCY_SHUTDOWN',
+            message: 'Satellite in safe mode',
+            recoveryProcedure: 'Manual restart required'
+        };
+    }
+
+    // =============================================
+    // REBOOT SATELLITE
+    // =============================================
+    rebootSatellite(satellite) {
+        satellite.status = 'REBOOTING';
+        
+        const rebootResult = {
+            status: 'SUCCESS',
+            satellite: satellite.id,
+            command: 'REBOOT_SYSTEM',
+            bootSequence: ['BIOS', 'OS', 'Payload', 'Communication'],
+            estimatedTime: '3 minutes'
+        };
+
+        // Simulate reboot
+        satellite.status = 'ACTIVE';
+        satellite.health = {
+            power: 100,
+            thermal: 95,
+            communication: 100,
+            propulsion: satellite.health.propulsion,
+            payload: 100
+        };
+
+        return rebootResult;
+    }
+
+    // =============================================
+    // DEPLOY SOLAR PANELS
+    // =============================================
+    deploySolarPanels(satellite) {
+        satellite.telemetry.power.generation *= 1.5;
+        satellite.health.power = 100;
+
+        return {
+            status: 'SUCCESS',
+            satellite: satellite.id,
+            command: 'DEPLOY_SOLAR',
+            powerGeneration: satellite.telemetry.power.generation.toFixed(0) + ' W',
+            efficiency: '98.5%'
+        };
+    }
+
+    // =============================================
+    // FIRE THRUSTER
+    // =============================================
+    fireThruster(satellite, parameters) {
+        const duration = parameters.duration || 1;
+        const thrust = parameters.thrust || 100;
+        
+        satellite.health.propulsion -= duration * 0.01;
+        satellite.telemetry.velocity.x += thrust * 0.001;
+        satellite.lastContact = new Date().toISOString();
+
+        return {
+            status: 'SUCCESS',
+            satellite: satellite.id,
+            command: 'FIRE_THRUSTER',
+            duration: duration + 's',
+            thrust: thrust + 'N',
+            newVelocity: satellite.telemetry.velocity
+        };
+    }
+
+    // =============================================
+    // SELF DESTRUCT (SECURED)
+    // =============================================
+    selfDestruct(satellite, parameters) {
+        if (!parameters.authorizationCode || parameters.authorizationCode !== 'SUPREME-ALPHA-7') {
+            return {
+                status: 'DENIED',
+                satellite: satellite.id,
+                command: 'SELF_DESTRUCT',
+                error: 'Invalid authorization code'
+            };
+        }
+
+        satellite.status = 'DESTROYED';
+        
+        // Remove from fleet
+        const orbitArray = this.fleet[satellite.orbit];
+        const index = orbitArray.findIndex(s => s.id === satellite.id);
+        if (index > -1) {
+            orbitArray.splice(index, 1);
+            this.state.totalSatellites--;
+            this.orbitalSlots.occupied--;
+            this.orbitalSlots.available++;
+        }
+
+        return {
+            status: 'SUCCESS',
+            satellite: satellite.id,
+            command: 'SELF_DESTRUCT',
+            message: 'Satellite destroyed. Debris tracking initiated.',
+            debrisPieces: Math.floor(Math.random() * 500) + 100,
+            warningZone: '500 km radius'
+        };
+    }
+
+    // =============================================
+    // FIND SATELLITE
+    // =============================================
+    findSatellite(satelliteId) {
+        for (let [orbit, satellites] of Object.entries(this.fleet)) {
+            const found = satellites.find(s => s.id === satelliteId);
+            if (found) return found;
+        }
+        return null;
+    }
+
+    // =============================================
+    // TRACK SATELLITE
+    // =============================================
+    trackSatellite(satelliteId) {
+        const satellite = this.findSatellite(satelliteId);
+        if (!satellite) return null;
+
+        // Update position (simulated)
+        const time = Date.now() / 1000;
+        const altitude = parseFloat(satellite.altitude_km) * 1000;
+        const angularVelocity = Math.sqrt(this.constants.MU / Math.pow(this.constants.EARTH_RADIUS + altitude, 3));
+        const angle = angularVelocity * time;
+
+        satellite.telemetry.position = {
+            x: (this.constants.EARTH_RADIUS + altitude) * Math.cos(angle),
+            y: (this.constants.EARTH_RADIUS + altitude) * Math.sin(angle),
+            z: (this.constants.EARTH_RADIUS + altitude) * Math.sin(satellite.inclination * Math.PI / 180) * Math.sin(angle)
+        };
+
+        return {
+            satellite: satellite.id,
+            position: satellite.telemetry.position,
+            altitude: satellite.altitude_km + ' km',
+            velocity: satellite.velocity_kms + ' km/s',
+            heading: (angle * 180 / Math.PI % 360).toFixed(1) + '°',
+            nextPass: new Date(Date.now() + satellite.period_minutes * 60 * 1000).toISOString()
+        };
+    }
+
+    // =============================================
+    // FLEET STATUS
+    // =============================================
+    getFleetStatus() {
+        const fleetSummary = {};
+        
+        for (let [orbit, satellites] of Object.entries(this.fleet)) {
+            fleetSummary[orbit] = {
+                total: satellites.length,
+                active: satellites.filter(s => s.status === 'ACTIVE').length,
+                warning: satellites.filter(s => s.status === 'WARNING').length,
+                critical: satellites.filter(s => s.status === 'CRITICAL').length,
+                offline: satellites.filter(s => s.status !== 'ACTIVE' && s.status !== 'WARNING').length,
+                averageHealth: satellites.length > 0
+                    ? (satellites.reduce((sum, s) => sum + Object.values(s.health).reduce((a, b) => a + b, 0) / 5, 0) / satellites.length).toFixed(1) + '%'
+                    : 'N/A'
+            };
+        }
+
+        return {
+            totalSatellites: this.state.totalSatellites,
+            fleetByOrbit: fleetSummary,
+            groundStations: this.groundStations.length,
+            orbitalSlots: this.orbitalSlots,
+            commandQueue: this.commandQueue.length,
+            executedCommands: this.executedCommands.length
+        };
+    }
+
+    // =============================================
+    // GET ALL SATELLITES
+    // =============================================
+    getAllSatellites() {
+        const allSatellites = [];
+        
+        for (let [orbit, satellites] of Object.entries(this.fleet)) {
+            allSatellites.push(...satellites.map(s => ({
+                ...s,
+                orbitType: orbit
+            })));
+        }
+
+        return allSatellites;
+    }
+
+    // =============================================
+    // SYSTEM STATUS
+    // =============================================
+    getStatus() {
+        return {
+            initialized: this.state.initialized,
+            active: this.state.active,
+            fleetSize: this.state.totalSatellites,
+            connectedSatellites: this.state.totalSatellites,
+            groundStations: this.groundStations.filter(g => g.status === 'ONLINE').length,
+            orbitalSlots: this.orbitalSlots,
+            capabilities: [
+                'ORBIT_ADJUST',
+                'ATTITUDE_CONTROL',
+                'POWER_MANAGEMENT',
+                'PAYLOAD_CONTROL',
+                'COMMUNICATION_LINK',
+                'EMERGENCY_SHUTDOWN',
+                'REBOOT',
+                'SOLAR_DEPLOY',
+                'THRUSTER_CONTROL',
+                'SELF_DESTRUCT'
+            ],
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    // =============================================
+    // RESET
+    // =============================================
+    reset() {
+        Object.keys(this.fleet).forEach(orbit => {
+            this.fleet[orbit] = [];
+        });
+        
+        this.state.totalSatellites = 0;
+        this.orbitalSlots.occupied = 0;
+        this.orbitalSlots.available = this.orbitalSlots.total;
+        this.commandQueue = [];
+        this.executedCommands = [];
+
+        this.initialize();
+
+        return {
+            status: 'RESET',
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+// ============================================================
+// 🤫 EXPORT SATELLITE CONTROL SYSTEM
+// ============================================================
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = SatelliteControlSystem;
+}
+
+if (typeof window !== 'undefined') {
+    window.SatelliteControlSystem = SatelliteControlSystem;
+    
+    // Auto-initialize (hidden)
+    window.__SUPREME_SATELLITE_CONTROL = new SatelliteControlSystem();
+    window.__SUPREME_SATELLITE_CONTROL.initialize();
+    
+    console.log('🤫 [SATELLITE CONTROL]: Loaded and initialized (hidden mode)');
+    console.log('🤫 [FLEET]:', window.__SUPREME_SATELLITE_CONTROL.state.totalSatellites, 'satellites ready');
+    console.log('🤫 [ORBITS]: LEO | MEO | GEO | HEO | POLAR | SSO');
+    console.log('🤫 [COMMANDS]: 10 command types available');
+    console.log('🤫 [GROUND STATIONS]:', window.__SUPREME_SATELLITE_CONTROL.groundStations.length, 'stations online');
+}
+
+// ============================================================
+// 🤫 END OF SATELLITE CONTROL SYSTEM
+// ============================================================

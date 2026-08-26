@@ -1,0 +1,94 @@
+// gateways/JazzCashGateway.js
+const BaseGateway = require('./BaseGateway');
+const crypto = require('crypto');
+const moment = require('moment');
+
+class JazzCashGateway extends BaseGateway {
+    constructor() {
+        const config = require('../config/gateways.config').jazzcash;
+        super(config);
+        this.gatewayId = 'JAZZCASH';
+    }
+
+    async processPayment(paymentData) {
+        try {
+            const transactionId = this.generateTransactionId();
+            const currentDateTime = moment().format('YYYYMMDDHHmmss');
+            const expiryDateTime = moment().add(1, 'hour').format('YYYYMMDDHHmmss');
+
+            // JazzCash requires specific field names
+            const requestData = {
+                pp_Version: '1.1',
+                pp_TxnType: 'MWALLET',
+                pp_Language: 'EN',
+                pp_MerchantID: this.envConfig.merchantId,
+                pp_Password: this.envConfig.password,
+                pp_TxnRefNo: transactionId,
+                pp_Amount: (parseFloat(paymentData.amount) * 100).toString(), // In paisa
+                pp_TxnCurrency: 'PKR',
+                pp_TxnDateTime: currentDateTime,
+                pp_TxnExpiryDateTime: expiryDateTime,
+                pp_BillReference: `SUPREME_${transactionId}`,
+                pp_Description: paymentData.description || 'SUPREME Payment',
+                pp_ReturnURL: `https://supreme.com/payment/jazzcash/return`,
+                ppmpf_1: paymentData.customerPhone || '03000000000',
+                ppmpf_2: paymentData.customerEmail || '',
+                ppmpf_3: paymentData.customerName || '',
+                ppmpf_4: 'SUPREME'
+            };
+
+            // Generate Secure Hash
+            const secureHash = this.generateSecureHash(requestData);
+            requestData.pp_SecureHash = secureHash;
+
+            return {
+                success: true,
+                gateway: this.gatewayId,
+                transactionId,
+                amount: paymentData.amount,
+                currency: 'PKR',
+                redirectUrl: this.envConfig.apiUrl,
+                formData: requestData,
+                status: 'PENDING',
+                paymentModes: ['MWALLET', 'OTC', 'QR']
+            };
+
+        } catch (error) {
+            return this.handleGatewayError(error);
+        }
+    }
+
+    /**
+     * Generate JazzCash Secure Hash
+     */
+    generateSecureHash(data) {
+        const sortedKeys = Object.keys(data)
+            .filter(key => key !== 'pp_SecureHash')
+            .sort();
+
+        let hashString = this.envConfig.integritySalt;
+        
+        for (const key of sortedKeys) {
+            if (data[key] && data[key] !== '') {
+                hashString += '&' + data[key];
+            }
+        }
+
+        return crypto
+            .createHmac('sha256', this.envConfig.integritySalt)
+            .update(hashString)
+            .digest('hex')
+            .toUpperCase();
+    }
+
+    /**
+     * Verify JazzCash response
+     */
+    verifyResponse(responseData) {
+        const receivedHash = responseData.pp_SecureHash;
+        const calculatedHash = this.generateSecureHash(responseData);
+        return receivedHash === calculatedHash;
+    }
+}
+
+module.exports = JazzCashGateway;

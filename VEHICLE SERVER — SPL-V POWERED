@@ -1,0 +1,69 @@
+// ============================================================
+// 🚗 spl-vehicle/VehicleServer.js
+// SUPREME Vehicle — SPL-V Language Server
+// ============================================================
+
+const express = require('express');
+const SupremeVehicleLLM = require('./SupremeVehicleLLM');
+
+const app = express();
+app.use(express.json());
+
+// Vehicle State
+const vehicle = {
+    speed: 0,
+    battery: 85,
+    location: { lat: 24.8607, lng: 67.0011 },
+    mode: 'parked',
+    obstacleDistance: 999,
+    pedestrianInPath: false,
+    speedLimit: 120,
+    driverDistracted: false,
+    
+    setDestination: async (dest) => console.log(`📍 Navigating to ${dest}`),
+    emergencyProtocol: async (pillar) => console.log(`🚨 Emergency: Safety Pillar ${pillar}`),
+    registerVoiceCommand: (trigger) => console.log(`🎤 Voice command registered: ${trigger}`),
+    ecoMode: async () => console.log('🔋 Eco mode activated'),
+    findCharger: async () => console.log('🔌 Finding nearest charger'),
+    copilot: { speak: async (msg) => console.log(`🎤 Copilot: ${msg}`) }
+};
+
+const llm = new SupremeVehicleLLM(vehicle);
+
+// 🧠 Execute SPL-V Code
+app.post('/api/spl-v/execute', async (req, res) => {
+    try {
+        const { code } = req.body;
+        const result = await llm.process(code);
+        res.json({ success: true, result });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 🎤 Voice Command
+app.post('/api/spl-v/voice', async (req, res) => {
+    try {
+        const { command } = req.body;
+        
+        // Map voice to SPL-V
+        const splCode = `
+voice "${command}" {
+    action: execute immediately
+    safety check all
+}
+`;
+        const result = await llm.process(splCode);
+        res.json({ success: true, command, result });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.listen(5001, () => {
+    console.log('🚗 SPL-V Vehicle LLM Server');
+    console.log('═══════════════════════════════');
+    console.log('   Port: 5001');
+    console.log('   Language: SPL-V v1.0');
+    console.log('   Purpose: SUPREME Vehicle Control');
+});

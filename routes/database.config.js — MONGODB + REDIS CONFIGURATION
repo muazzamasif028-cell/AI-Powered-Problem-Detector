@@ -1,0 +1,290 @@
+// ============================================================
+// 🗄️ SUPREME DATABASE CONFIGURATION v10.0
+// ============================================================
+
+const mongoose = require('mongoose');
+const Redis = require('redis');
+
+class DatabaseConfig {
+    constructor() {
+        this.mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/supreme-platform';
+        this.redisURL = process.env.REDIS_URL || 'redis://localhost:6379';
+        
+        this.mongoOptions = {
+            maxPoolSize: 50,
+            minPoolSize: 10,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+            family: 4,
+            retryWrites: true,
+            w: 'majority'
+        };
+
+        this.redisOptions = {
+            socket: {
+                reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
+            }
+        };
+
+        this.mongo = null;
+        this.redis = null;
+        this.connected = false;
+    }
+
+    // =============================================
+    // 🗄️ CONNECT ALL DATABASES
+    // =============================================
+    async connect() {
+        console.log('🗄️ [DATABASE] Connecting to databases...\n');
+
+        // Connect MongoDB
+        try {
+            this.mongo = await mongoose.connect(this.mongoURI, this.mongoOptions);
+            console.log('  ✅ MongoDB Connected — supreme-platform');
+            
+            // Create indexes
+            await this.createMongoIndexes();
+            
+        } catch (err) {
+            console.error('  ❌ MongoDB Connection Failed:', err.message);
+            throw err;
+        }
+
+        // Connect Redis
+        try {
+            this.redis = Redis.createClient({
+                url: this.redisURL,
+                ...this.redisOptions
+            });
+
+            this.redis.on('error', (err) => console.warn('  ⚠️ Redis Error:', err.message));
+            this.redis.on('connect', () => console.log('  ✅ Redis Connected'));
+            
+            await this.redis.connect();
+            
+        } catch (err) {
+            console.warn('  ⚠️ Redis Connection Failed:', err.message);
+        }
+
+        this.connected = true;
+        console.log('\n🗄️ [DATABASE] All connections established ✅\n');
+        
+        return this;
+    }
+
+    // =============================================
+    // 🗄️ MONGODB SCHEMAS
+    // =============================================
+    getSchemas() {
+        // User Schema
+        const UserSchema = new mongoose.Schema({
+            email: { type: String, required: true, unique: true },
+            password: { type: String, required: true },
+            name: { type: String, required: true },
+            role: { type: String, enum: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_ENGINEER', 'COMPANY_VIEWER', 'EXTERNAL_USER'], default: 'EXTERNAL_USER' },
+            companyId: { type: String, required: true },
+            tenantId: { type: String, required: true },
+            isActive: { type: Boolean, default: true },
+            lastLogin: Date,
+            createdAt: { type: Date, default: Date.now }
+        });
+
+        // Company Schema
+        const CompanySchema = new mongoose.Schema({
+            name: { type: String, required: true },
+            tier: { type: String, enum: ['STARTER', 'GROWING', 'BUSINESS', 'ENTERPRISE', 'GLOBAL'], default: 'STARTER' },
+            code: { type: String, unique: true },
+            industry: String,
+            size: String,
+            dna: String,
+            users: [String],
+            subscription: { type: String, default: 'TRIAL' },
+            createdAt: { type: Date, default: Date.now }
+        });
+
+        // Problem Schema
+        const ProblemSchema = new mongoose.Schema({
+            problemId: { type: String, required: true, unique: true },
+            companyId: { type: String, required: true },
+            tenantId: { type: String, required: true },
+            problem: String,
+            category: String,
+            severity: { type: String, enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], default: 'MEDIUM' },
+            status: { type: String, enum: ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'], default: 'OPEN' },
+            assignedTo: String,
+            resolution: String,
+            createdAt: { type: Date, default: Date.now },
+            resolvedAt: Date
+        });
+
+        // Transaction Schema
+        const TransactionSchema = new mongoose.Schema({
+            transactionId: { type: String, required: true, unique: true },
+            companyId: { type: String, required: true },
+            tenantId: { type: String, required: true },
+            amount: Number,
+            currency: { type: String, default: 'USD' },
+            method: String,
+            status: { type: String, enum: ['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED'], default: 'PENDING' },
+            invoice: String,
+            createdAt: { type: Date, default: Date.now }
+        });
+
+        // Audit Log Schema
+        const AuditLogSchema = new mongoose.Schema({
+            action: String,
+            userId: String,
+            userRole: String,
+            companyId: String,
+            tenantId: String,
+            ip: String,
+            method: String,
+            path: String,
+            details: mongoose.Schema.Types.Mixed,
+            timestamp: { type: Date, default: Date.now }
+        });
+
+        // Metrics Schema (Time-Series)
+        const MetricsSchema = new mongoose.Schema({
+            tenantId: { type: String, required: true },
+            type: String,
+            cpu: Number,
+            memory: Number,
+            disk: Number,
+            network: Number,
+            activeAlerts: Number,
+            timestamp: { type: Date, default: Date.now }
+        });
+
+        return {
+            User: mongoose.model('User', UserSchema),
+            Company: mongoose.model('Company', CompanySchema),
+            Problem: mongoose.model('Problem', ProblemSchema),
+            Transaction: mongoose.model('Transaction', TransactionSchema),
+            AuditLog: mongoose.model('AuditLog', AuditLogSchema),
+            Metrics: mongoose.model('Metrics', MetricsSchema)
+        };
+    }
+
+    // =============================================
+    // 🗄️ CREATE INDEXES
+    // =============================================
+    async createMongoIndexes() {
+        const db = mongoose.connection.db;
+        
+        // Users indexes
+        await db.collection('users').createIndex({ email: 1 }, { unique: true });
+        await db.collection('users').createIndex({ companyId: 1 });
+        await db.collection('users').createIndex({ tenantId: 1 });
+        
+        // Companies indexes
+        await db.collection('companies').createIndex({ code: 1 }, { unique: true });
+        await db.collection('companies').createIndex({ tenantId: 1 }, { unique: true });
+        
+        // Problems indexes
+        await db.collection('problems').createIndex({ problemId: 1 }, { unique: true });
+        await db.collection('problems').createIndex({ companyId: 1, createdAt: -1 });
+        await db.collection('problems').createIndex({ severity: 1, status: 1 });
+        await db.collection('problems').createIndex({ category: 1 });
+        
+        // Transactions indexes
+        await db.collection('transactions').createIndex({ transactionId: 1 }, { unique: true });
+        await db.collection('transactions').createIndex({ companyId: 1, createdAt: -1 });
+        
+        // Audit logs indexes
+        await db.collection('audit_logs').createIndex({ timestamp: -1 });
+        await db.collection('audit_logs').createIndex({ userId: 1, timestamp: -1 });
+        await db.collection('audit_logs').createIndex({ action: 1 });
+        
+        // Metrics indexes (TTL: 90 days)
+        await db.collection('metrics').createIndex({ timestamp: 1 }, { expireAfterSeconds: 7776000 });
+        await db.collection('metrics').createIndex({ tenantId: 1, timestamp: -1 });
+        
+        console.log('  ✅ MongoDB Indexes Created');
+    }
+
+    // =============================================
+    // 🗄️ REDIS OPERATIONS
+    // =============================================
+    async cacheGet(key) {
+        if (!this.redis?.isReady) return null;
+        try {
+            const data = await this.redis.get(key);
+            return data ? JSON.parse(data) : null;
+        } catch {
+            return null;
+        }
+    }
+
+    async cacheSet(key, value, ttl = 3600) {
+        if (!this.redis?.isReady) return;
+        try {
+            await this.redis.set(key, JSON.stringify(value), { EX: ttl });
+        } catch (err) {
+            console.warn('Redis cache set failed:', err.message);
+        }
+    }
+
+    async cacheDelete(key) {
+        if (!this.redis?.isReady) return;
+        try {
+            await this.redis.del(key);
+        } catch (err) {
+            console.warn('Redis cache delete failed:', err.message);
+        }
+    }
+
+    async cacheFlush() {
+        if (!this.redis?.isReady) return;
+        try {
+            await this.redis.flushAll();
+        } catch (err) {
+            console.warn('Redis flush failed:', err.message);
+        }
+    }
+
+    // =============================================
+    // 🗄️ HEALTH CHECK
+    // =============================================
+    async healthCheck() {
+        const health = {
+            mongodb: 'DISCONNECTED',
+            redis: 'DISCONNECTED'
+        };
+
+        try {
+            if (mongoose.connection.readyState === 1) {
+                await mongoose.connection.db.admin().ping();
+                health.mongodb = 'CONNECTED';
+            }
+        } catch (err) {
+            health.mongodb = 'ERROR: ' + err.message;
+        }
+
+        try {
+            if (this.redis?.isReady) {
+                await this.redis.ping();
+                health.redis = 'CONNECTED';
+            }
+        } catch (err) {
+            health.redis = 'ERROR: ' + err.message;
+        }
+
+        return health;
+    }
+
+    // =============================================
+    // 🗄️ DISCONNECT
+    // =============================================
+    async disconnect() {
+        if (this.mongo) await mongoose.disconnect();
+        if (this.redis) await this.redis.quit();
+        this.connected = false;
+        console.log('🗄️ [DATABASE] Disconnected');
+    }
+}
+
+// ============================================================
+// 🤫 EXPORT
+// ============================================================
+module.exports = new DatabaseConfig();

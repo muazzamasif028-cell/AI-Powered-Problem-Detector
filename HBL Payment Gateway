@@ -1,0 +1,65 @@
+// gateways/HBLGateway.js
+const BaseGateway = require('./BaseGateway');
+
+class HBLGateway extends BaseGateway {
+    constructor() {
+        const config = require('../config/gateways.config').hbl;
+        super(config);
+        this.gatewayId = 'HBL';
+    }
+
+    async processPayment(paymentData) {
+        try {
+            const transactionId = this.generateTransactionId();
+
+            const requestBody = {
+                merchantId: this.envConfig.merchantId,
+                password: this.envConfig.password,
+                accessCode: this.envConfig.accessCode,
+                transactionId,
+                amount: this.formatAmount(paymentData.amount, paymentData.currency),
+                currency: paymentData.currency || 'PKR',
+                returnURL: `https://supreme.com/payment/hbl/return?txn=${transactionId}`,
+                description: paymentData.description || 'SUPREME Payment',
+                customerName: paymentData.customerName,
+                customerEmail: paymentData.customerEmail,
+                customerPhone: paymentData.customerPhone,
+                billingAddress: paymentData.billingAddress
+            };
+
+            const response = await this.client.post('/transaction/api/initiate', requestBody);
+
+            const { data } = response;
+
+            if (data.success) {
+                return {
+                    success: true,
+                    gateway: this.gatewayId,
+                    transactionId,
+                    gatewayTransactionId: data.transactionId,
+                    amount: paymentData.amount,
+                    currency: paymentData.currency,
+                    redirectUrl: data.redirectUrl,
+                    sessionId: data.sessionId,
+                    status: 'PENDING'
+                };
+            }
+
+            throw new Error(data.message);
+
+        } catch (error) {
+            return this.handleGatewayError(error);
+        }
+    }
+
+    formatAmount(amount, currency) {
+        if (currency === 'PKR') {
+            // HBL expects amount in paisas for PKR
+            return Math.round(parseFloat(amount) * 100).toString();
+        }
+        // For USD, amount in cents
+        return Math.round(parseFloat(amount) * 100).toString();
+    }
+}
+
+module.exports = HBLGateway;

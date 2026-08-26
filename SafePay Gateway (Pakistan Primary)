@@ -1,0 +1,215 @@
+// gateways/SafePayGateway.js
+const BaseGateway = require('./BaseGateway');
+const crypto = require('crypto');
+const moment = require('moment');
+
+class SafePayGateway extends BaseGateway {
+    constructor() {
+        const config = require('../config/gateways.config').safepay;
+        super(config);
+        this.gatewayId = 'SAFEPAY';
+    }
+
+    /**
+     * Process payment through SafePay
+     */
+    async processPayment(paymentData) {
+        try {
+            const {
+                amount,
+                currency = 'PKR',
+                customerName,
+                customerEmail,
+                customerPhone,
+                description,
+                returnUrl,
+                cancelUrl,
+                metadata = {}
+            } = paymentData;
+
+            const transactionId = this.generateTransactionId();
+            
+            // Prepare SafePay request body
+            const requestBody = {
+                merchant_id: this.envConfig.apiKey,
+                order_id: transactionId,
+                amount: this.convertToPaisa(amount, currency),
+                currency: currency,
+                customer: {
+                    name: customerName,
+                    email: customerEmail,
+                    phone: customerPhone || '03000000000'
+                },
+                description: description || `Payment for order ${transactionId}`,
+                return_url: returnUrl || `https://supreme.com/payment/success?txn=${transactionId}`,
+                cancel_url: cancelUrl || `https://supreme.com/payment/cancel?txn=${transactionId}`,
+                notify_url: `https://api.supreme.com/webhooks/safepay`,
+                metadata: {
+                    ...metadata,
+                    platform: 'SUPREME',
+                    version: '14.0'
+                }
+            };
+
+            // Generate signature
+            const signature = this.generateSignature(
+                JSON.stringify(requestBody),
+                this.envConfig.apiSecret
+            );
+
+            // Make API request
+            const response = await this.client.post('/transaction/v1/create', requestBody, {
+                headers: {
+                    'X-Signature': signature,
+                    'X-API-Key': this.envConfig.apiKey
+                }
+            });
+
+            const { data } = response;
+
+            if (data.success) {
+                return {
+                    success: true,
+                    gateway: this.gatewayId,
+                    transactionId,
+                    gatewayTransactionId: data.transaction_id,
+                    amount,
+                    currency,
+                    redirectUrl: data.redirect_url,
+                    checkoutUrl: data.checkout_url,
+                    status: 'PENDING',
+                    timestamp: new Date().toISOString(),
+                    expiryTime: moment().add(30, 'minutes').toISOString()
+                };
+            } else {
+                throw new Error(data.message || 'Payment processing failed');
+            }
+
+        } catch (error) {
+            const gatewayError = this.handleError(error);
+            return {
+                success: false,
+                gateway: this.gatewayId,
+                error: gatewayError.error.message,
+                code: gatewayError.error.code,
+                timestamp: new Date().toISOString()
+            };
+        }
+    }
+
+    /**
+     * Verify payment status
+     */
+    async verifyPayment(transactionId) {
+        try {
+            const response = await this.client.get(`/transaction/v1/status/${transactionId}`, {
+                headers: {
+                    'X-API-Key': this.envConfig.apiKey
+                }
+            });
+
+            const { data } = response;
+
+            return {
+                success: data.status === 'COMPLETED',
+                gateway: this.gatewayId,
+                transactionId,
+                gatewayTransactionId: data.gateway_transaction_id,
+                status: this.mapStatus(data.status),
+                amount: this.convertFromPaisa(data.amount),
+                currency: data.currency,
+                paymentMethod: data.payment_method,
+                cardLast4: data.card_last4,
+                cardBrand: data.card_brand,
+                paidAt: data.completed_at,
+                receiptUrl: data.receipt_url
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                gateway: this.gatewayId,
+                transactionId,
+                error: error.message,
+                status: 'UNKNOWN'
+            };
+        }
+    }
+
+    /**
+     * Process refund
+     */
+    async processRefund(transactionId, amount = null) {
+        try {
+            const requestBody = {
+                transaction_id: transactionId,
+                amount: amount ? this.convertToPaisa(amount) : undefined, // Full refund if no amount
+                reason: 'Customer request'
+            };
+
+            const signature = this.generateSignature(
+                JSON.stringify(requestBody),
+                this.envConfig.apiSecret
+            );
+
+            const response = await this.client.post('/transaction/v1/refund', requestBody, {
+                headers: {
+                    'X-Signature': signature,
+                    'X-API-Key': this.envConfig.apiKey
+                }
+            });
+
+            const { data } = response;
+
+            return {
+                success: data.success,
+                gateway: this.gatewayId,
+                originalTransactionId: transactionId,
+                refundTransactionId: data.refund_id,
+                refundedAmount: this.convertFromPaisa(data.refunded_amount),
+                currency: data.currency,
+                status: data.status,
+                refundedAt: data.created_at
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                gateway: this.gatewayId,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Convert amount to paisa (SafePay uses smallest currency unit)
+     */
+    convertToPaisa(amount, currency = 'PKR') {
+        const multiplier = currency === 'PKR' ? 100 : 100; // PKR: paisa, USD: cents
+        return Math.round(parseFloat(amount) * multiplier);
+    }
+
+    /**
+     * Convert from paisa to main currency
+     */
+    convertFromPaisa(amount, currency = 'PKR') {
+        return parseFloat(amount) / 100;
+    }
+
+    /**
+     * Map SafePay status to standard status
+     */
+    mapStatus(safePayStatus) {
+        const statusMap = {
+            'PENDING': 'PENDING',
+            'COMPLETED': 'SUCCESS',
+            'FAILED': 'FAILED',
+            'CANCELLED': 'CANCELLED',
+            'REFUNDED': 'REFUNDED',
+            'EXPIRED': 'EXPIRED'
+        };
+        return statusMap[safePayStatus] || 'UNKNOWN';
+    }
+}
+
+module.exports = SafePayGateway;

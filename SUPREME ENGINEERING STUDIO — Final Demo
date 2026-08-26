@@ -1,0 +1,80 @@
+// ============================================================
+// 🏗️ SUPREME ENGINEERING STUDIO — Final Demo
+// ============================================================
+const SupremeSaaS = require('./saas/SupremeSaaS');
+
+async function demo() {
+    console.log('🏗️ SUPREME ENGINEERING STUDIO');
+    console.log('═══════════════════════════════\n');
+    
+    const saas = new SupremeSaaS();
+    
+    // Register users at different tiers
+    console.log('👤 REGISTERING USERS:\n');
+    
+    const student = await saas.registerUser({
+        name: 'Ahmed Khan',
+        email: 'ahmed@student.com'
+    });
+    console.log(`   🟢 Ahmed — Basic Plan (Free Trial)\n`);
+    
+    const engineer = await saas.registerUser({
+        name: 'Sarah Chen',
+        email: 'sarah@freelance.com',
+        company: 'Chen Engineering'
+    });
+    await saas.subscribe(engineer.tenantId, 'PRO', 'ANNUAL');
+    console.log(`   🔵 Sarah — Pro Plan ($700/year — Save $140)\n`);
+    
+    const startup = await saas.registerUser({
+        name: 'TechVenture Labs',
+        email: 'team@techventure.com',
+        company: 'TechVenture Labs Inc.'
+    });
+    await saas.subscribe(startup.tenantId, 'PRO', 'MONTHLY');
+    console.log(`   🔵 TechVenture — Pro Plan ($70/month)\n`);
+    
+    const enterprise = await saas.registerUser({
+        name: 'Global Motors Corp',
+        email: 'engineering@globalmotors.com',
+        company: 'Global Motors Corp.'
+    });
+    await saas.subscribe(enterprise.tenantId, 'ENTERPRISE', 'ANNUAL');
+    console.log(`   🟣 Global Motors — Enterprise Plan ($1,000/year)\n`);
+    
+    // Feature access checks
+    console.log('🔍 FEATURE ACCESS CHECKS:\n');
+    
+    const studentBOM = saas.checkAccess(student.tenantId, 'BOM_GENERATOR');
+    console.log(`   Student — BOM Generator: ${studentBOM.allowed ? '✅' : '❌ ' + studentBOM.message}`);
+    
+    const engineerBOM = saas.checkAccess(engineer.tenantId, 'BOM_GENERATOR');
+    console.log(`   Engineer — BOM Generator: ${engineerBOM.allowed ? '✅' : '❌'}`);
+    
+    const startupAPI = saas.checkAccess(startup.tenantId, 'API_ACCESS');
+    console.log(`   Startup — API Access: ${startupAPI.allowed ? '✅' : '❌ ' + startupAPI.message}`);
+    
+    const enterpriseAPI = saas.checkAccess(enterprise.tenantId, 'API_ACCESS');
+    console.log(`   Enterprise — API Access: ${enterpriseAPI.allowed ? '✅' : '❌'}`);
+    
+    // Add-ons
+    console.log('\n📦 ADD-ONS:\n');
+    
+    await saas.addAddon(engineer.tenantId, 'AI_CREDITS');
+    await saas.addAddon(startup.tenantId, 'PREMIUM_AI');
+    await saas.addAddon(enterprise.tenantId, 'HIGH_PERFORMANCE');
+    
+    // Platform Analytics
+    console.log('\n📈 PLATFORM ANALYTICS:\n');
+    
+    const analytics = saas.getPlatformAnalytics();
+    console.log(`   Total Customers: ${analytics.customers.total}`);
+    console.log(`   MRR: ${analytics.revenue.mrr}`);
+    console.log(`   ARR: ${analytics.revenue.arr}`);
+    console.log(`   Conversion Rate: ${analytics.subscriptions.conversionRate}`);
+    console.log(`   Most Popular: ${analytics.popularPlan}`);
+    
+    console.log('\n✅ SUPREME Engineering Studio Demo Complete!\n');
+}
+
+demo();

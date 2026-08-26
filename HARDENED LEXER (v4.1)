@@ -1,0 +1,142 @@
+// spl-v/compiler/SupremeVehicleLexer.js
+export class SupremeVehicleLexer {
+    constructor(source) {
+        this.source = source;
+        this.pos = 0;
+        this.line = 1;
+        this.col = 1;
+        this.tokens = [];
+    }
+
+    tokenize() {
+        while (this.pos < this.source.length) {
+            const ch = this.source[this.pos];
+
+            // Whitespace
+            if (/\s/.test(ch)) {
+                if (ch === '\n') { this.line++; this.col = 1; }
+                else this.col++;
+                this.pos++;
+                continue;
+            }
+
+            // Line comment
+            if (ch === '/' && this.source[this.pos + 1] === '/') {
+                while (this.pos < this.source.length && this.source[this.pos] !== '\n') this.pos++;
+                continue;
+            }
+
+            // Block comment
+            if (ch === '/' && this.source[this.pos + 1] === '*') {
+                this.pos += 2;
+                while (this.pos < this.source.length && 
+                       !(this.source[this.pos] === '*' && this.source[this.pos + 1] === '/')) {
+                    if (this.source[this.pos] === '\n') { this.line++; this.col = 1; }
+                    this.pos++;
+                }
+                this.pos += 2;
+                continue;
+            }
+
+            // String (handles both " and ')
+            if (ch === '"' || ch === "'") {
+                const quote = ch;
+                let val = ''; this.pos++;
+                while (this.pos < this.source.length && this.source[this.pos] !== quote) {
+                    if (this.source[this.pos] === '\\') { this.pos++; val += this.source[this.pos]; }
+                    else val += this.source[this.pos];
+                    this.pos++;
+                }
+                this.pos++; // skip closing quote
+                this.tokens.push({ type: 'STRING', value: val, line: this.line, col: this.col });
+                continue;
+            }
+
+            // Number with unit (e.g., 120 kmh, 85 %, 10 cm, 22 celsius)
+            if (/[0-9]/.test(ch)) {
+                let val = '', unit = '';
+                while (this.pos < this.source.length && /[0-9.]/.test(this.source[this.pos])) {
+                    val += this.source[this.pos++];
+                }
+                // Read unit (letters and %)
+                while (this.pos < this.source.length && /[a-zA-Z%]/.test(this.source[this.pos])) {
+                    unit += this.source[this.pos++];
+                }
+                this.tokens.push({ 
+                    type: 'NUMBER', 
+                    value: parseFloat(val), 
+                    unit: unit || null, 
+                    line: this.line, 
+                    col: this.col 
+                });
+                continue;
+            }
+
+            // Identifiers & Keywords
+            if (/[a-zA-Z_]/.test(ch)) {
+                let val = '';
+                while (this.pos < this.source.length && /[a-zA-Z0-9_]/.test(this.source[this.pos])) {
+                    val += this.source[this.pos++];
+                }
+
+                const keywords = new Set([
+                    'vehicle', 'copilot', 'autonomous', 'hardware', 'safety', 'pillar', 'pillars',
+                    'fleet', 'ota', 'main', 'startup', 'driving_loop', 'shutdown',
+                    'on', 'say', 'suggest', 'set', 'mode', 'navigation', 'lane_keeping',
+                    'adaptive_cruise', 'parking', 'sensors', 'motor', 'battery', 'brakes',
+                    'steering', 'can_bus', 'every', 'if', 'else', 'return', 'true', 'false',
+                    'parallel', 'task', 'priority', 'period', 'deadline', 'watchdog',
+                    'memory', 'hal', 'kernel', 'concurrency', 'actor', 'channel',
+                    'check_all_sensors', 'verify_safety_pillars', 'read_sensors',
+                    'fuse_data', 'plan_path', 'execute_control', 'park_safely', 'lock_vehicle'
+                ]);
+
+                this.tokens.push({
+                    type: keywords.has(val) ? 'KEYWORD' : 'IDENTIFIER',
+                    value: val,
+                    line: this.line,
+                    col: this.col
+                });
+                continue;
+            }
+
+            // Multi-character operators
+            const multiOps = [
+                ['<=', 'LTE'], ['>=', 'GTE'], ['==', 'EQ'], ['!=', 'NEQ'],
+                ['&&', 'AND'], ['||', 'OR'], ['->', 'ARROW'], ['=>', 'FATARROW'],
+                ['::', 'DOUBLECOLON']
+            ];
+            let matched = false;
+            for (const [op, type] of multiOps) {
+                if (this.source.startsWith(op, this.pos)) {
+                    this.tokens.push({ type, value: op, line: this.line, col: this.col });
+                    this.pos += op.length;
+                    this.col += op.length;
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched) continue;
+
+            // Single-character tokens
+            const singles = {
+                '{': 'LBRACE', '}': 'RBRACE', '(': 'LPAREN', ')': 'RPAREN',
+                '[': 'LBRACKET', ']': 'RBRACKET', ':': 'COLON', ';': 'SEMICOLON',
+                ',': 'COMMA', '.': 'DOT', '<': 'LT', '>': 'GT', '=': 'ASSIGN',
+                '%': 'PERCENT', '+': 'PLUS', '-': 'MINUS', '*': 'STAR', '/': 'SLASH',
+                '!': 'NOT'
+            };
+            if (singles[ch]) {
+                this.tokens.push({ type: singles[ch], value: ch, line: this.line, col: this.col });
+                this.pos++;
+                this.col++;
+                continue;
+            }
+
+            throw new Error(`Unexpected character '${ch}' at line ${this.line}, col ${this.col}`);
+        }
+
+        this.tokens.push({ type: 'EOF', value: null, line: this.line, col: this.col });
+        return this.tokens;
+    }
+}

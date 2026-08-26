@@ -1,0 +1,410 @@
+// ============================================================
+// 🔴 services/cache/redis.service.js
+// SUPREME Redis Distributed Cache Service v17.0
+// ============================================================
+const Redis = require('ioredis');
+const Redlock = require('redlock');
+
+class RedisService {
+    constructor() {
+        this.client = null;
+        this.redlock = null;
+        this.isConnected = false;
+        this.defaultTTL = 300; // 5 minutes
+        this.prefix = 'supreme:';
+        this.initialize();
+    }
+
+    /**
+     * Initialize Redis connection
+     */
+    initialize() {
+        const config = {
+            host: process.env.REDIS_HOST || 'localhost',
+            port: parseInt(process.env.REDIS_PORT) || 6379,
+            password: process.env.REDIS_PASSWORD || undefined,
+            db: parseInt(process.env.REDIS_DB) || 0,
+            keyPrefix: this.prefix,
+            retryStrategy: (times) => {
+                const delay = Math.min(times * 50, 2000);
+                return delay;
+            },
+            maxRetriesPerRequest: 3,
+            enableReadyCheck: true,
+            lazyConnect: true
+        };
+
+        // Cluster mode
+        if (process.env.REDIS_CLUSTER === 'true') {
+            const nodes = (process.env.REDIS_CLUSTER_NODES || 'localhost:7000')
+                .split(',')
+                .map(node => {
+                    const [host, port] = node.split(':');
+                    return { host, port: parseInt(port) };
+                });
+            
+            this.client = new Redis.Cluster(nodes, {
+                redisOptions: { password: config.password }
+            });
+        } else {
+            this.client = new Redis(config);
+        }
+
+        // Initialize Redlock for distributed locking
+        this.redlock = new Redlock([this.client], {
+            driftFactor: 0.01,
+            retryCount: 10,
+            retryDelay: 200,
+            retryJitter: 200
+        });
+
+        // Event handlers
+        this.client.on('connect', () => {
+            this.isConnected = true;
+            console.log('🔴 Redis connected');
+        });
+
+        this.client.on('error', (err) => {
+            console.error('Redis error:', err.message);
+            this.isConnected = false;
+        });
+
+        this.client.on('close', () => {
+            this.isConnected = false;
+            console.log('Redis connection closed');
+        });
+    }
+
+    /**
+     * Connect to Redis
+     */
+    async connect() {
+        if (!this.isConnected) {
+            await this.client.connect();
+        }
+        return this.isConnected;
+    }
+
+    // =============================================
+    // 📦 BASIC CACHE OPERATIONS
+    // =============================================
+
+    /**
+     * Get cached value
+     */
+    async get(key) {
+        try {
+            const value = await this.client.get(key);
+            return value ? JSON.parse(value) : null;
+        } catch (error) {
+            console.error('Redis GET error:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Set cached value
+     */
+    async set(key, value, ttl = this.defaultTTL) {
+        try {
+            const serialized = JSON.stringify(value);
+            if (ttl > 0) {
+                await this.client.setex(key, ttl, serialized);
+            } else {
+                await this.client.set(key, serialized);
+            }
+            return true;
+        } catch (error) {
+            console.error('Redis SET error:', error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Get or set (with callback)
+     */
+    async getOrSet(key, callback, ttl = this.defaultTTL) {
+        const cached = await this.get(key);
+        if (cached !== null) {
+            return cached;
+        }
+
+        const value = await callback();
+        await this.set(key, value, ttl);
+        return value;
+    }
+
+    /**
+     * Delete cached value
+     */
+    async delete(key) {
+        try {
+            await this.client.del(key);
+            return true;
+        } catch (error) {
+            console.error('Redis DEL error:', error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Check if key exists
+     */
+    async exists(key) {
+        try {
+            return await this.client.exists(key) === 1;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Increment counter
+     */
+    async increment(key, amount = 1) {
+        try {
+            return await this.client.incrby(key, amount);
+        } catch (error) {
+            return 0;
+        }
+    }
+
+    // =============================================
+    // 🔒 DISTRIBUTED LOCKING
+    // =============================================
+
+    /**
+     * Acquire distributed lock
+     */
+    async lock(resource, ttl = 30000) {
+        try {
+            const lock = await this.redlock.acquire([`lock:${resource}`], ttl);
+            return lock;
+        } catch (error) {
+            console.error('Lock acquisition failed:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Release distributed lock
+     */
+    async unlock(lock) {
+        try {
+            await lock.release();
+            return true;
+        } catch (error) {
+            console.error('Lock release failed:', error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Execute function with distributed lock
+     */
+    async withLock(resource, callback, ttl = 30000) {
+        const lock = await this.lock(resource, ttl);
+        
+        if (!lock) {
+            throw new Error(`Could not acquire lock: ${resource}`);
+        }
+
+        try {
+            return await callback();
+        } finally {
+            await this.unlock(lock);
+        }
+    }
+
+    // =============================================
+    // 💰 RATE LIMITING & COUNTERS
+    // =============================================
+
+    /**
+     * Check rate limit
+     */
+    async checkRateLimit(key, maxRequests, windowMs) {
+        const current = await this.increment(`ratelimit:${key}`);
+        
+        if (current === 1) {
+            await this.client.expire(`ratelimit:${key}`, Math.ceil(windowMs / 1000));
+        }
+        
+        return {
+            allowed: current <= maxRequests,
+            current,
+            max: maxRequests,
+            remaining: Math.max(0, maxRequests - current),
+            resetAt: new Date(Date.now() + windowMs)
+        };
+    }
+
+    /**
+     * Track promo code usage (prevents overuse across servers)
+     */
+    async trackPromoUsage(promoCode, maxUses = 100) {
+        const key = `promo:${promoCode}:usage`;
+        const current = await this.increment(key);
+        
+        if (current === 1) {
+            // Set expiry to 1 year
+            await this.client.expire(key, 365 * 24 * 60 * 60);
+        }
+        
+        return {
+            valid: current <= maxUses,
+            used: current,
+            remaining: Math.max(0, maxUses - current)
+        };
+    }
+
+    // =============================================
+    // 📊 SESSION & STATE MANAGEMENT
+    // =============================================
+
+    /**
+     * Store session
+     */
+    async setSession(sessionId, data, ttl = 86400) {
+        const key = `session:${sessionId}`;
+        return this.set(key, data, ttl);
+    }
+
+    /**
+     * Get session
+     */
+    async getSession(sessionId) {
+        const key = `session:${sessionId}`;
+        return this.get(key);
+    }
+
+    /**
+     * Delete session
+     */
+    async deleteSession(sessionId) {
+        const key = `session:${sessionId}`;
+        return this.delete(key);
+    }
+
+    // =============================================
+    // 🔄 QUEUE OPERATIONS
+    // =============================================
+
+    /**
+     * Push to queue
+     */
+    async pushToQueue(queueName, data) {
+        const key = `queue:${queueName}`;
+        await this.client.rpush(key, JSON.stringify(data));
+    }
+
+    /**
+     * Pop from queue (blocking)
+     */
+    async popFromQueue(queueName, timeout = 0) {
+        const key = `queue:${queueName}`;
+        const result = timeout > 0 
+            ? await this.client.blpop(key, timeout)
+            : await this.client.lpop(key);
+        
+        if (result) {
+            const value = Array.isArray(result) ? result[1] : result;
+            return JSON.parse(value);
+        }
+        return null;
+    }
+
+    /**
+     * Get queue length
+     */
+    async getQueueLength(queueName) {
+        const key = `queue:${queueName}`;
+        return this.client.llen(key);
+    }
+
+    // =============================================
+    // 📈 PUB/SUB
+    // =============================================
+
+    /**
+     * Publish message
+     */
+    async publish(channel, message) {
+        await this.client.publish(channel, JSON.stringify(message));
+    }
+
+    /**
+     * Subscribe to channel
+     */
+    async subscribe(channel, callback) {
+        const subscriber = this.client.duplicate();
+        await subscriber.subscribe(channel);
+        
+        subscriber.on('message', (ch, message) => {
+            callback(JSON.parse(message));
+        });
+        
+        return subscriber;
+    }
+
+    // =============================================
+    // 🏥 HEALTH CHECK
+    // =============================================
+
+    /**
+     * Health check
+     */
+    async healthCheck() {
+        try {
+            const ping = await this.client.ping();
+            const memory = await this.client.info('memory');
+            const clients = await this.client.info('clients');
+            
+            return {
+                status: ping === 'PONG' ? 'healthy' : 'unhealthy',
+                connected: this.isConnected,
+                memory,
+                clients
+            };
+        } catch (error) {
+            return {
+                status: 'error',
+                connected: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Get service stats
+     */
+    async getStats() {
+        try {
+            const info = await this.client.info();
+            const dbsize = await this.client.dbsize();
+            
+            return {
+                connected: this.isConnected,
+                databaseSize: dbsize,
+                uptime: process.uptime(),
+                info: info.split('\n').slice(0, 20).join('\n')
+            };
+        } catch (error) {
+            return { error: error.message };
+        }
+    }
+
+    /**
+     * Graceful shutdown
+     */
+    async shutdown() {
+        console.log('🔴 Shutting down Redis...');
+        await this.client.quit();
+        this.isConnected = false;
+    }
+}
+
+// Singleton
+const redisService = new RedisService();
+
+module.exports = redisService;

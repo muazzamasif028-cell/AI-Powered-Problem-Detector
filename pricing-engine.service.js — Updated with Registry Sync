@@ -1,0 +1,59 @@
+// Add to existing PricingEngine class:
+
+/**
+ * Get dynamic TLD price from registry sync
+ */
+getDynamicTLDPrice(tld) {
+    // First check registry sync for real-time pricing
+    const registryPrice = registrySyncService.getRegistryPrice(tld);
+    
+    if (registryPrice) {
+        // Add SUPREME margin
+        const margin = this.calculateMargin(tld);
+        return {
+            register: (registryPrice.register + margin).toFixed(2),
+            renew: (registryPrice.renew + margin).toFixed(2),
+            transfer: (registryPrice.transfer + margin).toFixed(2),
+            registry_cost: registryPrice.register,
+            margin: margin,
+            source: 'registry_api',
+            syncedAt: registryPrice.syncedAt
+        };
+    }
+    
+    // Fallback to static pricing
+    return this.getStaticTLDPrice(tld);
+}
+
+/**
+ * Calculate margin based on TLD tier
+ */
+calculateMargin(tld) {
+    const premiumTLDs = ['com', 'net', 'org', 'ai', 'io', 'cloud', 'app', 'dev'];
+    const standardMargin = 3.50;
+    const premiumMargin = 5.00;
+    
+    return premiumTLDs.includes(tld) ? premiumMargin : standardMargin;
+}
+
+/**
+ * Get static TLD price (fallback)
+ */
+getStaticTLDPrice(tld) {
+    const tldLower = tld.toLowerCase();
+    
+    for (const [category, tlds] of Object.entries(this.pricing.tld_pricing)) {
+        if (tlds[tldLower]) {
+            return { ...tlds[tldLower], source: 'static_database' };
+        }
+    }
+    
+    return {
+        register: 14.99,
+        renew: 14.99,
+        transfer: 12.99,
+        registry_cost: 10.00,
+        margin: 4.99,
+        source: 'default'
+    };
+}

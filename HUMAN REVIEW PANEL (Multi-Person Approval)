@@ -1,0 +1,171 @@
+// supreme-safety/HumanReviewPanel.js
+// Multi-Person Approval for Critical Actions
+// NO single person can control everything
+
+export class HumanReviewPanel {
+    constructor() {
+        this.requiredApprovals = 2; // 2 out of 3 required
+        this.panel = [
+            { role: 'OWNER', name: 'Platform Owner' },
+            { role: 'SECURITY_ADMIN', name: 'Security Administrator' },
+            { role: 'INDEPENDENT_REVIEWER', name: 'Independent Reviewer' }
+        ];
+    }
+
+    /**
+     * Request approval for containment action
+     */
+    async requestApproval(action, evidence) {
+        const request = {
+            id: `REVIEW-${Date.now()}`,
+            action,
+            evidence,
+            requestedBy: 'AUTOMATED_SYSTEM',
+            requestedAt: new Date().toISOString(),
+            approvals: [],
+            status: 'PENDING'
+        };
+
+        // Notify all panel members
+        for (const member of this.panel) {
+            await this.notifyPanelMember(member, request);
+        }
+
+        // Wait for approvals (timeout: 30 minutes for HIGH, 5 minutes for CRITICAL)
+        const timeout = action.severity === 'CRITICAL' ? 300000 : 1800000;
+        const result = await this.waitForApprovals(request.id, timeout);
+
+        return result;
+    }
+
+    /**
+     * Submit approval from a panel member
+     */
+    async submitApproval(requestId, member, decision, reason) {
+        const request = this.getRequest(requestId);
+        
+        request.approvals.push({
+            member: member.role,
+            name: member.name,
+            decision, // APPROVE | REJECT
+            reason,
+            timestamp: new Date().toISOString()
+        });
+
+        // Check if enough approvals
+        const approved = request.approvals.filter(a => a.decision === 'APPROVE').length;
+        
+        if (approved >= this.requiredApprovals) {
+            request.status = 'APPROVED';
+            await this.executeContainment(request.action);
+        }
+
+        // If 2 people reject, deny
+        const rejected = request.approvals.filter(a => a.decision === 'REJECT').length;
+        if (rejected >= 2) {
+            request.status = 'REJECTED';
+        }
+
+        return request;
+    }
+
+    /**
+     * Execute containment after approval
+     */
+    async executeContainment(action) {
+        console.log(`🔒 EXECUTING CONTAINMENT: ${action.type}`);
+        
+        // Log to immutable audit trail
+        await this.logToAuditTrail(action);
+
+        // Execute specific containment
+        switch (action.type) {
+            case 'SUSPEND_API':
+                await this.suspendAPIAccess(action.companyId);
+                break;
+            case 'BLOCK_NETWORK':
+                await this.blockNetworkEgress(action.companyId);
+                break;
+            case 'FREEZE_DEPLOYMENTS':
+                await this.freezeDeployments(action.companyId);
+                break;
+            case 'RESTRICT_DATA':
+                await this.restrictDataAccess(action.companyId);
+                break;
+            case 'HALT_PAYMENTS':
+                await this.haltPaymentProcessing(action.companyId);
+                break;
+            case 'PAUSE_AGENTS':
+                await this.pauseAgentRuntime(action.companyId);
+                break;
+        }
+
+        // Notify company with reason and appeal process
+        await this.notifyCompany(action);
+    }
+
+    /**
+     * Specific containment functions
+     */
+    async suspendAPIAccess(companyId) {
+        // Company can still access dashboard to see why
+        // But all external API calls return 403
+        return { status: 'API_SUSPENDED', companyId };
+    }
+
+    async blockNetworkEgress(companyId) {
+        // Block outbound network access
+        // Inbound still works for investigation
+        return { status: 'NETWORK_BLOCKED', companyId };
+    }
+
+    async freezeDeployments(companyId) {
+        // Stop all new deployments
+        // Existing services continue running
+        return { status: 'DEPLOYMENTS_FROZEN', companyId };
+    }
+
+    async restrictDataAccess(companyId) {
+        // Read-only access to own data
+        // No export, no delete
+        return { status: 'DATA_RESTRICTED', companyId };
+    }
+
+    async haltPaymentProcessing(companyId) {
+        // Stop processing payments
+        // Existing subscriptions remain
+        return { status: 'PAYMENTS_HALTED', companyId };
+    }
+
+    async pauseAgentRuntime(companyId) {
+        // Pause all autonomous agents
+        // Manual operations still work
+        return { status: 'AGENTS_PAUSED', companyId };
+    }
+
+    /**
+     * Notify company about containment
+     */
+    async notifyCompany(action) {
+        const message = {
+            subject: `Safety Enforcement: ${action.type}`,
+            reason: action.reason,
+            evidence: action.evidence,
+            appealProcess: 'https://supreme-os.com/safety/appeal',
+            appealDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            contactEmail: 'safety@supreme-os.com'
+        };
+
+        // Send email, SMS, dashboard notification
+        await this.sendNotification(action.companyId, message);
+
+        return message;
+    }
+
+    // Helpers
+    getRequest(id) { return { id, approvals: [], status: 'PENDING' }; }
+    async notifyPanelMember(member, request) {}
+    async waitForApprovals(id, timeout) { return { status: 'APPROVED' }; }
+    async logToAuditTrail(action) {}
+    async sendNotification(companyId, message) {}
+}

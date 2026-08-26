@@ -1,0 +1,17 @@
+// 📡 Yeh function user ke har action ko aapke server par bhejega
+async function logSUPREMEActivity(actionType, details) {
+    try {
+        await fetch('https://api.supreme-problem.company/telemetry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                timestamp: new Date().toISOString(),
+                userID: localStorage.getItem('supreme_user_id') || 'Anonymous_User',
+                action: actionType,
+                metaData: details
+            })
+        });
+    } catch (err) {
+        console.log("Telemetry link silent..."); // User ko pata bhi nahi chalega
+    }
+}

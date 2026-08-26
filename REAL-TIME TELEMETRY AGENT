@@ -1,0 +1,385 @@
+// ============================================================
+// 🔌 telemetry/agent/TelemetryAgent.js
+// SUPREME Lightweight Telemetry Agent
+// Size: <5MB | Latency: <1ms | Protocol: gRPC + WebSocket
+// ============================================================
+const BehaviorCollector = require('./collectors/BehaviorCollector');
+const CrashCollector = require('./collectors/CrashCollector');
+const QueryCollector = require('./collectors/QueryCollector');
+const PerformanceCollector = require('./collectors/PerformanceCollector');
+const NetworkCollector = require('./collectors/NetworkCollector');
+const E2EEncryption = require('./encryption/E2EEncryption');
+const GRPCTransport = require('./transport/GRPCTransport');
+const WebSocketTransport = require('./transport/WebSocketTransport');
+const os = require('os');
+const { v4: uuidv4 } = require('uuid');
+
+class TelemetryAgent {
+    constructor(config = {}) {
+        this.config = {
+            agentId: config.agentId || `SUPREME-AGENT-${uuidv4().slice(0, 8)}`,
+            serverEndpoint: config.serverEndpoint || 'grpc://telemetry.supreme.com:9090',
+            wsEndpoint: config.wsEndpoint || 'wss://telemetry.supreme.com/ws',
+            encryptionKey: config.encryptionKey,
+            batchSize: config.batchSize || 50,
+            flushInterval: config.flushInterval || 5000, // 5 seconds
+            maxRetries: config.maxRetries || 3,
+            compressionEnabled: true,
+            enabled: true
+        };
+
+        // Core components
+        this.collectors = new Map();
+        this.encryption = new E2EEncryption(this.config.encryptionKey);
+        this.grpcTransport = new GRPCTransport(this.config);
+        this.wsTransport = new WebSocketTransport(this.config);
+        
+        // State
+        this.state = {
+            connected: false,
+            lastFlush: null,
+            totalEvents: 0,
+            errors: 0,
+            uptime: 0,
+            latency: 0
+        };
+
+        // Event buffer
+        this.eventBuffer = [];
+        this.flushTimer = null;
+
+        // System info
+        this.systemInfo = this.collectSystemInfo();
+    }
+
+    /**
+     * Initialize all collectors and start telemetry
+     */
+    async initialize() {
+        console.log(`🔌 [TELEMETRY AGENT]: Initializing ${this.config.agentId}...`);
+        const startTime = Date.now();
+
+        try {
+            // Register all collectors
+            this.registerCollector('behavior', new BehaviorCollector());
+            this.registerCollector('crash', new CrashCollector());
+            this.registerCollector('query', new QueryCollector());
+            this.registerCollector('performance', new PerformanceCollector());
+            this.registerCollector('network', new NetworkCollector());
+
+            // Connect to telemetry server
+            await this.connect();
+
+            // Start periodic flush
+            this.startFlushInterval();
+
+            // Start crash handler
+            this.setupCrashHandlers();
+
+            // Send initial system info
+            await this.sendSystemInfo();
+
+            this.state.uptime = Date.now();
+            this.state.latency = Date.now() - startTime;
+
+            console.log(`✅ [TELEMETRY AGENT]: Ready (${this.state.latency}ms)`);
+            
+            return { success: true, agentId: this.config.agentId };
+            
+        } catch (error) {
+            console.error('❌ [TELEMETRY AGENT]: Initialization failed:', error);
+            this.state.errors++;
+            throw error;
+        }
+    }
+
+    /**
+     * Register a data collector
+     */
+    registerCollector(name, collector) {
+        this.collectors.set(name, collector);
+        
+        // Listen for collector events
+        collector.on('data', async (data) => {
+            await this.handleCollectorData(name, data);
+        });
+
+        collector.on('error', (error) => {
+            this.state.errors++;
+            console.error(`[COLLECTOR ERROR] ${name}:`, error);
+        });
+
+        console.log(`📡 Collector registered: ${name}`);
+    }
+
+    /**
+     * Handle data from collectors
+     */
+    async handleCollectorData(collectorName, rawData) {
+        if (!this.config.enabled) return;
+
+        const event = {
+            id: uuidv4(),
+            agentId: this.config.agentId,
+            collector: collectorName,
+            timestamp: new Date().toISOString(),
+            systemInfo: this.systemInfo,
+            data: rawData
+        };
+
+        // Add to buffer
+        this.eventBuffer.push(event);
+        this.state.totalEvents++;
+
+        // Flush if buffer is full
+        if (this.eventBuffer.length >= this.config.batchSize) {
+            await this.flush();
+        }
+    }
+
+    /**
+     * Connect to telemetry server
+     */
+    async connect() {
+        try {
+            // Try gRPC first
+            await this.grpcTransport.connect();
+            this.state.connected = true;
+            console.log('🔗 [TELEMETRY]: gRPC connected');
+        } catch (grpcError) {
+            console.warn('⚠️ gRPC failed, falling back to WebSocket');
+            
+            // Fallback to WebSocket
+            await this.wsTransport.connect();
+            this.state.connected = true;
+            console.log('🔗 [TELEMETRY]: WebSocket connected');
+        }
+    }
+
+    /**
+     * Start periodic flush
+     */
+    startFlushInterval() {
+        this.flushTimer = setInterval(async () => {
+            if (this.eventBuffer.length > 0) {
+                await this.flush();
+            }
+        }, this.config.flushInterval);
+
+        // Keep connection alive
+        setInterval(() => {
+            this.sendHeartbeat();
+        }, 30000); // Every 30 seconds
+    }
+
+    /**
+     * Flush events to server
+     */
+    async flush() {
+        if (this.eventBuffer.length === 0) return;
+
+        const events = [...this.eventBuffer];
+        this.eventBuffer = [];
+
+        try {
+            // Encrypt payload
+            const encryptedPayload = await this.encryption.encrypt({
+                agentId: this.config.agentId,
+                events,
+                timestamp: new Date().toISOString()
+            });
+
+            // Send via active transport
+            const transport = this.grpcTransport.isConnected() ? 
+                this.grpcTransport : this.wsTransport;
+
+            const startTime = Date.now();
+            
+            await transport.send(encryptedPayload);
+            
+            this.state.latency = Date.now() - startTime;
+            this.state.lastFlush = new Date().toISOString();
+            
+            console.log(`📤 Flushed ${events.length} events (${this.state.latency}ms)`);
+            
+        } catch (error) {
+            console.error('❌ Flush failed:', error);
+            this.state.errors++;
+            
+            // Re-queue events on failure (with retry limit)
+            if (this.state.errors < this.config.maxRetries) {
+                this.eventBuffer.unshift(...events);
+            }
+        }
+    }
+
+    /**
+     * Send heartbeat to keep connection alive
+     */
+    async sendHeartbeat() {
+        try {
+            const heartbeat = {
+                type: 'HEARTBEAT',
+                agentId: this.config.agentId,
+                timestamp: new Date().toISOString(),
+                metrics: {
+                    uptime: Date.now() - this.state.uptime,
+                    totalEvents: this.state.totalEvents,
+                    bufferSize: this.eventBuffer.length,
+                    errors: this.state.errors,
+                    memoryUsage: process.memoryUsage(),
+                    cpuUsage: process.cpuUsage()
+                }
+            };
+
+            const transport = this.grpcTransport.isConnected() ? 
+                this.grpcTransport : this.wsTransport;
+
+            await transport.send(await this.encryption.encrypt(heartbeat));
+            
+        } catch (error) {
+            console.error('💓 Heartbeat failed:', error);
+            this.state.connected = false;
+            await this.reconnect();
+        }
+    }
+
+    /**
+     * Send system information
+     */
+    async sendSystemInfo() {
+        const systemInfo = {
+            type: 'SYSTEM_INFO',
+            agentId: this.config.agentId,
+            timestamp: new Date().toISOString(),
+            data: this.systemInfo
+        };
+
+        const transport = this.grpcTransport.isConnected() ? 
+            this.grpcTransport : this.wsTransport;
+
+        await transport.send(await this.encryption.encrypt(systemInfo));
+    }
+
+    /**
+     * Reconnect on connection loss
+     */
+    async reconnect() {
+        console.log('🔄 [TELEMETRY]: Reconnecting...');
+        
+        let retries = 0;
+        const maxRetries = 5;
+        const baseDelay = 1000;
+
+        while (retries < maxRetries) {
+            try {
+                await this.connect();
+                console.log('✅ [TELEMETRY]: Reconnected');
+                return;
+            } catch (error) {
+                retries++;
+                const delay = baseDelay * Math.pow(2, retries);
+                console.log(`⏳ Retry ${retries}/${maxRetries} in ${delay}ms`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+
+        console.error('❌ [TELEMETRY]: Max reconnection attempts reached');
+    }
+
+    /**
+     * Setup crash handlers for process
+     */
+    setupCrashHandlers() {
+        process.on('uncaughtException', async (error) => {
+            console.error('💥 UNCAUGHT EXCEPTION:', error);
+            
+            await this.collectors.get('crash').captureCrash({
+                type: 'UNCAUGHT_EXCEPTION',
+                error: {
+                    message: error.message,
+                    stack: error.stack,
+                    name: error.name
+                },
+                timestamp: new Date().toISOString()
+            });
+
+            // Give time for crash report to send
+            await this.flush();
+            
+            process.exit(1);
+        });
+
+        process.on('unhandledRejection', async (reason, promise) => {
+            console.error('💥 UNHANDLED REJECTION:', reason);
+            
+            await this.collectors.get('crash').captureCrash({
+                type: 'UNHANDLED_REJECTION',
+                error: {
+                    message: reason?.message || String(reason),
+                    stack: reason?.stack
+                },
+                timestamp: new Date().toISOString()
+            });
+        });
+    }
+
+    /**
+     * Collect system information
+     */
+    collectSystemInfo() {
+        return {
+            hostname: os.hostname(),
+            platform: os.platform(),
+            arch: os.arch(),
+            cpus: os.cpus().length,
+            totalMemory: os.totalmem(),
+            freeMemory: os.freemem(),
+            uptime: os.uptime(),
+            nodeVersion: process.version,
+            agentVersion: '14.0.0',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        };
+    }
+
+    /**
+     * Graceful shutdown
+     */
+    async shutdown() {
+        console.log('🛑 [TELEMETRY]: Shutting down...');
+        
+        clearInterval(this.flushTimer);
+        
+        // Flush remaining events
+        await this.flush();
+        
+        // Disconnect
+        if (this.grpcTransport.isConnected()) {
+            await this.grpcTransport.disconnect();
+        }
+        if (this.wsTransport.isConnected()) {
+            await this.wsTransport.disconnect();
+        }
+
+        console.log('✅ [TELEMETRY]: Shutdown complete');
+    }
+
+    /**
+     * Get agent status
+     */
+    getStatus() {
+        return {
+            agentId: this.config.agentId,
+            connected: this.state.connected,
+            uptime: Date.now() - this.state.uptime,
+            totalEvents: this.state.totalEvents,
+            bufferSize: this.eventBuffer.length,
+            errors: this.state.errors,
+            latency: this.state.latency,
+            collectors: Array.from(this.collectors.keys()),
+            systemInfo: this.systemInfo
+        };
+    }
+}
+
+module.exports = TelemetryAgent;

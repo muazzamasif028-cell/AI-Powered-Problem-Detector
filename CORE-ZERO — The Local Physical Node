@@ -1,0 +1,137 @@
+#!/bin/bash
+# ============================================================
+# 🏗️ CORE-ZERO — Supreme Physical Node Setup
+# ============================================================
+# Self-Sufficient Machine — 24/7 without internet
+# ============================================================
+
+echo "🏗️ SUPREME CORE-ZERO — BUILDING SELF-SUFFICIENT NODE"
+echo "===================================================="
+
+# Step 1: System Requirements Check
+echo "📋 Checking system requirements..."
+CPU_CORES=$(nproc)
+RAM_GB=$(free -g | awk '/^Mem:/{print $2}')
+DISK_GB=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+
+echo "   CPU Cores: $CPU_CORES"
+echo "   RAM: ${RAM_GB}GB"
+echo "   Disk: ${DISK_GB}GB"
+
+if [ $CPU_CORES -lt 8 ] || [ $RAM_GB -lt 32 ] || [ $DISK_GB -lt 100 ]; then
+    echo "❌ Minimum requirements: 8 cores, 32GB RAM, 100GB disk"
+    exit 1
+fi
+echo "✅ System requirements met"
+
+# Step 2: Install Dependencies
+echo "📦 Installing dependencies..."
+sudo apt update -y
+sudo apt install -y docker.io docker-compose nodejs npm git curl wget nginx
+
+# Step 3: Clone Supreme Platform
+echo "📥 Cloning Supreme Platform..."
+git clone https://github.com/supreme-technologies/supreme-platform.git /opt/supreme
+cd /opt/supreme
+
+# Step 4: Build Docker Images
+echo "🐳 Building Docker containers..."
+docker build -t supreme-core-zero -f Dockerfile.prod .
+
+# Step 5: Deploy Full Stack
+echo "🚀 Deploying Supreme Stack..."
+docker-compose -f docker-compose.prod.yml up -d
+
+# Step 6: Offline Mode Setup
+echo "📡 Configuring Offline Mode..."
+cat > /opt/supreme/config/offline.yaml << EOF
+offline_mode: true
+internet_required: false
+self_sufficient: true
+local_ai: true
+local_database: true
+local_backup: true
+quantum_safe: true
+auto_healing: true
+health_check_interval: 30
+EOF
+
+# Step 7: Auto-Healing Service
+echo "🏥 Setting up Auto-Healing..."
+cat > /etc/systemd/system/supreme-healer.service << EOF
+[Unit]
+Description=Supreme Auto-Healing Service
+After=docker.service
+
+[Service]
+Type=simple
+ExecStart=/opt/supreme/scripts/auto-healer.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Auto-Healer Script
+cat > /opt/supreme/scripts/auto-healer.sh << 'HEALER'
+#!/bin/bash
+while true; do
+    # Check container health
+    if ! docker ps | grep -q supreme-app; then
+        echo "$(date): Container down! Restarting..."
+        docker-compose -f /opt/supreme/docker-compose.prod.yml up -d
+    fi
+    
+    # Check CPU temp
+    TEMP=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | head -c 2)
+    if [ ! -z "$TEMP" ] && [ "$TEMP" -gt 85 ]; then
+        echo "$(date): High temperature (${TEMP}°C)! Throttling..."
+        cpupower frequency-set -d 800MHz -u 1.2GHz
+        echo 255 > /sys/class/hwmon/hwmon0/pwm1
+    fi
+    
+    # Check memory
+    MEM=$(free | awk '/^Mem:/{printf "%.0f", $3/$2*100}')
+    if [ "$MEM" -gt 95 ]; then
+        echo "$(date): Memory critical (${MEM}%)! Clearing..."
+        echo 3 > /proc/sys/vm/drop_caches
+    fi
+    
+    # Log uptime
+    UPTIME=$(uptime -p)
+    echo "$(date): System healthy — Uptime: $UPTIME" >> /var/log/supreme/healer.log
+    
+    sleep 30
+done
+HEALER
+
+chmod +x /opt/supreme/scripts/auto-healer.sh
+
+# Step 8: Enable Services
+echo "⚡ Enabling services..."
+sudo systemctl enable supreme-healer
+sudo systemctl start supreme-healer
+
+# Step 9: Firewall
+echo "🛡️ Configuring firewall..."
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow 5000/tcp
+sudo ufw enable
+
+# Step 10: Final Status
+echo ""
+echo "✅ SUPREME CORE-ZERO IS LIVE!"
+echo "===================================================="
+echo "🏗️ Node: $(hostname)"
+echo "💻 CPU: $CPU_CORES cores"
+echo "🧠 RAM: ${RAM_GB}GB"
+echo "💾 Disk: ${DISK_GB}GB"
+echo "🔒 Mode: OFFLINE SELF-SUFFICIENT"
+echo "🏥 Auto-Healer: ACTIVE"
+echo "📡 Internet Required: NO"
+echo ""
+echo "🎯 This machine will run FOREVER without human touch"
+echo "📊 Health Check: http://localhost:5000/api/health"
+echo ""

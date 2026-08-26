@@ -1,0 +1,135 @@
+// risk-engine/ProductionRiskEngine.js
+import { KafkaEventBus } from '../event-bus/KafkaEventBus.js';
+import db from '../database/connection.js'; // Knex instance
+
+export class ProductionRiskEngine {
+    constructor() {
+        this.eventBus = new KafkaEventBus();
+        this.policyEngine = new ProductionPolicyEngine();
+        this.anomalyDetector = new ProductionAnomalyDetector();
+    }
+
+    /**
+     * Analyze company risk with real DB persistence
+     */
+    async analyze(companyId) {
+        const trx = await db.transaction();
+
+        try {
+            // 1. Collect signals from DB
+            const signals = await this.collectSignalsFromDB(companyId, trx);
+
+            // 2. Check policies
+            const policyResult = await this.policyEngine.evaluate(companyId, signals, trx);
+
+            // 3. AI anomaly detection
+            const anomalyResult = await this.anomalyDetector.detect(companyId, signals);
+
+            // 4. Calculate confidence
+            const confidence = this.calculateConfidence(policyResult, anomalyResult);
+
+            // 5. Risk scoring
+            const riskScore = this.calculateRiskScore(policyResult, anomalyResult, confidence);
+
+            // 6. Persist assessment
+            const [assessment] = await trx('risk_assessments')
+                .insert({
+                    company_id: companyId,
+                    risk_score: riskScore.score,
+                    risk_level: riskScore.level,
+                    confidence,
+                    policy_violations: JSON.stringify(policyResult.violations),
+                    anomaly_data: JSON.stringify(anomalyResult),
+                    signals: JSON.stringify(signals)
+                })
+                .returning('*');
+
+            // 7. Update company risk level
+            await trx('companies')
+                .where({ id: companyId })
+                .update({ 
+                    risk_level: riskScore.level,
+                    updated_at: db.fn.now()
+                });
+
+            await trx.commit();
+
+            // 8. Publish to Kafka
+            await this.eventBus.publish('supreme.safety.risk.detected', {
+                type: 'RISK_DETECTED',
+                companyId,
+                assessmentId: assessment.id,
+                riskScore,
+                confidence,
+                policyViolations: policyResult.violations.length,
+                anomalyScore: anomalyResult.score
+            });
+
+            return { assessmentId: assessment.id, riskScore, confidence };
+
+        } catch (error) {
+            await trx.rollback();
+            console.error('Risk analysis failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Collect signals from PostgreSQL
+     */
+    async collectSignalsFromDB(companyId, trx) {
+        const [apiSignals] = await trx('api_usage_logs')
+            .where({ company_id: companyId })
+            .where('timestamp', '>', db.raw("NOW() - INTERVAL '1 hour'"))
+            .count('* as total_requests')
+            .avg('response_time_ms as avg_response_time')
+            .max('requests_per_second as peak_rate');
+
+        const [paymentSignals] = await trx('payment_transactions')
+            .where({ company_id: companyId })
+            .where('created_at', '>', db.raw("NOW() - INTERVAL '24 hours'"))
+            .count('* as total_transactions')
+            .sum('amount as total_amount')
+            .count("CASE WHEN status = 'chargeback' THEN 1 END as chargebacks");
+
+        const [userSignals] = await trx('auth_logs')
+            .where({ company_id: companyId })
+            .where('attempted_at', '>', db.raw("NOW() - INTERVAL '15 minutes'"))
+            .count('* as total_attempts')
+            .count("CASE WHEN success = false THEN 1 END as failed_attempts");
+
+        return {
+            api: apiSignals || { total_requests: 0 },
+            payments: paymentSignals || { total_transactions: 0, chargebacks: 0 },
+            users: userSignals || { total_attempts: 0, failed_attempts: 0 },
+            collectedAt: new Date().toISOString()
+        };
+    }
+
+    calculateConfidence(policyResult, anomalyResult) {
+        let confidence = 50;
+        if (policyResult.violations.length > 0) confidence += 20;
+        if (anomalyResult.score > 0.5) confidence += 15;
+        if (policyResult.violations.length > 3) confidence += 10;
+        if (anomalyResult.score > 0.8) confidence += 5;
+        return Math.min(confidence, 100);
+    }
+
+    calculateRiskScore(policyResult, anomalyResult, confidence) {
+        const maxSeverity = policyResult.violations.length > 0
+            ? Math.max(...policyResult.violations.map(v => 
+                v.severity === 'CRITICAL' ? 10 : v.severity === 'HIGH' ? 7 : 4
+              ))
+            : 0;
+
+        const anomalyScore = anomalyResult.score * 10;
+        const finalScore = Math.max(maxSeverity, anomalyScore);
+
+        return {
+            score: Math.round(finalScore * 10) / 10,
+            level: finalScore >= 9 ? 'CRITICAL' : 
+                   finalScore >= 7 ? 'HIGH' : 
+                   finalScore >= 4 ? 'MEDIUM' : 'LOW'
+        };
+    }
+}

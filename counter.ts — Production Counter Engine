@@ -1,0 +1,479 @@
+// ============================================================
+// ⚙️ src/counter.ts
+// SUPREME Counter Engine v2.0 — TypeScript + Private Fields
+// ============================================================
+import type { CounterState, HistoryItem, CounterStats, CounterOptions, CounterEvent, CounterEventData, ExportData } from './types.js';
+import { debounce } from './utils/debounce.js';
+import { StorageManager } from './utils/storage.js';
+import { AudioManager } from './utils/audio.js';
+import { AnimationEngine } from './utils/animations.js';
+
+export class Counter {
+    // Private fields
+    #value: number;
+    #initialValue: number;
+    #step: number;
+    #minValue: number;
+    #maxValue: number;
+    
+    #history: HistoryItem[] = [];
+    #undoStack: HistoryItem[] = [];
+    #redoStack: HistoryItem[] = [];
+    
+    #stats: CounterStats;
+    #listeners: Map<CounterEvent, Function[]> = new Map();
+    #storage: StorageManager;
+    #audio: AudioManager;
+    #animation: AnimationEngine;
+    
+    #options: Required<CounterOptions>;
+    #sessionStart: Date;
+    #clickTimestamps: number[] = [];
+    #persistDebounced: () => void;
+
+    constructor(options: CounterOptions = {}) {
+        // Default options
+        this.#options = {
+            initialValue: options.initialValue ?? 0,
+            step: options.step ?? 1,
+            min: options.min ?? -Infinity,
+            max: options.max ?? Infinity,
+            persist: options.persist ?? true,
+            storageKey: options.storageKey ?? 'supreme-counter-v2',
+            animate: options.animate ?? true,
+            animationDuration: options.animationDuration ?? 300,
+            theme: options.theme ?? 'dark',
+            soundEnabled: options.soundEnabled ?? false,
+        };
+
+        // Initialize state
+        this.#value = this.#options.initialValue;
+        this.#initialValue = this.#options.initialValue;
+        this.#step = this.#options.step;
+        this.#minValue = this.#options.min;
+        this.#maxValue = this.#options.max;
+        this.#sessionStart = new Date();
+
+        // Initialize services
+        this.#storage = new StorageManager(this.#options.storageKey);
+        this.#audio = new AudioManager();
+        this.#animation = new AnimationEngine();
+        
+        // Initialize stats
+        this.#stats = this.#createInitialStats();
+        
+        // Debounced persistence (300ms)
+        this.#persistDebounced = debounce(() => this.#save(), 300);
+
+        // Load saved state
+        if (this.#options.persist) {
+            this.#load();
+        }
+
+        console.log('⚡ Counter v2.0 initialized', this.getState());
+    }
+
+    // =============================================
+    // 🔒 PRIVATE METHODS
+    // =============================================
+
+    #createInitialStats(): CounterStats {
+        return {
+            totalIncrements: 0,
+            totalDecrements: 0,
+            totalResets: 0,
+            totalUndos: 0,
+            totalRedos: 0,
+            lastModified: null,
+            peak: this.#value,
+            lowest: this.#value,
+            average: this.#value,
+            largestIncrement: 0,
+            largestDecrement: 0,
+            totalOperations: 0,
+            sessionStart: this.#sessionStart.toISOString(),
+            clicksPerMinute: 0,
+        };
+    }
+
+    #clamp(value: number): number {
+        return Math.max(this.#minValue, Math.min(this.#maxValue, value));
+    }
+
+    #addToHistory(action: HistoryItem['action'], previousValue: number, amount: number): void {
+        const item: HistoryItem = {
+            id: crypto.randomUUID(),
+            action,
+            previousValue,
+            currentValue: this.#value,
+            amount,
+            timestamp: new Date().toISOString(),
+        };
+
+        this.#history.push(item);
+        this.#undoStack.push(item);
+        this.#redoStack = []; // Clear redo stack on new action
+        
+        // Limit history
+        if (this.#history.length > 100) {
+            this.#history = this.#history.slice(-100);
+        }
+        if (this.#undoStack.length > 50) {
+            this.#undoStack = this.#undoStack.slice(-50);
+        }
+    }
+
+    #updateStats(action: string, amount: number): void {
+        this.#stats.totalOperations++;
+        this.#stats.lastModified = new Date().toISOString();
+
+        switch (action) {
+            case 'increment':
+                this.#stats.totalIncrements++;
+                if (amount > this.#stats.largestIncrement) {
+                    this.#stats.largestIncrement = amount;
+                }
+                break;
+            case 'decrement':
+                this.#stats.totalDecrements++;
+                if (amount > this.#stats.largestDecrement) {
+                    this.#stats.largestDecrement = amount;
+                }
+                break;
+            case 'reset':
+                this.#stats.totalResets++;
+                break;
+            case 'undo':
+                this.#stats.totalUndos++;
+                break;
+            case 'redo':
+                this.#stats.totalRedos++;
+                break;
+        }
+
+        // Update peak/lowest
+        if (this.#value > this.#stats.peak) this.#stats.peak = this.#value;
+        if (this.#value < this.#stats.lowest) this.#stats.lowest = this.#value;
+
+        // Update average
+        const totalOps = this.#stats.totalOperations;
+        this.#stats.average = parseFloat(
+            ((this.#stats.average * (totalOps - 1) + this.#value) / totalOps).toFixed(2)
+        );
+
+        // Track clicks per minute
+        this.#clickTimestamps.push(Date.now());
+        const oneMinuteAgo = Date.now() - 60000;
+        this.#clickTimestamps = this.#clickTimestamps.filter(t => t > oneMinuteAgo);
+        this.#stats.clicksPerMinute = this.#clickTimestamps.length;
+    }
+
+    #emit(event: CounterEvent, data: Partial<CounterEventData>): void {
+        const listeners = this.#listeners.get(event);
+        if (!listeners) return;
+
+        const eventData: CounterEventData = {
+            type: event,
+            value: this.#value,
+            timestamp: new Date().toISOString(),
+            ...data,
+        };
+
+        listeners.forEach(callback => {
+            try {
+                callback(Object.freeze(eventData));
+            } catch (error) {
+                console.error(`Error in ${event} listener:`, error);
+            }
+        });
+    }
+
+    #save(): void {
+        if (!this.#options.persist) return;
+        
+        const state: ExportData = {
+            version: '2.0.0',
+            exportedAt: new Date().toISOString(),
+            state: this.getState(),
+            stats: this.getStats(),
+            history: this.#history.slice(-50),
+        };
+        
+        this.#storage.set('state', state);
+    }
+
+    #load(): void {
+        const saved = this.#storage.get<ExportData>('state');
+        if (!saved) return;
+
+        try {
+            this.#value = saved.state.value;
+            this.#step = saved.state.step;
+            this.#minValue = saved.state.minValue;
+            this.#maxValue = saved.state.maxValue;
+            this.#stats = saved.stats;
+            this.#history = saved.history;
+            this.#undoStack = [...saved.history];
+            
+            console.log('💾 State loaded from storage');
+        } catch (error) {
+            console.warn('Failed to load state:', error);
+        }
+    }
+
+    // =============================================
+    // 📈 PUBLIC METHODS
+    // =============================================
+
+    increment(stepValue?: number): number {
+        const amount = stepValue ?? this.#step;
+        const previousValue = this.#value;
+        const newValue = this.#clamp(this.#value + amount);
+        
+        if (newValue === this.#value) {
+            this.#emit('counter:limitReached', { 
+                previousValue, 
+                amount,
+                action: 'increment' 
+            });
+            return this.#value;
+        }
+
+        this.#value = newValue;
+        this.#addToHistory('increment', previousValue, amount);
+        this.#updateStats('increment', amount);
+        this.#persistDebounced();
+        
+        if (this.#options.soundEnabled) this.#audio.play('increment');
+        
+        this.#emit('counter:increment', { previousValue, amount, action: 'increment' });
+        this.#emit('counter:change', { previousValue, amount, action: 'increment' });
+
+        return this.#value;
+    }
+
+    decrement(stepValue?: number): number {
+        const amount = stepValue ?? this.#step;
+        const previousValue = this.#value;
+        const newValue = this.#clamp(this.#value - amount);
+        
+        if (newValue === this.#value) {
+            this.#emit('counter:limitReached', { 
+                previousValue, 
+                amount,
+                action: 'decrement' 
+            });
+            return this.#value;
+        }
+
+        this.#value = newValue;
+        this.#addToHistory('decrement', previousValue, amount);
+        this.#updateStats('decrement', amount);
+        this.#persistDebounced();
+        
+        if (this.#options.soundEnabled) this.#audio.play('decrement');
+        
+        this.#emit('counter:decrement', { previousValue, amount, action: 'decrement' });
+        this.#emit('counter:change', { previousValue, amount, action: 'decrement' });
+
+        return this.#value;
+    }
+
+    reset(): number {
+        const previousValue = this.#value;
+        this.#value = this.#initialValue;
+        
+        this.#addToHistory('reset', previousValue, previousValue - this.#value);
+        this.#updateStats('reset', previousValue - this.#value);
+        this.#persistDebounced();
+        
+        if (this.#options.soundEnabled) this.#audio.play('reset');
+        
+        this.#emit('counter:reset', { previousValue, amount: previousValue - this.#value, action: 'reset' });
+        this.#emit('counter:change', { previousValue, amount: previousValue - this.#value, action: 'reset' });
+
+        return this.#value;
+    }
+
+    undo(): number {
+        if (this.#undoStack.length === 0) return this.#value;
+
+        const lastAction = this.#undoStack.pop()!;
+        this.#redoStack.push(lastAction);
+        
+        this.#value = lastAction.previousValue;
+        this.#updateStats('undo', 0);
+        this.#persistDebounced();
+        
+        this.#emit('counter:undo', { previousValue: lastAction.currentValue, action: 'undo' });
+        this.#emit('counter:change', { previousValue: lastAction.currentValue, action: 'undo' });
+
+        return this.#value;
+    }
+
+    redo(): number {
+        if (this.#redoStack.length === 0) return this.#value;
+
+        const redoAction = this.#redoStack.pop()!;
+        this.#undoStack.push(redoAction);
+        
+        this.#value = redoAction.currentValue;
+        this.#updateStats('redo', 0);
+        this.#persistDebounced();
+        
+        this.#emit('counter:redo', { previousValue: redoAction.previousValue, action: 'redo' });
+        this.#emit('counter:change', { previousValue: redoAction.previousValue, action: 'redo' });
+
+        return this.#value;
+    }
+
+    setValue(value: number): number {
+        const previousValue = this.#value;
+        this.#value = this.#clamp(value);
+        
+        this.#addToHistory('set', previousValue, this.#value - previousValue);
+        this.#updateStats('set', Math.abs(this.#value - previousValue));
+        this.#persistDebounced();
+        
+        this.#emit('counter:change', { previousValue, amount: this.#value - previousValue, action: 'set' });
+
+        return this.#value;
+    }
+
+    animateTo(targetValue: number, duration?: number): Promise<void> {
+        return this.#animation.animate(
+            this.#value,
+            this.#clamp(targetValue),
+            duration ?? this.#options.animationDuration,
+            (currentValue) => {
+                this.#value = currentValue;
+                this.#emit('counter:change', { value: currentValue, action: 'animate' });
+            }
+        );
+    }
+
+    // =============================================
+    // 📊 GETTERS
+    // =============================================
+
+    getValue(): number {
+        return this.#value;
+    }
+
+    getState(): CounterState {
+        return Object.freeze({
+            value: this.#value,
+            initialValue: this.#initialValue,
+            step: this.#step,
+            minValue: this.#minValue,
+            maxValue: this.#maxValue,
+        });
+    }
+
+    getStats(): CounterStats {
+        return Object.freeze({ ...this.#stats });
+    }
+
+    getHistory(limit: number = 20): readonly HistoryItem[] {
+        return Object.freeze(this.#history.slice(-limit).reverse()) as readonly HistoryItem[];
+    }
+
+    canUndo(): boolean {
+        return this.#undoStack.length > 0;
+    }
+
+    canRedo(): boolean {
+        return this.#redoStack.length > 0;
+    }
+
+    // =============================================
+    // ⚙️ CONFIGURATION
+    // =============================================
+
+    setStep(step: number): number {
+        if (step <= 0) throw new Error('Step must be positive');
+        this.#step = step;
+        this.#emit('counter:stepChange', { amount: step, action: 'stepChange' });
+        return this.#step;
+    }
+
+    setLimits(min: number, max: number): void {
+        this.#minValue = min;
+        this.#maxValue = max;
+        this.#value = this.#clamp(this.#value);
+    }
+
+    setSound(enabled: boolean): void {
+        this.#options.soundEnabled = enabled;
+    }
+
+    // =============================================
+    // 📤 EXPORT
+    // =============================================
+
+    exportData(format: 'json' | 'csv' = 'json'): string {
+        if (format === 'csv') {
+            const headers = 'id,action,previousValue,currentValue,amount,timestamp';
+            const rows = this.#history.map(h => 
+                `${h.id},${h.action},${h.previousValue},${h.currentValue},${h.amount},${h.timestamp}`
+            );
+            return [headers, ...rows].join('\n');
+        }
+
+        const data: ExportData = {
+            version: '2.0.0',
+            exportedAt: new Date().toISOString(),
+            state: this.getState(),
+            stats: this.getStats(),
+            history: [...this.#history],
+        };
+
+        return JSON.stringify(data, null, 2);
+    }
+
+    downloadHistory(format: 'json' | 'csv' = 'json'): void {
+        const data = this.exportData(format);
+        const blob = new Blob([data], { type: format === 'csv' ? 'text/csv' : 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `counter-history-${Date.now()}.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // =============================================
+    // 🔔 EVENT SYSTEM
+    // =============================================
+
+    on(event: CounterEvent, callback: (data: CounterEventData) => void): () => void {
+        if (!this.#listeners.has(event)) {
+            this.#listeners.set(event, []);
+        }
+        this.#listeners.get(event)!.push(callback);
+
+        return () => {
+            const listeners = this.#listeners.get(event);
+            if (listeners) {
+                const index = listeners.indexOf(callback);
+                if (index > -1) listeners.splice(index, 1);
+            }
+        };
+    }
+
+    // =============================================
+    // 🧹 CLEANUP
+    // =============================================
+
+    clearStorage(): void {
+        this.#storage.clear();
+    }
+
+    destroy(): void {
+        this.#listeners.clear();
+        this.#history = [];
+        this.#undoStack = [];
+        this.#redoStack = [];
+        console.log('🗑️ Counter destroyed');
+    }
+}

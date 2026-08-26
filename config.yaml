@@ -1,0 +1,38 @@
+# ============================================================
+# ⚙️ ConfigMap — Non-sensitive configuration
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: supreme-config
+  namespace: supreme-production
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  
+  # AI Gateway
+  AI_DEFAULT_PROVIDER: "openai"
+  AI_DEFAULT_MODEL: "gpt-4o"
+  AI_REQUEST_TIMEOUT: "60000"
+  AI_MAX_RETRIES: "3"
+  AI_CIRCUIT_BREAKER_TIMEOUT: "30000"
+  
+  # Memory Engine
+  MEMORY_HOT_CACHE_SIZE: "8GB"
+  MEMORY_WARM_CACHE_SIZE: "32GB"
+  MEMORY_MAX_RESULTS: "100000"
+  MEMORY_SEARCH_TIMEOUT: "100"
+  
+  # Cache
+  CACHE_L1_TTL: "60"
+  CACHE_L2_TTL: "300"
+  CACHE_MAX_ITEMS: "10000"
+  
+  # Rate Limiting
+  RATE_LIMIT_WINDOW: "900000"
+  RATE_LIMIT_MAX_REQUESTS: "100"
+  RATE_LIMIT_AI_MAX: "20"
+  
+  # Monitoring
+  PROMETHEUS_PORT: "9090"
+  METRICS_PATH: "/metrics"

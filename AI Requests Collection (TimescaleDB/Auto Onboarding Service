@@ -1,0 +1,229 @@
+// ============================================================
+// 🚀 src/auth/onboarding.service.js
+// SUPREME OS — Auto Onboarding Workflow
+// ============================================================
+const User = require('../models/User');
+const welcomeEmailService = require('./welcome-email.service');
+const Activity = require('../models/Activity');
+
+class OnboardingService {
+    constructor() {
+        this.onboardingSteps = [
+            { step: 'welcome_email', action: 'sendWelcomeEmail', priority: 1 },
+            { step: 'create_workspace', action: 'createWorkspace', priority: 2 },
+            { step: 'generate_api_key', action: 'generateApiKey', priority: 3 },
+            { step: 'add_free_credits', action: 'addFreeCredits', priority: 4 },
+            { step: 'create_sample_agent', action: 'createSampleAgent', priority: 5 },
+            { step: 'setup_billing_profile', action: 'setupBillingProfile', priority: 6 },
+            { step: 'generate_referral_code', action: 'generateReferralCode', priority: 7 },
+            { step: 'log_activity', action: 'logOnboardingActivity', priority: 8 }
+        ];
+    }
+
+    /**
+     * Full onboarding workflow for new user
+     */
+    async onboardNewUser(user, provider = 'google') {
+        console.log(`🚀 Starting onboarding for ${user.email} (via ${provider})`);
+        
+        const results = {
+            userId: user._id,
+            email: user.email,
+            provider,
+            startedAt: new Date(),
+            steps: [],
+            completed: false
+        };
+
+        // Execute each onboarding step
+        for (const step of this.onboardingSteps) {
+            try {
+                const result = await this[step.action](user);
+                results.steps.push({
+                    step: step.step,
+                    status: 'completed',
+                    result
+                });
+                console.log(`  ✅ ${step.step}: completed`);
+            } catch (error) {
+                results.steps.push({
+                    step: step.step,
+                    status: 'failed',
+                    error: error.message
+                });
+                console.error(`  ❌ ${step.step}: ${error.message}`);
+                
+                // Don't block other steps
+                // Only critical steps should stop onboarding
+                if (step.priority <= 2) {
+                    throw error; // Critical failure
+                }
+            }
+        }
+
+        results.completed = true;
+        results.completedAt = new Date();
+
+        // Update user
+        user.onboardingCompleted = true;
+        user.onboardingCompletedAt = new Date();
+        await user.save();
+
+        console.log(`✅ Onboarding complete for ${user.email}`);
+        return results;
+    }
+
+    /**
+     * Step 1: Send welcome email
+     */
+    async sendWelcomeEmail(user) {
+        return welcomeEmailService.sendWelcomeEmail(user.email, user.name, 'google');
+    }
+
+    /**
+     * Step 2: Create personal AI workspace
+     */
+    async createWorkspace(user) {
+        const Workspace = require('../models/Workspace');
+        
+        const workspace = await Workspace.create({
+            userId: user._id,
+            name: `${user.name}'s Workspace`,
+            type: 'personal',
+            settings: {
+                defaultModel: 'gpt-4o',
+                defaultProvider: 'openai',
+                theme: 'dark',
+                language: 'en'
+            },
+            memory: {
+                shortTerm: [],
+                longTerm: [],
+                preferences: {}
+            }
+        });
+
+        return { workspaceId: workspace._id, name: workspace.name };
+    }
+
+    /**
+     * Step 3: Generate default API key
+     */
+    async generateApiKey(user) {
+        const crypto = require('crypto');
+        const apiKey = `sk_live_${crypto.randomBytes(24).toString('hex')}`;
+        
+        user.apiKeys.push({
+            key: crypto.createHash('sha256').update(apiKey).digest('hex'),
+            name: 'Default Key',
+            createdAt: new Date(),
+            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
+        });
+
+        await user.save();
+        
+        return { apiKey: apiKey.substring(0, 16) + '...' }; // Only show preview
+    }
+
+    /**
+     * Step 4: Add free credits
+     */
+    async addFreeCredits(user) {
+        const Credit = require('../models/Credit');
+        
+        await Credit.create({
+            userId: user._id,
+            amount: 1000, // 1000 free AI credits
+            type: 'welcome_bonus',
+            description: 'Welcome bonus for new users',
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        });
+
+        return { credits: 1000, type: 'welcome_bonus' };
+    }
+
+    /**
+     * Step 5: Create sample AI agent
+     */
+    async createSampleAgent(user) {
+        const Agent = require('../models/Agent');
+        
+        const agent = await Agent.create({
+            userId: user._id,
+            name: 'My First Assistant',
+            description: 'A helpful AI assistant to get you started',
+            type: 'assistant',
+            model: 'gpt-4o',
+            provider: 'openai',
+            personality: 'helpful and friendly',
+            knowledge: [],
+            isTemplate: true,
+            status: 'active'
+        });
+
+        return { agentId: agent._id, name: agent.name };
+    }
+
+    /**
+     * Step 6: Set up billing profile
+     */
+    async setupBillingProfile(user) {
+        const BillingProfile = require('../models/BillingProfile');
+        
+        await BillingProfile.create({
+            userId: user._id,
+            currency: 'USD',
+            taxCountry: 'US',
+            billingEmail: user.email,
+            invoiceDelivery: 'email',
+            paymentMethod: 'none' // Will be set when user adds payment
+        });
+
+        return { status: 'created' };
+    }
+
+    /**
+     * Step 7: Generate referral code
+     */
+    async generateReferralCode(user) {
+        const crypto = require('crypto');
+        const Referral = require('../models/Referral');
+        
+        const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+        
+        await Referral.create({
+            userId: user._id,
+            code,
+            commission: {
+                type: 'percentage',
+                signupReward: 5,
+                purchasePercent: 20,
+                recurringPercent: 10
+            },
+            status: 'active'
+        });
+
+        return { referralCode: code, referralLink: `https://supreme-os.com/ref/${code}` };
+    }
+
+    /**
+     * Step 8: Log onboarding activity
+     */
+    async logOnboardingActivity(user) {
+        await Activity.create({
+            userId: user._id,
+            type: 'auth.signup',
+            action: 'google_oauth',
+            description: `🎉 Account created via Google — Welcome to SUPREME OS!`,
+            status: 'success',
+            metadata: {
+                provider: 'google',
+                onboardingCompleted: true
+            }
+        });
+
+        return { logged: true };
+    }
+}
+
+module.exports = new OnboardingService();

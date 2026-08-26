@@ -1,0 +1,185 @@
+// gateways/StripeGateway.js
+const BaseGateway = require('./BaseGateway');
+const stripe = require('stripe');
+
+class StripeGateway extends BaseGateway {
+    constructor() {
+        const config = require('../config/gateways.config').stripe;
+        super(config);
+        this.gatewayId = 'STRIPE';
+        this.stripe = stripe(this.envConfig.secretKey);
+    }
+
+    async processPayment(paymentData) {
+        try {
+            const {
+                amount,
+                currency = 'usd',
+                customerId,
+                paymentMethodId,
+                description,
+                metadata = {},
+                saveCard = false,
+                setupFutureUsage = false
+            } = paymentData;
+
+            // Create or get customer
+            let customer = customerId;
+            if (!customer && saveCard) {
+                const newCustomer = await this.stripe.customers.create({
+                    email: paymentData.customerEmail,
+                    name: paymentData.customerName,
+                    metadata: { platform: 'SUPREME' }
+                });
+                customer = newCustomer.id;
+            }
+
+            // Create payment intent
+            const paymentIntent = await this.stripe.paymentIntents.create({
+                amount: this.convertToSmallestUnit(amount, currency),
+                currency: currency.toLowerCase(),
+                customer,
+                payment_method: paymentMethodId,
+                description: description || 'SUPREME Payment',
+                metadata: {
+                    ...metadata,
+                    platform: 'SUPREME',
+                    version: '14.0'
+                },
+                confirm: true,
+                return_url: paymentData.returnUrl,
+                setup_future_usage: setupFutureUsage ? 'off_session' : undefined,
+                automatic_payment_methods: {
+                    enabled: true
+                }
+            });
+
+            return {
+                success: paymentIntent.status === 'succeeded',
+                gateway: this.gatewayId,
+                transactionId: paymentIntent.id,
+                amount,
+                currency,
+                status: paymentIntent.status,
+                clientSecret: paymentIntent.client_secret,
+                requiresAction: paymentIntent.status === 'requires_action',
+                nextAction: paymentIntent.next_action,
+                paymentMethod: {
+                    brand: paymentIntent.charges?.data[0]?.payment_method_details?.card?.brand,
+                    last4: paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4,
+                    country: paymentIntent.charges?.data[0]?.payment_method_details?.card?.country
+                },
+                receiptUrl: paymentIntent.charges?.data[0]?.receipt_url,
+                timestamp: new Date().toISOString()
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                gateway: this.gatewayId,
+                error: error.message,
+                code: error.code,
+                declineCode: error.decline_code,
+                status: 'FAILED'
+            };
+        }
+    }
+
+    /**
+     * Create subscription
+     */
+    async createSubscription(subscriptionData) {
+        try {
+            const {
+                customerId,
+                priceId,
+                paymentMethodId,
+                trialDays = 0,
+                metadata = {}
+            } = subscriptionData;
+
+            // Attach payment method to customer
+            if (paymentMethodId) {
+                await this.stripe.paymentMethods.attach(paymentMethodId, {
+                    customer: customerId
+                });
+
+                await this.stripe.customers.update(customerId, {
+                    invoice_settings: {
+                        default_payment_method: paymentMethodId
+                    }
+                });
+            }
+
+            // Create subscription
+            const subscription = await this.stripe.subscriptions.create({
+                customer: customerId,
+                items: [{ price: priceId }],
+                trial_period_days: trialDays,
+                payment_behavior: 'default_incomplete',
+                expand: ['latest_invoice.payment_intent'],
+                metadata: {
+                    ...metadata,
+                    platform: 'SUPREME'
+                }
+            });
+
+            return {
+                success: true,
+                gateway: this.gatewayId,
+                subscriptionId: subscription.id,
+                status: subscription.status,
+                currentPeriodStart: subscription.current_period_start,
+                currentPeriodEnd: subscription.current_period_end,
+                trialEnd: subscription.trial_end,
+                clientSecret: subscription.latest_invoice?.payment_intent?.client_secret,
+                requiresAction: subscription.status === 'incomplete'
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                gateway: this.gatewayId,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Cancel subscription
+     */
+    async cancelSubscription(subscriptionId, immediate = false) {
+        try {
+            const cancellation = immediate
+                ? await this.stripe.subscriptions.cancel(subscriptionId)
+                : await this.stripe.subscriptions.update(subscriptionId, {
+                    cancel_at_period_end: true
+                });
+
+            return {
+                success: true,
+                gateway: this.gatewayId,
+                subscriptionId,
+                status: cancellation.status,
+                cancelAt: cancellation.cancel_at,
+                canceledAt: cancellation.canceled_at
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    convertToSmallestUnit(amount, currency) {
+        const zeroDecimalCurrencies = ['JPY', 'KRW', 'VND'];
+        if (zeroDecimalCurrencies.includes(currency.toUpperCase())) {
+            return Math.round(parseFloat(amount));
+        }
+        return Math.round(parseFloat(amount) * 100);
+    }
+}
+
+module.exports = StripeGateway;

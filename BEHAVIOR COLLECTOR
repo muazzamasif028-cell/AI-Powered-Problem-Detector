@@ -1,0 +1,169 @@
+// ============================================================
+// 📡 telemetry/agent/collectors/BehaviorCollector.js
+// SUPREME User Behavior Monitoring
+// ============================================================
+const EventEmitter = require('events');
+
+class BehaviorCollector extends EventEmitter {
+    constructor() {
+        super();
+        this.name = 'behavior';
+        this.sessions = new Map();
+        this.config = {
+            sampleRate: 1.0, // 100% sampling
+            privacyMode: true, // Anonymize PII
+            trackClicks: true,
+            trackScrolls: true,
+            trackNavigation: true,
+            trackForms: true,
+            trackErrors: true,
+            sessionTimeout: 30 * 60 * 1000 // 30 minutes
+        };
+    }
+
+    /**
+     * Start tracking user session
+     */
+    startSession(userId, sessionData = {}) {
+        const sessionId = `SESSION_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        
+        const session = {
+            sessionId,
+            userId: this.config.privacyMode ? this.hashUserId(userId) : userId,
+            startTime: new Date().toISOString(),
+            lastActivity: new Date().toISOString(),
+            deviceInfo: sessionData.deviceInfo || {},
+            location: sessionData.location || {},
+            events: [],
+            pageViews: [],
+            clicks: [],
+            interactions: []
+        };
+
+        this.sessions.set(sessionId, session);
+
+        this.emit('data', {
+            type: 'SESSION_START',
+            sessionId,
+            timestamp: session.startTime
+        });
+
+        return sessionId;
+    }
+
+    /**
+     * Track page view
+     */
+    trackPageView(sessionId, pageData) {
+        const session = this.sessions.get(sessionId);
+        if (!session) return;
+
+        const pageView = {
+            url: pageData.url,
+            title: pageData.title,
+            referrer: pageData.referrer,
+            loadTime: pageData.loadTime,
+            timestamp: new Date().toISOString()
+        };
+
+        session.pageViews.push(pageView);
+        session.lastActivity = pageView.timestamp;
+
+        this.emit('data', {
+            type: 'PAGE_VIEW',
+            sessionId,
+            data: pageView
+        });
+    }
+
+    /**
+     * Track user click
+     */
+    trackClick(sessionId, clickData) {
+        const session = this.sessions.get(sessionId);
+        if (!session) return;
+
+        const click = {
+            element: clickData.element,
+            x: clickData.x,
+            y: clickData.y,
+            page: clickData.page,
+            timestamp: new Date().toISOString()
+        };
+
+        session.clicks.push(click);
+        session.lastActivity = click.timestamp;
+
+        this.emit('data', {
+            type: 'CLICK',
+            sessionId,
+            data: click
+        });
+    }
+
+    /**
+     * Track form interaction
+     */
+    trackFormInteraction(sessionId, formData) {
+        const session = this.sessions.get(sessionId);
+        if (!session) return;
+
+        // Sanitize sensitive data
+        const sanitized = {
+            formId: formData.formId,
+            fieldCount: formData.fieldCount,
+            duration: formData.duration,
+            completed: formData.completed,
+            errors: formData.errors?.length || 0,
+            timestamp: new Date().toISOString()
+        };
+
+        session.interactions.push({
+            type: 'FORM',
+            data: sanitized
+        });
+
+        this.emit('data', {
+            type: 'FORM_INTERACTION',
+            sessionId,
+            data: sanitized
+        });
+    }
+
+    /**
+     * End user session
+     */
+    endSession(sessionId) {
+        const session = this.sessions.get(sessionId);
+        if (!session) return;
+
+        const sessionSummary = {
+            sessionId,
+            userId: session.userId,
+            duration: Date.now() - new Date(session.startTime).getTime(),
+            pageViews: session.pageViews.length,
+            clicks: session.clicks.length,
+            interactions: session.interactions.length,
+            startTime: session.startTime,
+            endTime: new Date().toISOString()
+        };
+
+        this.emit('data', {
+            type: 'SESSION_END',
+            sessionId,
+            data: sessionSummary
+        });
+
+        this.sessions.delete(sessionId);
+    }
+
+    /**
+     * Hash user ID for privacy
+     */
+    hashUserId(userId) {
+        const crypto = require('crypto');
+        return crypto.createHash('sha256').update(String(userId)).digest('hex').slice(0, 16);
+    }
+}
+
+module.exports = BehaviorCollector;

@@ -1,0 +1,54 @@
+// ============================================================
+// 🌍 SPL-V — UNIVERSAL VEHICLE CODE
+// Runs on: Tesla, Toyota, BMW, SUPREME, Trucks, Boats, Drones
+// ============================================================
+
+// ============================================
+// 🎯 TARGET VEHICLE (Auto-detect or specify)
+// ============================================
+@target vehicle: "any"  // Auto-detect
+// @target vehicle: "tesla/model_s"
+// @target vehicle: "toyota/camry"
+// @target vehicle: "supreme/elite"
+
+// ============================================
+// 🚗 UNIVERSAL VEHICLE CONTROL
+// ============================================
+vehicle {
+    
+    // These commands work on ALL vehicles
+    start()              // Start engine/motor
+    stop()               // Stop engine/motor
+    lock()               // Lock doors
+    unlock()             // Unlock doors
+    
+    // Read any sensor
+    sensor.read("speed")        // Returns km/h
+    sensor.read("battery")      // Returns %
+    sensor.read("fuel")         // Returns liters
+    sensor.read("temperature")  // Returns celsius
+    sensor.read("rpm")          // Returns RPM
+    sensor.read("odometer")     // Returns km
+    
+    // Navigation (works on any vehicle with GPS)
+    navigation.destination("Islamabad")
+    navigation.eta()            // Returns minutes
+    navigation.distance()       // Returns km
+    navigation.reroute()        // Find alternative
+    
+    // Safety (universal safety commands)
+    safety.emergency_stop()
+    safety.check_all()          // Returns pillar status
+    safety.get_alerts()         // Returns active alerts
+    
+    // Climate control
+    climate.set_temperature(22) // celsius
+    climate.fan_speed(3)        // 1-5
+    climate.defrost()           // Front windshield
+    
+    // Media
+    media.play()
+    media.pause()
+    media.next_track()
+    media.volume(80)            // 0-100%
+}

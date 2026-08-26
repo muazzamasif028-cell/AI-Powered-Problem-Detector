@@ -1,0 +1,76 @@
+// ============================================================
+// 🚁 yacht/YachtHelipad.js
+// SUPREME ROYAL YACHT — Helipad System
+// Twin Engine Helicopter | Night Landing | Fuel Station
+// ============================================================
+
+class YachtHelipad {
+    constructor(yacht) {
+        this.yacht = yacht;
+        
+        this.state = {
+            status: 'READY', // READY | OCCUPIED | PREPARING | MAINTENANCE
+            lights: 'OFF',
+            windSock: 'ACTIVE',
+            fuelAvailable: true,
+            helicopterOnDeck: false,
+            landingSystem: 'STANDBY'
+        };
+        
+        this.specs = {
+            maxWeight: '12,000 kg',
+            deckSize: '25m x 25m',
+            lighting: 'NIGHT_VISION_COMPATIBLE',
+            firefighting: 'FOAM_SYSTEM',
+            tieDowns: 'AUTOMATIC',
+            fuelType: 'JET_A1',
+            fuelCapacity: '5,000 liters'
+        };
+    }
+
+    async initialize() {
+        console.log('  🚁 Helipad System Ready');
+        console.log('     • 25m x 25m Landing Deck');
+        console.log('     • Night Vision Compatible Lighting');
+        console.log('     • Automatic Tie-Down System');
+        console.log('     • Jet A1 Fuel Station (5,000L)');
+        console.log('     • Firefighting Foam System');
+    }
+
+    async prepareForArrival() {
+        this.state.status = 'PREPARING';
+        this.state.lights = 'LANDING_SEQUENCE';
+        this.state.landingSystem = 'ACTIVE';
+        
+        // Activate landing lights
+        // Deploy windsock
+        // Clear deck
+        // Activate firefighting standby
+        
+        this.yacht.captain.announce({
+            priority: 'HIGH',
+            message: 'Helipad prepared for arrival. Landing lights active.'
+        });
+        
+        return { success: true, status: 'READY_FOR_LANDING' };
+    }
+
+    async prepareForDeparture() {
+        // Pre-flight checks
+        // Fuel if needed
+        // Clear airspace
+        
+        return { success: true, status: 'READY_FOR_DEPARTURE' };
+    }
+
+    getStatus() {
+        return {
+            status: this.state.status,
+            helicopterOnDeck: this.state.helicopterOnDeck,
+            fuelAvailable: this.state.fuelAvailable,
+            maxWeight: this.specs.maxWeight
+        };
+    }
+}
+
+module.exports = YachtHelipad;

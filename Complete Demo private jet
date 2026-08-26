@@ -1,0 +1,44 @@
+// ============================================================
+// ✈️ SUPREME APEX JET — Complete Demo
+// ============================================================
+const SupremeApexJet = require('./apex/SupremeApexJet');
+
+async function demoApexJet() {
+    console.log('✈️ SUPREME APEX JET — Ultra-Long-Range AI Private Jet');
+    console.log('═══════════════════════════════════════════════════\n');
+    
+    const jet = new SupremeApexJet({
+        registration: 'APX-SUPREME-001',
+        location: { lat: 25.2048, lng: 55.2708 } // Dubai
+    });
+    
+    await jet.initialize();
+    
+    // Preflight
+    console.log('\n🎙 Pilot: "Start Flight Preparation"\n');
+    await jet.processVoiceCommand('Start Flight Preparation');
+    
+    // Set destination
+    console.log('\n🎙 Pilot: "Set destination to London"\n');
+    jet.state.destination = 'London (EGLL)';
+    jet.state.eta = '6 hours 45 minutes';
+    
+    // Cabin commands
+    console.log('\n🎙 Owner: "Set Cabin Temperature to 22°C"\n');
+    await jet.processVoiceCommand('Set Cabin Temperature to 22°C');
+    
+    console.log('\n🎙 Owner: "Show Flight Status"\n');
+    await jet.processVoiceCommand('Show Flight Status');
+    
+    // Prepare landing
+    console.log('\n🎙 Pilot: "Prepare Landing"\n');
+    await jet.processVoiceCommand('Prepare Landing');
+    
+    // Owner Dashboard
+    console.log('\n📊 OWNER DASHBOARD:');
+    console.log(JSON.stringify(jet.ownerDashboard.getDashboard(), null, 2));
+    
+    console.log('\n✅ SUPREME APEX JET Demo Complete!\n');
+}
+
+demoApexJet();

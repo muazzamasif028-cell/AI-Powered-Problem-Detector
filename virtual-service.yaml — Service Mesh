@@ -1,0 +1,98 @@
+# ============================================================
+# 🔗 Istio Virtual Service — Advanced Traffic Management
+# ============================================================
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: ai-gateway-vs
+  namespace: supreme-production
+spec:
+  hosts:
+  - ai-gateway
+  http:
+  - match:
+    - headers:
+        x-canary:
+          exact: "true"
+    route:
+    - destination:
+        host: ai-gateway
+        subset: canary
+      weight: 100
+  - route:
+    - destination:
+        host: ai-gateway
+        subset: stable
+      weight: 95
+    - destination:
+        host: ai-gateway
+        subset: canary
+      weight: 5
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+      retryOn: "5xx,connect-failure,refused-stream"
+    timeout: 60s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: ai-gateway-dr
+  namespace: supreme-production
+spec:
+  host: ai-gateway
+  subsets:
+  - name: stable
+    labels:
+      version: v1
+  - name: canary
+    labels:
+      version: v2
+  trafficPolicy:
+    loadBalancer:
+      simple: LEAST_REQUEST
+    connectionPool:
+      tcp:
+        maxConnections: 1000
+      http:
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 100
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+
+---
+# ============================================================
+# 🔒 mTLS — Service-to-Service Encryption
+# ============================================================
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: supreme-mtls
+  namespace: supreme-production
+spec:
+  mtls:
+    mode: STRICT
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: supreme-auth-policy
+  namespace: supreme-production
+spec:
+  selector:
+    matchLabels:
+      app: ai-gateway
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/supreme-production/sa/supreme-api"]
+    to:
+    - operation:
+        methods: ["GET", "POST"]
+        paths: ["/api/ai/*"]

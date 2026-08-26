@@ -1,0 +1,73 @@
+# ============================================================
+# 🐳 SUPREME — DOCKER SWARM DEPLOYMENT
+# ============================================================
+# "docker pull supreme-ai-os" — That's it!
+# ============================================================
+
+version: '3.8'
+
+services:
+  # =============================================
+  # SUPREME CORE
+  # =============================================
+  supreme-core:
+    image: supreme-technologies/supreme-ai-os:latest
+    container_name: supreme-core
+    restart: always
+    ports:
+      - "80:5000"
+      - "443:5000"
+    environment:
+      - NODE_ENV=production
+      - SUPREME_MODE=auto-heal
+      - QUANTUM_SAFE=true
+    volumes:
+      - supreme-data:/data
+      - supreme-logs:/var/log/supreme
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+
+  # =============================================
+  # SUPREME DATABASE
+  # =============================================
+  supreme-db:
+    image: mongo:7.0
+    container_name: supreme-db
+    restart: always
+    volumes:
+      - supreme-db-data:/data/db
+    deploy:
+      replicas: 1
+
+  # =============================================
+  # SUPREME CACHE
+  # =============================================
+  supreme-cache:
+    image: redis:7.2-alpine
+    container_name: supreme-cache
+    restart: always
+    command: redis-server --maxmemory 4gb --maxmemory-policy allkeys-lru
+    deploy:
+      replicas: 1
+
+volumes:
+  supreme-data:
+  supreme-logs:
+  supreme-db-data:
+
+networks:
+  default:
+    driver: overlay

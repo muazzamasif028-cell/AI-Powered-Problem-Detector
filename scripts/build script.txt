@@ -1,0 +1,75 @@
+﻿// Simple build script — checks syntax of all JS files
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+console.log('SUPREME BUILD - Syntax Check\n');
+
+// Files to skip
+const skipDirs = ['node_modules', '.turbo', '.git', 'dist', 'build'];
+const skipFiles = [
+  'payment-dashboard.html',
+  'supreme-canvas-payment.html',
+  'supreme-infrastructure.yaml',
+  'system.json',
+  'config.yaml',
+  'secrets.yaml',
+  'ingress.yaml',
+  'services.yaml',
+  'namespaces.yaml',
+  'grafana.yaml',
+  'ai-gateway.yaml'
+];
+
+let totalChecked = 0;
+let totalPassed = 0;
+let totalFailed = 0;
+
+function checkFile(filePath) {
+  const ext = path.extname(filePath);
+  if (ext !== '.js' && ext !== '.jsx' && ext !== '.ts' && ext !== '.tsx') return;
+  
+  totalChecked++;
+  
+  try {
+    execSync('node --check "' + filePath + '"', { stdio: 'pipe' });
+    totalPassed++;
+  } catch (error) {
+    totalFailed++;
+    console.log('   FAIL: ' + path.basename(filePath));
+  }
+}
+
+function walkDir(dir) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    
+    if (entry.isDirectory()) {
+      if (!skipDirs.includes(entry.name)) {
+        walkDir(fullPath);
+      }
+    } else {
+      if (!skipFiles.includes(entry.name)) {
+        checkFile(fullPath);
+      }
+    }
+  }
+}
+
+// Start from project root
+const rootDir = process.cwd();
+walkDir(rootDir);
+
+console.log('\nBUILD RESULT:');
+console.log('   Total files checked: ' + totalChecked);
+console.log('   Passed: ' + totalPassed);
+console.log('   Failed: ' + totalFailed);
+
+if (totalFailed > 0) {
+  console.log('\nBUILD FAILED - Fix syntax errors above');
+  process.exit(1);
+} else {
+  console.log('\nBUILD SUCCESSFUL');
+}

@@ -1,0 +1,165 @@
+// ============================================================
+// 📈 models/Referral.js
+// SUPREME Referral & Affiliate Model
+// ============================================================
+const mongoose = require('mongoose');
+
+const ReferralSchema = new mongoose.Schema({
+    referrerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        index: true
+    },
+    
+    // Unique referral code
+    code: {
+        type: String,
+        unique: true,
+        required: true
+    },
+    
+    // Referral stats
+    stats: {
+        totalClicks: { type: Number, default: 0 },
+        totalSignups: { type: Number, default: 0 },
+        totalPurchases: { type: Number, default: 0 },
+        totalRevenue: { type: Number, default: 0 },
+        totalCommissions: { type: Number, default: 0 },
+        pendingCommissions: { type: Number, default: 0 },
+        paidCommissions: { type: Number, default: 0 }
+    },
+    
+    // Commission structure
+    commission: {
+        type: {
+            type: String,
+            enum: ['percentage', 'fixed'],
+            default: 'percentage'
+        },
+        signupReward: { type: Number, default: 5 }, // $5 per signup
+        purchasePercent: { type: Number, default: 20 }, // 20% of first purchase
+        recurringPercent: { type: Number, default: 10 }, // 10% of recurring
+        cookieDays: { type: Number, default: 30 } // Attribution window
+    },
+    
+    // Referred users
+    referrals: [{
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        signedUpAt: Date,
+        firstPurchaseAt: Date,
+        firstPurchaseAmount: Number,
+        totalPurchases: { type: Number, default: 0 },
+        totalSpent: { type: Number, default: 0 },
+        commissions: [{
+            amount: Number,
+            type: { type: String, enum: ['signup', 'purchase', 'recurring'] },
+            createdAt: { type: Date, default: Date.now },
+            status: { type: String, enum: ['pending', 'paid', 'cancelled'], default: 'pending' }
+        }]
+    }],
+    
+    // Payout info
+    payoutMethod: {
+        type: { type: String, enum: ['paypal', 'stripe', 'bank', 'crypto'] },
+        email: String,
+        accountId: String
+    },
+    
+    // Status
+    status: {
+        type: String,
+        enum: ['active', 'paused', 'banned'],
+        default: 'active'
+    },
+    
+    // Tier
+    tier: {
+        type: String,
+        enum: ['bronze', 'silver', 'gold', 'platinum', 'diamond'],
+        default: 'bronze'
+    }
+}, {
+    timestamps: true
+});
+
+// =============================================
+// 🎯 METHODS
+// =============================================
+
+ReferralSchema.methods.generateCode = function() {
+    const crypto = require('crypto');
+    this.code = crypto.randomBytes(4).toString('hex').toUpperCase();
+    return this.code;
+};
+
+ReferralSchema.methods.trackClick = async function() {
+    this.stats.totalClicks++;
+    return this.save();
+};
+
+ReferralSchema.methods.trackSignup = async function(userId) {
+    this.stats.totalSignups++;
+    this.referrals.push({
+        userId,
+        signedUpAt: new Date()
+    });
+    
+    // Add signup commission
+    const signupCommission = this.commission.signupReward;
+    this.stats.totalCommissions += signupCommission;
+    this.stats.pendingCommissions += signupCommission;
+    
+    return this.save();
+};
+
+ReferralSchema.methods.trackPurchase = async function(userId, amount) {
+    const referral = this.referrals.find(r => r.userId.toString() === userId.toString());
+    if (!referral) return;
+    
+    referral.firstPurchaseAt = new Date();
+    referral.firstPurchaseAmount = amount;
+    referral.totalPurchases++;
+    referral.totalSpent += amount;
+    
+    const commission = amount * (this.commission.purchasePercent / 100);
+    referral.commissions.push({
+        amount: commission,
+        type: 'purchase',
+        status: 'pending'
+    });
+    
+    this.stats.totalPurchases++;
+    this.stats.totalRevenue += amount;
+    this.stats.totalCommissions += commission;
+    this.stats.pendingCommissions += commission;
+    
+    // Update tier
+    this.updateTier();
+    
+    return this.save();
+};
+
+ReferralSchema.methods.updateTier = function() {
+    const totalReferrals = this.stats.totalSignups;
+    
+    if (totalReferrals >= 1000) this.tier = 'diamond';
+    else if (totalReferrals >= 500) this.tier = 'platinum';
+    else if (totalReferrals >= 100) this.tier = 'gold';
+    else if (totalReferrals >= 25) this.tier = 'silver';
+    else this.tier = 'bronze';
+    
+    // Update commission based on tier
+    const tierMultipliers = {
+        bronze: 1.0,
+        silver: 1.2,
+        gold: 1.5,
+        platinum: 2.0,
+        diamond: 3.0
+    };
+    
+    this.commission.signupReward = 5 * tierMultipliers[this.tier];
+    this.commission.purchasePercent = 20 * tierMultipliers[this.tier];
+};
+
+module.exports = mongoose.model('Referral', ReferralSchema);

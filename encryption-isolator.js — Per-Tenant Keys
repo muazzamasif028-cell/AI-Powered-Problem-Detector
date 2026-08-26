@@ -1,0 +1,169 @@
+// ============================================================
+// 🔐 encryption-isolator.js
+// SUPREME Encryption Isolator — Unique keys per tenant
+// ============================================================
+const crypto = require('crypto');
+const TenantRegistry = require('./tenant-registry');
+
+class EncryptionIsolator {
+    constructor() {
+        this.keyStore = new Map(); // In production: HSM/Vault
+        this.keyRotationInterval = 90 * 24 * 60 * 60 * 1000; // 90 days
+        this.activeKeys = new Map();
+    }
+
+    /**
+     * Generate unique encryption keys for a tenant
+     */
+    async generateTenantKeys(tenantId) {
+        console.log(`🔐 Generating encryption keys for tenant ${tenantId}`);
+
+        const keys = {
+            keyId: `key-${tenantId}-${Date.now()}`,
+            
+            // Data encryption key
+            dataKey: crypto.randomBytes(32), // AES-256
+            
+            // Key encryption key
+            kek: crypto.randomBytes(32),
+            
+            // HMAC key for integrity
+            hmacKey: crypto.randomBytes(32),
+            
+            // Signing key
+            signingKey: crypto.generateKeyPairSync('rsa', {
+                modulusLength: 4096,
+                publicKeyEncoding: { type: 'spki', format: 'pem' },
+                privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+            }),
+            
+            metadata: {
+                algorithm: 'AES-256-GCM',
+                generatedAt: new Date(),
+                generatedBy: 'USIE',
+                rotationDueAt: new Date(Date.now() + this.keyRotationInterval),
+                fingerprint: crypto.randomBytes(16).toString('hex')
+            }
+        };
+
+        // Store keys securely (in production: HSM)
+        this.keyStore.set(tenantId, keys);
+        this.activeKeys.set(tenantId, keys.keyId);
+
+        return {
+            keyId: keys.keyId,
+            fingerprint: keys.metadata.fingerprint,
+            rotationDueAt: keys.metadata.rotationDueAt
+        };
+    }
+
+    /**
+     * Encrypt data with tenant's unique key
+     */
+    async encrypt(tenantId, plaintext) {
+        const keys = this.keyStore.get(tenantId);
+        if (!keys) throw new Error('Tenant keys not found');
+
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv('aes-256-gcm', keys.dataKey, iv);
+        
+        let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        const authTag = cipher.getAuthTag();
+
+        return {
+            tenantId,
+            keyId: keys.keyId,
+            encrypted: `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`,
+            algorithm: 'AES-256-GCM'
+        };
+    }
+
+    /**
+     * Decrypt data with tenant's unique key
+     */
+    async decrypt(tenantId, encryptedData) {
+        const keys = this.keyStore.get(tenantId);
+        if (!keys) throw new Error('Tenant keys not found');
+
+        const [ivHex, authTagHex, encrypted] = encryptedData.encrypted.split(':');
+        const iv = Buffer.from(ivHex, 'hex');
+        const authTag = Buffer.from(authTagHex, 'hex');
+        
+        const decipher = crypto.createDecipheriv('aes-256-gcm', keys.dataKey, iv);
+        decipher.setAuthTag(authTag);
+
+        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+
+        return decrypted;
+    }
+
+    /**
+     * Rotate tenant keys (90-day cycle)
+     */
+    async rotateKeys(tenantId) {
+        console.log(`🔄 Rotating encryption keys for tenant ${tenantId}`);
+
+        const oldKeys = this.keyStore.get(tenantId);
+        const newKeys = await this.generateTenantKeys(tenantId);
+
+        // Re-encrypt all tenant data with new key
+        await this.reencryptTenantData(tenantId, oldKeys, newKeys);
+
+        // Archive old keys
+        oldKeys.metadata.retiredAt = new Date();
+        oldKeys.metadata.status = 'retired';
+
+        return {
+            tenantId,
+            oldKeyId: oldKeys.keyId,
+            newKeyId: newKeys.keyId,
+            rotatedAt: new Date()
+        };
+    }
+
+    async reencryptTenantData(tenantId, oldKeys, newKeys) {
+        console.log(`   Re-encrypting data for tenant ${tenantId}...`);
+        // In production: Batch re-encrypt all stored data
+    }
+
+    /**
+     * Verify NO key sharing between tenants
+     */
+    async verifyKeyIsolation(tenantId1, tenantId2) {
+        const keys1 = this.keyStore.get(tenantId1);
+        const keys2 = this.keyStore.get(tenantId2);
+
+        if (!keys1 || !keys2) return { isolated: true };
+
+        // Check keys are different
+        const dataKeysMatch = keys1.dataKey.equals(keys2.dataKey);
+        const keksMatch = keys1.kek.equals(keys2.kek);
+
+        if (dataKeysMatch || keksMatch) {
+            throw new Error(`🚨 CRITICAL: Key collision detected between tenants ${tenantId1} and ${tenantId2}!`);
+        }
+
+        return {
+            isolated: true,
+            uniqueDataKeys: !dataKeysMatch,
+            uniqueKEKs: !keksMatch,
+            verifiedAt: new Date()
+        };
+    }
+
+    async getStatus(tenantId) {
+        const keys = this.keyStore.get(tenantId);
+        return {
+            hasKeys: !!keys,
+            keyId: keys?.keyId,
+            fingerprint: keys?.metadata?.fingerprint,
+            algorithm: keys?.metadata?.algorithm,
+            generatedAt: keys?.metadata?.generatedAt,
+            rotationDueAt: keys?.metadata?.rotationDueAt
+        };
+    }
+}
+
+module.exports = new EncryptionIsolator();

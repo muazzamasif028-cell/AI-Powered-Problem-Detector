@@ -1,0 +1,96 @@
+verifyKey({
+
+    apiKey,
+
+    ip,
+
+    domain,
+
+    permission
+
+}){
+
+    const hash=this._hashKey(apiKey);
+
+    const meta=this.keyRegistry.get(hash);
+
+    if(!meta)
+
+        return{
+
+            valid:false,
+
+            error:"INVALID_KEY"
+
+        };
+
+    if(this.revoked.has(hash))
+
+        return{
+
+            valid:false,
+
+            error:"KEY_REVOKED"
+
+        };
+
+    if(new Date(meta.expiresAt)<new Date())
+
+        return{
+
+            valid:false,
+
+            error:"KEY_EXPIRED"
+
+        };
+
+    if(meta.allowedIPs.length &&
+        !meta.allowedIPs.includes(ip))
+
+        return{
+
+            valid:false,
+
+            error:"IP_NOT_ALLOWED"
+
+        };
+
+    if(meta.allowedDomains.length &&
+        !meta.allowedDomains.includes(domain))
+
+        return{
+
+            valid:false,
+
+            error:"DOMAIN_NOT_ALLOWED"
+
+        };
+
+    if(permission &&
+       !meta.permissions.includes(permission))
+
+        return{
+
+            valid:false,
+
+            error:"PERMISSION_DENIED"
+
+        };
+
+    this.trackUsage(hash);
+
+    this.audit("KEY_USED",meta.tenantId);
+
+    return{
+
+        valid:true,
+
+        tenantId:meta.tenantId,
+
+        tier:meta.tier,
+
+        permissions:meta.permissions
+
+    };
+
+}

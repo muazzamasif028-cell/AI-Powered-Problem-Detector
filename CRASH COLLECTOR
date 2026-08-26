@@ -1,0 +1,92 @@
+// ============================================================
+// 💥 telemetry/agent/collectors/CrashCollector.js
+// SUPREME Crash Reports Collector
+// ============================================================
+const EventEmitter = require('events');
+const os = require('os');
+
+class CrashCollector extends EventEmitter {
+    constructor() {
+        super();
+        this.name = 'crash';
+        this.crashes = [];
+    }
+
+    /**
+     * Capture crash with full context
+     */
+    async captureCrash(crashData) {
+        const crash = {
+            crashId: `CRASH_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            type: crashData.type || 'UNKNOWN',
+            timestamp: crashData.timestamp || new Date().toISOString(),
+            error: {
+                name: crashData.error?.name || 'Error',
+                message: crashData.error?.message || 'Unknown error',
+                stack: crashData.error?.stack || '',
+                code: crashData.error?.code || null
+            },
+            context: {
+                memoryUsage: process.memoryUsage(),
+                cpuUsage: process.cpuUsage(),
+                uptime: process.uptime(),
+                platform: os.platform(),
+                nodeVersion: process.version,
+                environment: process.env.NODE_ENV || 'production',
+                ...crashData.context
+            },
+            breadcrumbs: this.getRecentEvents(50)
+        };
+
+        this.crashes.push(crash);
+
+        // Emit immediately (high priority)
+        this.emit('data', {
+            type: 'CRASH',
+            priority: 'CRITICAL',
+            data: crash
+        });
+
+        return crash.crashId;
+    }
+
+    /**
+     * Get recent events for crash context
+     */
+    getRecentEvents(count = 50) {
+        // Return last N events from global event store
+        return [];
+    }
+
+    /**
+     * Get crash statistics
+     */
+    getStats() {
+        return {
+            totalCrashes: this.crashes.length,
+            byType: this.groupByType(),
+            recentCrashes: this.crashes.slice(-10),
+            mostCommonError: this.getMostCommonError()
+        };
+    }
+
+    groupByType() {
+        return this.crashes.reduce((acc, crash) => {
+            acc[crash.type] = (acc[crash.type] || 0) + 1;
+            return acc;
+        }, {});
+    }
+
+    getMostCommonError() {
+        const errors = this.crashes.map(c => c.error.message);
+        const counts = errors.reduce((acc, msg) => {
+            acc[msg] = (acc[msg] || 0) + 1;
+            return acc;
+        }, {});
+        
+        return Object.entries(counts)
+            .sort(([, a], [, b]) => b - a)[0]?.[0] || null;
+    }
+}
+
+module.exports = CrashCollector;

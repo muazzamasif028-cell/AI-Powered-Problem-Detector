@@ -1,0 +1,118 @@
+// supreme-safety/SupremeSafetyEnforcement.js
+// Complete Safety Enforcement System
+
+import { RiskDetectionEngine } from './RiskDetectionEngine.js';
+import { HumanReviewPanel } from './HumanReviewPanel.js';
+import { AppealsSystem } from './AppealsSystem.js';
+import { AuditTrail } from './AuditTrail.js';
+
+export class SupremeSafetyEnforcement {
+    constructor() {
+        this.riskEngine = new RiskDetectionEngine();
+        this.reviewPanel = new HumanReviewPanel();
+        this.appeals = new AppealsSystem();
+        this.audit = new AuditTrail();
+    }
+
+    /**
+     * Main monitoring loop
+     */
+    async monitorAll() {
+        const companies = await this.getActiveCompanies();
+        
+        for (const company of companies) {
+            await this.monitorCompany(company.id);
+        }
+    }
+
+    /**
+     * Monitor single company
+     */
+    async monitorCompany(companyId) {
+        // 1. Detect risks
+        const riskReport = await this.riskEngine.analyze(companyId);
+        
+        // 2. Log to audit
+        await this.audit.log({
+            type: 'RISK_ASSESSMENT',
+            actor: 'AUTOMATED_SYSTEM',
+            target: companyId,
+            action: 'ANALYZE',
+            reason: 'Scheduled monitoring',
+            evidence: riskReport
+        });
+
+        // 3. Take action based on risk level
+        switch (riskReport.level) {
+            case 'LOW':
+                await this.handleLowRisk(companyId, riskReport);
+                break;
+                
+            case 'MEDIUM':
+                await this.handleMediumRisk(companyId, riskReport);
+                break;
+                
+            case 'HIGH':
+                await this.handleHighRisk(companyId, riskReport);
+                break;
+                
+            case 'CRITICAL':
+                await this.handleCriticalRisk(companyId, riskReport);
+                break;
+        }
+    }
+
+    async handleLowRisk(companyId, report) {
+        // Send automated warning
+        await this.sendWarning(companyId, report);
+    }
+
+    async handleMediumRisk(companyId, report) {
+        // Restrict + notify
+        await this.restrictAccess(companyId, report);
+        await this.sendWarning(companyId, report);
+    }
+
+    async handleHighRisk(companyId, report) {
+        // Isolate + human review
+        await this.isolateCapability(companyId, report);
+        
+        await this.reviewPanel.requestApproval({
+            type: 'ISOLATE',
+            companyId,
+            severity: 'HIGH',
+            reason: report.risks[0]?.message,
+            evidence: report
+        }, report);
+    }
+
+    async handleCriticalRisk(companyId, report) {
+        // Full containment + urgent human review
+        await this.fullContainment(companyId);
+        
+        await this.reviewPanel.requestApproval({
+            type: 'CONTAIN',
+            companyId,
+            severity: 'CRITICAL',
+            reason: report.risks[0]?.message,
+            evidence: report
+        }, report);
+    }
+
+    // Actions
+    async sendWarning(companyId, report) {
+        return { status: 'WARNED', companyId };
+    }
+    async restrictAccess(companyId, report) {
+        return { status: 'RESTRICTED', companyId };
+    }
+    async isolateCapability(companyId, report) {
+        return { status: 'ISOLATED', companyId };
+    }
+    async fullContainment(companyId) {
+        return { status: 'CONTAINED', companyId };
+    }
+    async getActiveCompanies() {
+        return [{ id: 'COMP-001' }, { id: 'COMP-002' }];
+    }
+}

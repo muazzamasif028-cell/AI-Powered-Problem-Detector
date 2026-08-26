@@ -1,0 +1,90 @@
+(* ============================================================
+   📐 SPL-V v3.0 — Formal Grammar (EBNF)
+   SUPREME Vehicle Domain-Specific Language
+   ============================================================ *)
+
+(* --- TOP LEVEL --- *)
+Program         ::= Module*
+Module          ::= CopilotModule | AutonomousModule | HardwareModule 
+                  | SafetyModule | FleetModule | OTAModule 
+                  | PluginModule | MainModule
+
+(* --- COPILOT MODULE (SPL-C) --- *)
+CopilotModule   ::= 'copilot' '{' CopilotSetting* CopilotEvent* '}'
+CopilotSetting  ::= Identifier ':' Value ';'
+CopilotEvent    ::= 'on' Condition '{' CopilotAction* '}'
+CopilotAction   ::= ('say' String ';') 
+                  | ('suggest' Identifier ';')
+                  | ('set' Identifier Value ';')
+
+(* --- AUTONOMOUS MODULE (SPL-A) --- *)
+AutonomousModule ::= 'autonomous' '{' AutonomousSubsystem* '}'
+AutonomousSubsystem ::= ('navigation' | 'lane_keeping' | 'adaptive_cruise' 
+                       | 'overtake' | 'intersection' | 'parking') 
+                       '{' Setting* '}'
+
+(* --- HARDWARE MODULE (SPL-H) --- *)
+HardwareModule  ::= 'hardware' '{' HardwareSubsystem* '}'
+HardwareSubsystem ::= ('sensors' | 'powertrain' | 'can_bus') 
+                     '{' Setting* '}'
+SensorConfig    ::= ('lidar' | 'radar' | 'cameras' | 'ultrasonic' 
+                  | 'gps' | 'imu') '{' Setting* '}'
+PowertrainConfig ::= ('motor' | 'battery' | 'brakes' | 'steering') 
+                    '{' Setting* '}'
+CANBusConfig    ::= 'can_bus' '{' Setting* CANMessage* '}'
+CANMessage      ::= '{' 'id' ':' HexNumber ',' 'name' ':' String 
+                  ',' 'interval' ':' Number Unit '}'
+
+(* --- SAFETY MODULE --- *)
+SafetyModule    ::= 'safety' '{' PillarCount? SafetyPillar* '}'
+PillarCount     ::= 'pillars' ':' Number ';'
+SafetyPillar    ::= 'pillar' Identifier '{' PillarProperty* '}'
+PillarProperty  ::= ('priority' ':' Priority ';')
+                  | ('condition' ':' Expression ';')
+                  | ('action' ':' '[' Identifier (',' Identifier)* ']' ';')
+Priority        ::= 'MAXIMUM' | 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+
+(* --- FLEET MODULE --- *)
+FleetModule     ::= 'fleet' '{' Setting* '}'
+
+(* --- OTA MODULE --- *)
+OTAModule       ::= 'ota' '{' Setting* '}'
+
+(* --- PLUGIN MODULE --- *)
+PluginModule    ::= 'plugins' '{' PluginDecl* '}'
+PluginDecl      ::= Identifier '{' Setting* '}'
+
+(* --- MAIN MODULE --- *)
+MainModule      ::= 'main' '{' MainPhase* '}'
+MainPhase       ::= ('startup' | 'driving_loop' | 'shutdown') 
+                   '{' Statement* '}'
+
+(* --- STATEMENTS --- *)
+Statement       ::= Setting | FunctionCall | IfStmt | LoopStmt | ReturnStmt
+Setting         ::= Identifier ':' Value ';'
+FunctionCall    ::= Identifier '(' Args? ')' ';'
+IfStmt          ::= 'if' '(' Expression ')' Block ('else' Block)?
+LoopStmt        ::= 'every' Number Unit Block
+ReturnStmt      ::= 'return' Expression? ';'
+Block           ::= '{' Statement* '}'
+
+(* --- EXPRESSIONS --- *)
+Expression      ::= Comparison ('&&' Comparison | '||' Comparison)*
+Comparison      ::= Term (('==' | '!=' | '<' | '>' | '<=' | '>=') Term)?
+Term            ::= Factor (('+' | '-') Factor)*
+Factor          ::= Unary (('*' | '/' | '%') Unary)*
+Unary           ::= ('!' | '-')? Primary
+Primary         ::= Number Unit? | String | Identifier | FunctionCall 
+                  | '(' Expression ')' | ArrayLiteral
+ArrayLiteral    ::= '[' Value (',' Value)* ']'
+
+(* --- VALUES --- *)
+Value           ::= Number Unit? | String | Boolean | Identifier | ArrayLiteral
+Number          ::= [0-9]+ ('.' [0-9]+)?
+HexNumber       ::= '0x' [0-9A-Fa-f]+
+String          ::= '"' [^"]* '"'
+Boolean         ::= 'true' | 'false'
+Unit            ::= [a-zA-Z%]+
+Identifier      ::= [a-zA-Z_][a-zA-Z0-9_]*
+Args            ::= Expression (',' Expression)*
+Comment         ::= '//' [^\n]* | '/*' .* '*/'

@@ -1,0 +1,114 @@
+// ============================================================
+// 🛣️ src/routes/payment.routes.js
+// SUPREME Payment Routes — Paddle | Lemon Squeezy | PayPal
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const paymentOrchestrator = require('../services/payment');
+const authMiddleware = require('../middleware/auth.middleware');
+
+router.use(authMiddleware.authenticate());
+
+// =============================================
+// 📊 GET ALL PROVIDERS
+// =============================================
+router.get('/providers', (req, res) => {
+    const providers = paymentOrchestrator.getAllProviders();
+    res.json({ success: true, providers, default: paymentOrchestrator.defaultProvider });
+});
+
+// =============================================
+// 📊 COMPARE PROVIDERS
+// =============================================
+router.get('/providers/compare', (req, res) => {
+    const comparison = paymentOrchestrator.compareProviders();
+    res.json({ success: true, comparison });
+});
+
+// =============================================
+// 🌍 GET BEST PROVIDER FOR COUNTRY
+// =============================================
+router.get('/providers/best/:country', (req, res) => {
+    const best = paymentOrchestrator.getBestProvider(req.params.country);
+    res.json({ success: true, country: req.params.country, recommendedProvider: best });
+});
+
+// =============================================
+// 💳 GET PAYMENT METHODS
+// =============================================
+router.get('/methods/:provider/:country', (req, res) => {
+    const methods = paymentOrchestrator.getPaymentMethods(req.params.provider, req.params.country);
+    res.json({ success: true, provider: req.params.provider, country: req.params.country, methods });
+});
+
+// =============================================
+// 🛒 CREATE CHECKOUT
+// =============================================
+router.post('/checkout', async (req, res) => {
+    try {
+        const { provider, domainName, tld, years, plan, currency } = req.body;
+        
+        const result = await paymentOrchestrator.createCheckout(
+            req.userId,
+            { domainName, tld, years, plan, currency },
+            provider
+        );
+
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+// =============================================
+// 🔄 CREATE SUBSCRIPTION
+// =============================================
+router.post('/subscribe', async (req, res) => {
+    try {
+        const { provider, plan, currency } = req.body;
+        
+        const result = await paymentOrchestrator.createSubscription(
+            req.userId,
+            { plan, currency },
+            provider
+        );
+
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+// =============================================
+// ❌ CANCEL SUBSCRIPTION
+// =============================================
+router.delete('/subscribe/:subscriptionId', async (req, res) => {
+    try {
+        const { provider } = req.query;
+        const result = await paymentOrchestrator.cancelSubscription(
+            req.params.subscriptionId,
+            provider
+        );
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+// =============================================
+// ✅ VERIFY PAYMENT
+// =============================================
+router.get('/verify/:transactionId', async (req, res) => {
+    try {
+        const { provider } = req.query;
+        const result = await paymentOrchestrator.verifyPayment(
+            req.params.transactionId,
+            provider
+        );
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+module.exports = router;

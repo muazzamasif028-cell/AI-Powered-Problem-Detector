@@ -1,0 +1,9 @@
+revokeKey(apiKey){
+
+    const hash=this._hashKey(apiKey);
+
+    this.revoked.add(hash);
+
+    this.audit("KEY_REVOKED",hash);
+
+}

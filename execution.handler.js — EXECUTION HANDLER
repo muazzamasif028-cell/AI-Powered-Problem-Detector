@@ -1,0 +1,73 @@
+// ============================================================
+// 📁 events/handlers/execution.handler.js — EXECUTION HANDLER
+// ============================================================
+const eventBus = require('../event.bus');
+
+class ExecutionHandler {
+    constructor() {
+        this.executions = [];
+        this.registerHandlers();
+    }
+
+    registerHandlers() {
+        eventBus.registerHandler('orchestration:complete', (data) => this.handleComplete(data));
+        eventBus.registerHandler('orchestration:failed', (data) => this.handleFailed(data));
+        eventBus.registerHandler('execution:started', (data) => this.handleStarted(data));
+        eventBus.registerHandler('execution:progress', (data) => this.handleProgress(data));
+    }
+
+    async handleComplete(data) {
+        console.log(`✅ [EXECUTION] Orchestration complete: ${data.id}`);
+        
+        this.executions.push({
+            id: data.id,
+            status: 'COMPLETED',
+            stages: Object.keys(data.stages).length,
+            totalTime: data.totalTime,
+            timestamp: data.timestamp
+        });
+
+        // Keep last 1000
+        if (this.executions.length > 1000) {
+            this.executions.shift();
+        }
+    }
+
+    async handleFailed(data) {
+        console.error(`❌ [EXECUTION] Orchestration failed: ${data.id} — ${data.error}`);
+        
+        this.executions.push({
+            id: data.id,
+            status: 'FAILED',
+            error: data.error,
+            timestamp: data.timestamp
+        });
+    }
+
+    async handleStarted(data) {
+        console.log(`⚡ [EXECUTION] Started: ${data.id}`);
+    }
+
+    async handleProgress(data) {
+        console.log(`📊 [EXECUTION] Progress: ${data.id} — ${data.progress}%`);
+    }
+
+    getHistory(limit = 50) {
+        return this.executions.slice(-limit);
+    }
+
+    getStats() {
+        const total = this.executions.length;
+        const completed = this.executions.filter(e => e.status === 'COMPLETED').length;
+        const failed = this.executions.filter(e => e.status === 'FAILED').length;
+
+        return {
+            total,
+            completed,
+            failed,
+            successRate: total > 0 ? ((completed / total) * 100).toFixed(1) + '%' : '100%'
+        };
+    }
+}
+
+module.exports = new ExecutionHandler();

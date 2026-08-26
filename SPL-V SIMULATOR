@@ -1,0 +1,152 @@
+// spl-v/simulator/SupremeVehicleSimulator.js
+import { SupremeVehicleLexer } from '../compiler/SupremeVehicleLexer.js';
+import { SupremeVehicleParser } from '../compiler/SupremeVehicleParser.js';
+
+export class SupremeVehicleSimulator {
+    constructor() {
+        this.vehicle = {
+            speed: 0, battery: 85, mode: 'parked', location: { lat: 24.8607, lng: 67.0011 },
+            sensors: { lidar: true, radar: true, cameras: true, gps: true, imu: true },
+            motor: { power: 0, torque: 0, temperature: 35 },
+            brakes: { applied: false, pressure: 0 },
+            steering: { angle: 0 },
+            safety: { pillarsActive: 30, alerts: [] },
+            copilot: { messages: [] },
+            errors: []
+        };
+        
+        this.stats = { commandsExecuted: 0, simulationTime: 0, distanceTraveled: 0 };
+        this.isRunning = false;
+        this.simulationSpeed = 1; // 1x real-time
+    }
+
+    async loadAndRun(splvCode) {
+        console.log('🖥️ SPL-V SIMULATOR v4.0\n');
+        
+        // Compile
+        const lexer = new SupremeVehicleLexer(splvCode);
+        const tokens = lexer.tokenize();
+        console.log(`🔧 Lexer: ${tokens.length} tokens`);
+        
+        const parser = new SupremeVehicleParser(tokens);
+        const ast = parser.parse();
+        console.log(`🔍 Parser: ${ast.modules.length} modules\n`);
+        
+        // Execute
+        console.log('⚡ Starting simulation...\n');
+        this.isRunning = true;
+        
+        for (const module of ast.modules) {
+            await this.executeModule(module);
+        }
+        
+        // Run main loop
+        await this.runSimulationLoop(ast);
+        
+        console.log('\n✅ Simulation complete');
+        return this.getReport();
+    }
+
+    async executeModule(module) {
+        switch (module.type) {
+            case 'VehicleConfig':
+                console.log(`🚗 Vehicle: ${module.name}`);
+                if (module.config.speed) this.vehicle.speed = module.config.speed.value || 0;
+                if (module.config.battery) this.vehicle.battery = module.config.battery.value || 100;
+                if (module.config.mode) this.vehicle.mode = module.config.mode.value || 'parked';
+                break;
+                
+            case 'CopilotConfig':
+                console.log('🎤 Copilot configured');
+                for (const [key, val] of Object.entries(module.settings || {})) {
+                    console.log(`   ${key}: ${val.value}`);
+                }
+                for (const event of module.events || []) {
+                    console.log(`   Event: on ${event.trigger?.left} ${event.trigger?.op} ${event.trigger?.right}`);
+                }
+                break;
+                
+            case 'SafetyConfig':
+                console.log(`🛡️ Safety: ${module.count || 30} pillars`);
+                for (const pillar of module.pillars || []) {
+                    console.log(`   ✅ ${pillar.name}: ${pillar.properties.priority?.value || 'HIGH'}`);
+                }
+                break;
+                
+            case 'AutonomousConfig':
+                console.log('🚗 Autonomous driving configured');
+                for (const [name, sub] of Object.entries(module.subsystems || {})) {
+                    console.log(`   ⚙️ ${name}`);
+                }
+                break;
+                
+            case 'HardwareConfig':
+                console.log('🏗️ Hardware configured');
+                for (const [name, sub] of Object.entries(module.subsystems || {})) {
+                    console.log(`   🔧 ${name}`);
+                }
+                break;
+                
+            case 'MainConfig':
+                console.log('🚀 Main execution phases:');
+                for (const [phase, stmts] of Object.entries(module.phases || {})) {
+                    console.log(`   ⚡ ${phase}: ${stmts.length} statements`);
+                    await this.executePhase(phase, stmts);
+                }
+                break;
+                
+            default:
+                console.log(`   📦 ${module.type}`);
+        }
+        this.stats.commandsExecuted++;
+    }
+
+    async executePhase(phase, statements) {
+        console.log(`\n--- ${phase.toUpperCase()} ---`);
+        
+        for (const stmt of statements) {
+            if (stmt.type === 'Setting') {
+                console.log(`   ${stmt.name}: ${stmt.value?.value}${stmt.value?.unit || ''}`);
+                this.applySetting(stmt.name, stmt.value);
+            }
+        }
+    }
+
+    applySetting(name, value) {
+        const mappings = {
+            speed: () => { this.vehicle.speed = value.value || 0; },
+            battery: () => { this.vehicle.battery = value.value || 100; },
+            mode: () => { this.vehicle.mode = value.value || 'parked'; }
+        };
+        if (mappings[name]) mappings[name]();
+    }
+
+    async runSimulationLoop(ast) {
+        console.log('\n🔄 Running main loop...');
+        
+        for (let t = 0; t < 10 && this.isRunning; t++) {
+            this.stats.simulationTime += 100; // ms
+            this.vehicle.speed = Math.max(0, this.vehicle.speed + (Math.random() - 0.3) * 10);
+            this.vehicle.battery = Math.max(0, this.vehicle.battery - 0.01);
+            this.stats.distanceTraveled += this.vehicle.speed * (100 / 3600000);
+            
+            if (t % 5 === 0) {
+                console.log(`   ⏱️ t=${this.stats.simulationTime}ms | Speed: ${this.vehicle.speed.toFixed(1)}km/h | Battery: ${this.vehicle.battery.toFixed(1)}%`);
+            }
+            
+            await this.sleep(100 / this.simulationSpeed);
+        }
+    }
+
+    sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    getReport() {
+        return {
+            vehicle: this.vehicle,
+            stats: this.stats,
+            errors: this.vehicle.errors,
+            copilotMessages: this.vehicle.copilot.messages,
+            safetyAlerts: this.vehicle.safety.alerts
+        };
+    }
+}

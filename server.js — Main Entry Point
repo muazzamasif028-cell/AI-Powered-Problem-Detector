@@ -1,0 +1,46 @@
+// ============================================================
+// 🚀 server.js
+// SUPREME OS MVP — Production Server
+// ============================================================
+const app = require('./src/app');
+const config = require('./src/config');
+const mongoose = require('mongoose');
+
+// Connect to MongoDB
+mongoose.connect(config.mongodbUri)
+    .then(() => console.log('🗄️  MongoDB connected'))
+    .catch(err => {
+        console.error('❌ MongoDB connection failed:', err.message);
+        process.exit(1);
+    });
+
+// Start server
+app.listen(config.port, () => {
+    console.log(`
+╔══════════════════════════════════════════════╗
+║                                              ║
+║   ⚡ SUPREME OS MVP v1.0                     ║
+║                                              ║
+║   🚀 Server: http://localhost:${config.port}          ║
+║   📚 API:    http://localhost:${config.port}/api      ║
+║   ❤️  Health: http://localhost:${config.port}/health  ║
+║                                              ║
+║   Modules:                                   ║
+║   ✅ AI Gateway (OpenAI + Anthropic)         ║
+║   ✅ Authentication (JWT)                    ║
+║   ✅ Rate Limiting                           ║
+║   ✅ Billing (Stripe/Paddle)                 ║
+║   ✅ Dashboard API                           ║
+║   ✅ Usage Tracking                          ║
+║   ✅ Monitoring                              ║
+║                                              ║
+╚══════════════════════════════════════════════════╝
+    `);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+    console.log('🔄 Shutting down gracefully...');
+    await mongoose.connection.close();
+    process.exit(0);
+});

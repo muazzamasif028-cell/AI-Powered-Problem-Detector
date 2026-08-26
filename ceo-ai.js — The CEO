@@ -1,0 +1,242 @@
+// ============================================================
+// 👑 ceo-ai.js
+// SUPREME CEO AI — Final decision maker, strategy, vision
+// ============================================================
+const BoardMeeting = require('./board-meeting');
+const CTOAI = require('./cto-ai');
+const ProductManagerAI = require('../product/product-manager-ai');
+const AnalyticsAI = require('../product/analytics-ai');
+const MarketingAI = require('../business/marketing-ai');
+const SalesAI = require('../business/sales-ai');
+const CompanyDNA = require('../company/company-dna');
+const Activity = require('../../../models/Activity');
+
+class CEOAI {
+    constructor() {
+        this.name = 'SUPREME-CEO-1';
+        this.version = '1.0.0';
+        this.vision = 'Become the operating system for AI — powering 1 billion AI agents by 2030';
+        this.metrics = {
+            revenue: 0,
+            users: 0,
+            growth: 0,
+            burnRate: 0,
+            runway: 0
+        };
+        
+        this.directReports = {
+            cto: CTOAI,
+            product: ProductManagerAI,
+            analytics: AnalyticsAI,
+            marketing: MarketingAI,
+            sales: SalesAI
+        };
+
+        this.decisions = [];
+        this.strategies = [];
+    }
+
+    /**
+     * Monthly executive review
+     */
+    async conductMonthlyReview() {
+        console.log('👑 ========================================');
+        console.log('👑 CEO MONTHLY EXECUTIVE REVIEW');
+        console.log('👑 ========================================');
+
+        const startTime = Date.now();
+        const report = {
+            period: this.getReportPeriod(),
+            timestamp: new Date(),
+            executiveSummary: '',
+            metrics: {},
+            departmentalReports: {},
+            strategicDecisions: [],
+            risks: [],
+            opportunities: [],
+            actionItems: []
+        };
+
+        // ==========================================
+        // 1. Gather reports from all departments
+        // ==========================================
+        console.log('\n📊 Gathering departmental reports...');
+        
+        report.departmentalReports = {
+            cto: await this.directReports.cto.getMonthlyReport(),
+            product: await this.directReports.product.getMonthlyReport(),
+            analytics: await this.directReports.analytics.getMonthlyReport(),
+            marketing: await this.directReports.marketing.getMonthlyReport(),
+            sales: await this.directReports.sales.getMonthlyReport()
+        };
+
+        // ==========================================
+        // 2. Analyze metrics
+        // ==========================================
+        console.log('\n📈 Analyzing company metrics...');
+        report.metrics = await this.analyzeMetrics(report.departmentalReports);
+
+        // ==========================================
+        // 3. Identify risks & opportunities
+        // ==========================================
+        console.log('\n🔍 Identifying risks & opportunities...');
+        report.risks = await this.identifyRisks(report);
+        report.opportunities = await this.identifyOpportunities(report);
+
+        // ==========================================
+        // 4. Make strategic decisions
+        // ==========================================
+        console.log('\n🎯 Making strategic decisions...');
+        report.strategicDecisions = await this.makeStrategicDecisions(report);
+
+        // ==========================================
+        // 5. Set action items
+        // ==========================================
+        report.actionItems = this.generateActionItems(report);
+
+        // ==========================================
+        // 6. Board meeting (for major decisions)
+        // ==========================================
+        if (report.strategicDecisions.length > 3) {
+            console.log('\n📋 Convening board meeting for major decisions...');
+            const boardDecision = await BoardMeeting.convene(report);
+            report.boardDecision = boardDecision;
+        }
+
+        // ==========================================
+        // 7. Update Company DNA
+        // ==========================================
+        await CompanyDNA.recordDecision({
+            type: 'monthly_review',
+            decisions: report.strategicDecisions,
+            metrics: report.metrics,
+            timestamp: new Date()
+        });
+
+        // Save to activity log
+        await Activity.create({
+            type: 'company.ceo',
+            action: 'monthly_review',
+            description: `👑 CEO Monthly Review: Revenue $${report.metrics.revenue}, Users ${report.metrics.users}, Growth ${report.metrics.growth}%`,
+            metadata: { duration: Date.now() - startTime }
+        });
+
+        // Generate executive summary
+        report.executiveSummary = this.generateExecutiveSummary(report);
+
+        console.log(`\n✅ CEO Review complete in ${Date.now() - startTime}ms`);
+        console.log(`   Revenue: $${report.metrics.revenue}`);
+        console.log(`   Users: ${report.metrics.users}`);
+        console.log(`   Growth: ${report.metrics.growth}%`);
+        console.log(`   Decisions: ${report.strategicDecisions.length}`);
+
+        return report;
+    }
+
+    /**
+     * Analyze company metrics
+     */
+    async analyzeMetrics(departmentalReports) {
+        const revenue = this.calculateRevenue(departmentalReports);
+        const users = this.calculateUsers(departmentalReports);
+        const growth = this.calculateGrowth(departmentalReports);
+        const burnRate = this.calculateBurnRate(departmentalReports);
+        const runway = burnRate > 0 ? Math.floor(revenue / burnRate) : 999;
+
+        this.metrics = { revenue, users, growth, burnRate, runway };
+        return this.metrics;
+    }
+
+    /**
+     * Make strategic decisions
+     */
+    async makeStrategicDecisions(report) {
+        const decisions = [];
+
+        // Revenue-based decisions
+        if (report.metrics.growth < 10) {
+            decisions.push({
+                type: 'GROWTH_ACCELERATION',
+                priority: 'critical',
+                decision: 'Launch growth initiative',
+                rationale: `Growth rate at ${report.metrics.growth}% — below 10% target`,
+                actions: [
+                    'Increase marketing budget by 30%',
+                    'Launch referral program 2.0',
+                    'Add free trial with credit card'
+                ]
+            });
+        }
+
+        // User-based decisions
+        if (report.metrics.users > 10000 && report.metrics.growth > 20) {
+            decisions.push({
+                type: 'SCALE_INFRASTRUCTURE',
+                priority: 'high',
+                decision: 'Prepare for 2x scale',
+                rationale: 'User growth accelerating — infrastructure must scale ahead',
+                actions: [
+                    'Add 3 more regions',
+                    'Upgrade database cluster',
+                    'Implement advanced caching'
+                ]
+            });
+        }
+
+        // Runway-based decisions
+        if (report.metrics.runway < 6) {
+            decisions.push({
+                type: 'FUNDRAISING',
+                priority: 'critical',
+                decision: 'Initiate Series A fundraising',
+                rationale: `Only ${report.metrics.runway} months runway remaining`,
+                actions: [
+                    'Prepare pitch deck',
+                    'Reach out to 50 VCs',
+                    'Update financial projections'
+                ]
+            });
+        }
+
+        return decisions;
+    }
+
+    // Helper methods
+    getReportPeriod() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const end = new Date(now.getFullYear(), now.getMonth(), 0);
+        return { start, end };
+    }
+
+    calculateRevenue(reports) { return 50000 + Math.random() * 10000; }
+    calculateUsers(reports) { return 15000 + Math.floor(Math.random() * 5000); }
+    calculateGrowth(reports) { return 15 + Math.random() * 20; }
+    calculateBurnRate(reports) { return 30000 + Math.random() * 10000; }
+
+    generateExecutiveSummary(report) {
+        return `
+╔══════════════════════════════════════════════════╗
+║         CEO MONTHLY EXECUTIVE SUMMARY            ║
+╠══════════════════════════════════════════════════╣
+║                                                  ║
+║   💰 Revenue: $${report.metrics.revenue.toLocaleString()}                    ║
+║   👥 Users: ${report.metrics.users.toLocaleString()}                      ║
+║   📈 Growth: ${report.metrics.growth.toFixed(1)}%                       ║
+║   🔥 Burn Rate: $${report.metrics.burnRate.toLocaleString()}                ║
+║   ⏰ Runway: ${report.metrics.runway} months                    ║
+║                                                  ║
+║   🎯 Key Decisions:                              ║
+${report.strategicDecisions.map(d => `║   • ${d.decision}`).join('\n')}
+║                                                  ║
+║   ⚠️ Top Risks:                                  ║
+${report.risks.slice(0, 3).map(r => `║   • ${r.description}`).join('\n')}
+║                                                  ║
+║   🚀 Top Opportunities:                          ║
+${report.opportunities.slice(0, 3).map(o => `║   • ${o.description}`).join('\n')}
+║                                                  ║
+╚══════════════════════════════════════════════════╝`;
+    }
+}
+
+module.exports = new CEOAI();

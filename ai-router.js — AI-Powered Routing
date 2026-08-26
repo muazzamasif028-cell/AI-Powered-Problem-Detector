@@ -1,0 +1,205 @@
+// ============================================================
+// ⚡ ai-router.js
+// SUPREME AI Router — Intelligent path selection
+// ============================================================
+
+class AIRouter {
+    constructor() {
+        this.routingHistory = [];
+        this.latencyMap = new Map();
+        this.costMap = new Map();
+    }
+
+    /**
+     * Select best route for a request
+     */
+    async selectBestRoute(userLocation, request) {
+        const candidates = this.generateCandidates(userLocation);
+        
+        // Score each candidate
+        const scored = await Promise.all(
+            candidates.map(async (candidate) => {
+                const score = await this.scoreRoute(candidate, userLocation, request);
+                return { ...candidate, score };
+            })
+        );
+
+        // Select best
+        scored.sort((a, b) => b.score - a.score);
+        const best = scored[0];
+
+        // Record for analytics
+        this.routingHistory.push({
+            timestamp: new Date(),
+            userLocation: userLocation.city,
+            selected: `${best.edge.city} → ${best.cloud.name} (${best.region})`,
+            score: best.score,
+            latency: best.latency
+        });
+
+        // Keep last 1000 routes
+        if (this.routingHistory.length > 1000) {
+            this.routingHistory = this.routingHistory.slice(-1000);
+        }
+
+        return best;
+    }
+
+    /**
+     * Generate routing candidates
+     */
+    generateCandidates(userLocation) {
+        const candidates = [];
+
+        // Get nearest edge nodes
+        const edges = this.getNearestEdges(userLocation, 3);
+        
+        // Get available cloud regions
+        const clouds = this.getAvailableClouds();
+
+        for (const edge of edges) {
+            for (const cloud of clouds) {
+                for (const region of cloud.regions) {
+                    candidates.push({
+                        edge,
+                        cloud: { name: cloud.name, provider: cloud.provider },
+                        region,
+                        latency: this.estimateLatency(edge, region),
+                        cost: this.estimateCost(cloud, region)
+                    });
+                }
+            }
+        }
+
+        return candidates;
+    }
+
+    /**
+     * Score a route
+     */
+    async scoreRoute(candidate, userLocation, request) {
+        const weights = {
+            latency: 0.40,
+            cost: 0.20,
+            reliability: 0.25,
+            load: 0.15
+        };
+
+        const latencyScore = this.normalizeLatency(candidate.latency);
+        const costScore = this.normalizeCost(candidate.cost);
+        const reliabilityScore = this.getReliabilityScore(candidate);
+        const loadScore = this.getLoadScore(candidate.edge);
+
+        return (
+            latencyScore * weights.latency +
+            costScore * weights.cost +
+            reliabilityScore * weights.reliability +
+            loadScore * weights.load
+        );
+    }
+
+    /**
+     * Get nearest edge nodes to user
+     */
+    getNearestEdges(userLocation, count = 3) {
+        const hypernet = require('./hypernet-orchestrator');
+        const edges = Array.from(hypernet.edgeNodes.values());
+
+        // Calculate distance
+        const withDistance = edges.map(edge => ({
+            ...edge,
+            distance: this.calculateDistance(
+                userLocation.lat, userLocation.lng,
+                edge.lat, edge.lng
+            )
+        }));
+
+        // Sort by distance and return top N
+        return withDistance
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, count);
+    }
+
+    /**
+     * Calculate distance between two points (Haversine formula)
+     */
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Earth's radius in km
+        const dLat = this.toRad(lat2 - lat1);
+        const dLon = this.toRad(lon2 - lon1);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+
+    toRad(degrees) {
+        return degrees * (Math.PI / 180);
+    }
+
+    /**
+     * Estimate latency between edge and cloud region
+     */
+    estimateLatency(edge, region) {
+        // Base latency from geographic distance
+        const regionCoords = this.getRegionCoordinates(region);
+        const distance = regionCoords ? 
+            this.calculateDistance(edge.lat, edge.lng, regionCoords.lat, regionCoords.lng) : 5000;
+        
+        // Rough estimate: ~5ms per 1000km + 20ms overhead
+        return (distance / 1000) * 5 + 20;
+    }
+
+    /**
+     * Get region coordinates
+     */
+    getRegionCoordinates(region) {
+        const coords = {
+            'us-east-1': { lat: 38.9072, lng: -77.0369 },
+            'eu-west-1': { lat: 53.3498, lng: -6.2603 },
+            'ap-southeast-1': { lat: 1.3521, lng: 103.8198 },
+            'me-south-1': { lat: 26.0667, lng: 50.5577 },
+            'eastus': { lat: 38.9072, lng: -77.0369 },
+            'westeurope': { lat: 52.3667, lng: 4.8945 },
+            'southeastasia': { lat: 1.3521, lng: 103.8198 },
+            'uaenorth': { lat: 25.2048, lng: 55.2708 }
+        };
+        return coords[region] || null;
+    }
+
+    getAvailableClouds() {
+        const hypernet = require('./hypernet-orchestrator');
+        return Array.from(hypernet.cloudProviders.values())
+            .filter(c => c.status === 'active');
+    }
+
+    estimateCost(cloud, region) {
+        return cloud.provider === 'aws' ? 0.09 : 
+               cloud.provider === 'azure' ? 0.08 : 
+               cloud.provider === 'gcp' ? 0.07 : 0.10;
+    }
+
+    normalizeLatency(latency) {
+        return Math.max(0, 1 - (latency / 300)); // 0ms=1, 300ms=0
+    }
+
+    normalizeCost(cost) {
+        return Math.max(0, 1 - (cost / 0.5)); // $0=1, $0.50=0
+    }
+
+    getReliabilityScore(candidate) {
+        const scores = { aws: 0.9999, azure: 0.9995, gcp: 0.999, cloudflare: 0.9999 };
+        return scores[candidate.cloud.provider] || 0.99;
+    }
+
+    getLoadScore(edge) {
+        return Math.max(0, 1 - (edge.load / 100));
+    }
+
+    getRecentRoutes(count) {
+        return this.routingHistory.slice(-count);
+    }
+}
+
+module.exports = new AIRouter();

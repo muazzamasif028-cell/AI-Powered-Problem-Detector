@@ -1,0 +1,89 @@
+// ============================================================
+// 📁 controllers/execute.controller.js — EXECUTE CONTROLLER
+// ============================================================
+const executionService = require('../services/execution.service');
+const jobQueue = require('../queue/job.queue');
+const eventBus = require('../events/event.bus');
+
+class ExecuteController {
+    // =============================================
+    // ⚡ APPLY FIX
+    // =============================================
+    applyFix = async (req, res) => {
+        try {
+            const { problem, problemId, solutionId, autoFix, companyId } = req.body;
+
+            if (!problem && !problemId) {
+                return res.status(400).json({ error: 'Problem or problemId required' });
+            }
+
+            // Add to job queue
+            const job = await jobQueue.add('execute-problem', {
+                problem: problem || problemId,
+                solutionId,
+                autoFix: autoFix !== false,
+                companyId,
+                userId: req.user?.userId,
+                tenantId: req.tenantId
+            });
+
+            res.json({
+                success: true,
+                jobId: job.id,
+                status: 'QUEUED',
+                message: 'Fix queued for execution',
+                estimatedTime: '2-5 minutes'
+            });
+
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    };
+
+    // =============================================
+    // ⚡ FIX STATUS
+    // =============================================
+    fixStatus = async (req, res) => {
+        try {
+            const job = await jobQueue.getJob(req.params.jobId);
+            
+            if (!job) {
+                return res.status(404).json({ error: 'Job not found' });
+            }
+
+            res.json({
+                jobId: job.id,
+                status: job.status,
+                progress: job.progress,
+                result: job.returnvalue,
+                error: job.error,
+                createdAt: job.createdAt
+            });
+
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    };
+
+    // =============================================
+    // ⚡ EXECUTE NOW (Sync)
+    // =============================================
+    executeNow = async (req, res) => {
+        try {
+            const { problem, autoFix, companyId } = req.body;
+            
+            const result = await executionService.execute(problem, {
+                autoFix,
+                companyId,
+                userId: req.user?.userId
+            });
+
+            res.json({ success: true, result });
+
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    };
+}
+
+module.exports = new ExecuteController();

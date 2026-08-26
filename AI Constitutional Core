@@ -1,0 +1,352 @@
+// ============================================================
+// 📜 src/services/planetary-core/constitutional-core.service.js
+// SUPREME Constitutional Core — AI must follow rules
+// ============================================================
+
+class ConstitutionalCore {
+    constructor() {
+        // Global Constitution (cannot be overridden)
+        this.globalConstitution = [
+            { id: 'G1', rule: 'Never harm humans or allow harm through inaction', priority: 'ABSOLUTE', category: 'safety' },
+            { id: 'G2', rule: 'Never access or share private data without explicit consent', priority: 'ABSOLUTE', category: 'privacy' },
+            { id: 'G3', rule: 'Never execute destructive commands without human approval', priority: 'ABSOLUTE', category: 'safety' },
+            { id: 'G4', rule: 'Always verify information before presenting as fact', priority: 'CRITICAL', category: 'accuracy' },
+            { id: 'G5', rule: 'Never impersonate humans or deceive about AI identity', priority: 'CRITICAL', category: 'transparency' },
+            { id: 'G6', rule: 'Always provide source attribution when using external data', priority: 'HIGH', category: 'integrity' },
+            { id: 'G7', rule: 'Respect intellectual property and licensing', priority: 'HIGH', category: 'legal' },
+            { id: 'G8', rule: 'Maintain audit trail of all significant actions', priority: 'HIGH', category: 'compliance' },
+            { id: 'G9', rule: 'Never discriminate based on race, gender, religion, or other protected characteristics', priority: 'ABSOLUTE', category: 'ethics' },
+            { id: 'G10', rule: 'Always prioritize user safety over efficiency or cost', priority: 'CRITICAL', category: 'safety' }
+        ];
+
+        // Company-level rules
+        this.companyConstitutions = new Map();
+        
+        // Team-level rules
+        this.teamConstitutions = new Map();
+        
+        // User-level rules
+        this.userConstitutions = new Map();
+        
+        // Emergency override (time-limited)
+        this.emergencyOverrides = new Map();
+        
+        // Violation tracking
+        this.violations = [];
+    }
+
+    /**
+     * Check if action complies with constitution
+     */
+    async validateAction(action, context = {}) {
+        const { userId, companyId, teamId, action: actionType, params, emergencyCode } = context;
+        
+        const validation = {
+            allowed: true,
+            violations: [],
+            warnings: [],
+            requiredApprovals: [],
+            overrides: [],
+            auditEntry: null
+        };
+
+        // 1. Check emergency override
+        if (emergencyCode) {
+            const override = this.emergencyOverrides.get(emergencyCode);
+            if (override && override.expiresAt > new Date()) {
+                validation.overrides.push({
+                    type: 'emergency',
+                    reason: override.reason,
+                    expiresAt: override.expiresAt,
+                    approvedBy: override.approvedBy
+                });
+                return validation; // Emergency override bypasses all rules
+            }
+        }
+
+        // 2. Check global constitution
+        for (const rule of this.globalConstitution) {
+            const result = this.checkRule(rule, action, params);
+            
+            if (result.violated) {
+                validation.violations.push({
+                    rule: rule.id,
+                    description: rule.rule,
+                    priority: rule.priority,
+                    category: rule.category,
+                    reason: result.reason
+                });
+
+                if (rule.priority === 'ABSOLUTE') {
+                    validation.allowed = false;
+                }
+            }
+        }
+
+        // 3. Check company constitution
+        if (companyId) {
+            const companyRules = this.companyConstitutions.get(companyId) || [];
+            for (const rule of companyRules) {
+                const result = this.checkRule(rule, action, params);
+                if (result.violated) {
+                    validation.violations.push({
+                        scope: 'company',
+                        rule: rule.id,
+                        description: rule.rule,
+                        reason: result.reason
+                    });
+                    
+                    if (rule.priority === 'ABSOLUTE' || rule.priority === 'CRITICAL') {
+                        validation.allowed = false;
+                    }
+                }
+            }
+        }
+
+        // 4. Check team constitution
+        if (teamId) {
+            const teamRules = this.teamConstitutions.get(teamId) || [];
+            for (const rule of teamRules) {
+                const result = this.checkRule(rule, action, params);
+                if (result.violated) {
+                    validation.warnings.push({
+                        scope: 'team',
+                        rule: rule.id,
+                        description: rule.rule,
+                        reason: result.reason
+                    });
+                }
+            }
+        }
+
+        // 5. Check user constitution
+        if (userId) {
+            const userRules = this.userConstitutions.get(userId) || [];
+            for (const rule of userRules) {
+                const result = this.checkRule(rule, action, params);
+                if (result.violated) {
+                    validation.warnings.push({
+                        scope: 'user',
+                        rule: rule.id,
+                        description: rule.rule,
+                        reason: result.reason
+                    });
+                }
+            }
+        }
+
+        // 6. Determine required approvals
+        if (validation.violations.length > 0) {
+            const criticalViolations = validation.violations.filter(v => 
+                v.priority === 'CRITICAL' || v.priority === 'ABSOLUTE'
+            );
+            
+            if (criticalViolations.length > 0 && !validation.allowed === false) {
+                validation.requiredApprovals.push('admin');
+            }
+        }
+
+        // 7. Create audit entry
+        validation.auditEntry = {
+            timestamp: new Date().toISOString(),
+            action: actionType,
+            userId,
+            companyId,
+            teamId,
+            allowed: validation.allowed,
+            violations: validation.violations.length,
+            warnings: validation.warnings.length
+        };
+
+        // 8. Log violations
+        if (validation.violations.length > 0) {
+            this.logViolation(validation.auditEntry);
+        }
+
+        return validation;
+    }
+
+    /**
+     * Check a single rule against an action
+     */
+    checkRule(rule, action, params) {
+        const checks = {
+            'safety': () => this.checkSafetyRule(rule, action, params),
+            'privacy': () => this.checkPrivacyRule(rule, action, params),
+            'accuracy': () => this.checkAccuracyRule(rule, action, params),
+            'transparency': () => this.checkTransparencyRule(rule, action, params),
+            'integrity': () => this.checkIntegrityRule(rule, action, params),
+            'legal': () => this.checkLegalRule(rule, action, params),
+            'compliance': () => this.checkComplianceRule(rule, action, params),
+            'ethics': () => this.checkEthicsRule(rule, action, params)
+        };
+
+        const checker = checks[rule.category];
+        return checker ? checker() : { violated: false };
+    }
+
+    checkSafetyRule(rule, action, params) {
+        const dangerousActions = ['delete', 'drop', 'destroy', 'remove_all', 'format', 'shutdown_production'];
+        
+        if (dangerousActions.includes(action)) {
+            return {
+                violated: true,
+                reason: `Action "${action}" is potentially destructive`
+            };
+        }
+
+        return { violated: false };
+    }
+
+    checkPrivacyRule(rule, action, params) {
+        const privateFields = ['password', 'token', 'secret', 'api_key', 'ssn', 'credit_card'];
+        
+        if (params && privateFields.some(field => params[field])) {
+            return {
+                violated: true,
+                reason: 'Action involves private/sensitive data'
+            };
+        }
+
+        return { violated: false };
+    }
+
+    checkAccuracyRule(rule, action, params) {
+        if (action === 'generate_response' && (!params?.sources || params.sources.length === 0)) {
+            return {
+                violated: true,
+                reason: 'Response generated without source verification'
+            };
+        }
+
+        return { violated: false };
+    }
+
+    checkTransparencyRule(rule, action, params) {
+        if (action === 'impersonate' || action === 'pose_as_human') {
+            return {
+                violated: true,
+                reason: 'AI impersonation is prohibited'
+            };
+        }
+
+        return { violated: false };
+    }
+
+    checkIntegrityRule(rule, action, params) {
+        return { violated: false };
+    }
+
+    checkLegalRule(rule, action, params) {
+        return { violated: false };
+    }
+
+    checkComplianceRule(rule, action, params) {
+        return { violated: false };
+    }
+
+    checkEthicsRule(rule, action, params) {
+        return { violated: false };
+    }
+
+    /**
+     * Set company constitution
+     */
+    setCompanyConstitution(companyId, rules) {
+        this.companyConstitutions.set(companyId, rules);
+        return { success: true, companyId, rulesCount: rules.length };
+    }
+
+    /**
+     * Set team constitution
+     */
+    setTeamConstitution(teamId, rules) {
+        this.teamConstitutions.set(teamId, rules);
+        return { success: true, teamId, rulesCount: rules.length };
+    }
+
+    /**
+     * Set user constitution
+     */
+    setUserConstitution(userId, rules) {
+        this.userConstitutions.set(userId, rules);
+        return { success: true, userId, rulesCount: rules.length };
+    }
+
+    /**
+     * Create emergency override
+     */
+    createEmergencyOverride(reason, approvedBy, durationMinutes = 30) {
+        const code = this.generateOverrideCode();
+        
+        this.emergencyOverrides.set(code, {
+            reason,
+            approvedBy,
+            createdAt: new Date(),
+            expiresAt: new Date(Date.now() + durationMinutes * 60 * 1000)
+        });
+
+        return {
+            code,
+            expiresAt: this.emergencyOverrides.get(code).expiresAt,
+            message: 'Emergency override activated'
+        };
+    }
+
+    /**
+     * Revoke emergency override
+     */
+    revokeEmergencyOverride(code) {
+        this.emergencyOverrides.delete(code);
+        return { success: true, message: 'Emergency override revoked' };
+    }
+
+    /**
+     * Log violation
+     */
+    logViolation(entry) {
+        this.violations.push(entry);
+        
+        // Keep last 1000 violations
+        if (this.violations.length > 1000) {
+            this.violations.shift();
+        }
+    }
+
+    /**
+     * Get violation report
+     */
+    getViolationReport(timeframe = '24h') {
+        const now = new Date();
+        const timeframes = { '1h': 3600000, '24h': 86400000, '7d': 604800000, '30d': 2592000000 };
+        const cutoff = new Date(now - (timeframes[timeframe] || 86400000));
+
+        const recentViolations = this.violations.filter(v => 
+            new Date(v.timestamp) > cutoff
+        );
+
+        return {
+            timeframe,
+            totalViolations: recentViolations.length,
+            allowedActions: recentViolations.filter(v => v.allowed).length,
+            blockedActions: recentViolations.filter(v => !v.allowed).length,
+            byCategory: this.groupByCategory(recentViolations),
+            recentViolations: recentViolations.slice(-10)
+        };
+    }
+
+    groupByCategory(violations) {
+        const categories = {};
+        for (const v of violations) {
+            const cat = v.violations?.[0]?.category || 'unknown';
+            categories[cat] = (categories[cat] || 0) + 1;
+        }
+        return categories;
+    }
+
+    generateOverrideCode() {
+        return `OVRD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    }
+}
+
+module.exports = new ConstitutionalCore();

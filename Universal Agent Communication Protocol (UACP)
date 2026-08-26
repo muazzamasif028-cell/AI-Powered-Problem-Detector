@@ -1,0 +1,347 @@
+// ============================================================
+// 🤝 src/services/planetary-core/uacp.service.js
+// SUPREME UACP — Universal Agent Communication Protocol
+// ============================================================
+
+class UACPService {
+    constructor() {
+        this.protocolVersion = '1.0.0';
+        this.messageTypes = [
+            'REQUEST', 'RESPONSE', 'QUERY', 'COMMAND',
+            'NOTIFICATION', 'BROADCAST', 'HANDSHAKE', 'HEARTBEAT',
+            'DELEGATE', 'ESCALATE', 'SYNC', 'ACKNOWLEDGE'
+        ];
+
+        this.agentTypes = [
+            'finance', 'legal', 'medical', 'coding', 'security',
+            'customer-support', 'sales', 'marketing', 'hr', 'operations',
+            'data-analysis', 'research', 'compliance', 'audit', 'training'
+        ];
+
+        this.activeAgents = new Map();
+        this.messageQueue = new Map();
+        this.conversations = new Map();
+        this.capabilities = new Map();
+    }
+
+    /**
+     * Register an agent in the network
+     */
+    registerAgent(agentInfo) {
+        const { id, type, name, capabilities, owner, endpoint } = agentInfo;
+
+        const agent = {
+            id,
+            type,
+            name,
+            capabilities: capabilities || [],
+            owner,
+            endpoint,
+            status: 'online',
+            registeredAt: new Date(),
+            lastHeartbeat: new Date(),
+            messageCount: 0,
+            trustedPeers: new Set()
+        };
+
+        this.activeAgents.set(id, agent);
+        this.capabilities.set(id, capabilities);
+
+        // Announce to network
+        this.broadcastToPeers(id, {
+            type: 'HANDSHAKE',
+            agent: { id, type, name }
+        });
+
+        console.log(`🤝 Agent registered: ${name} (${type})`);
+        return agent;
+    }
+
+    /**
+     * Send message between agents
+     */
+    async sendMessage(fromAgentId, toAgentId, message) {
+        const fromAgent = this.activeAgents.get(fromAgentId);
+        const toAgent = this.activeAgents.get(toAgentId);
+
+        if (!fromAgent || !toAgent) {
+            throw new Error('Agent not found');
+        }
+
+        // Check trust relationship
+        if (!fromAgent.trustedPeers.has(toAgentId)) {
+            await this.establishTrust(fromAgentId, toAgentId);
+        }
+
+        // Create message envelope
+        const envelope = {
+            id: this.generateMessageId(),
+            protocol: 'UACP',
+            version: this.protocolVersion,
+            from: {
+                id: fromAgentId,
+                type: fromAgent.type,
+                name: fromAgent.name
+            },
+            to: {
+                id: toAgentId,
+                type: toAgent.type,
+                name: toAgent.name
+            },
+            type: message.type || 'REQUEST',
+            priority: message.priority || 'normal',
+            payload: message.payload || {},
+            metadata: {
+                timestamp: new Date().toISOString(),
+                conversationId: message.conversationId,
+                correlationId: message.correlationId,
+                ttl: message.ttl || 30000
+            },
+            signature: this.signMessage(fromAgentId, message.payload)
+        };
+
+        // Queue or deliver directly
+        if (toAgent.status === 'online') {
+            return this.deliverMessage(envelope);
+        } else {
+            return this.queueMessage(toAgentId, envelope);
+        }
+    }
+
+    /**
+     * Broadcast message to all agents of a type
+     */
+    async broadcastToType(fromAgentId, agentType, message) {
+        const recipients = Array.from(this.activeAgents.values())
+            .filter(a => a.type === agentType && a.id !== fromAgentId);
+
+        const results = [];
+        for (const recipient of recipients) {
+            try {
+                const result = await this.sendMessage(fromAgentId, recipient.id, message);
+                results.push({ agentId: recipient.id, success: true, result });
+            } catch (error) {
+                results.push({ agentId: recipient.id, success: false, error: error.message });
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * Broadcast to all trusted peers
+     */
+    broadcastToPeers(agentId, message) {
+        const agent = this.activeAgents.get(agentId);
+        if (!agent) return;
+
+        const peers = Array.from(agent.trustedPeers)
+            .map(id => this.activeAgents.get(id))
+            .filter(Boolean);
+
+        for (const peer of peers) {
+            this.sendMessage(agentId, peer.id, message).catch(() => {});
+        }
+    }
+
+    /**
+     * Establish trust between agents
+     */
+    async establishTrust(agent1Id, agent2Id) {
+        const agent1 = this.activeAgents.get(agent1Id);
+        const agent2 = this.activeAgents.get(agent2Id);
+
+        if (!agent1 || !agent2) return;
+
+        // Verify agent identities
+        const verified = await this.verifyAgentIdentity(agent1Id, agent2Id);
+
+        if (verified) {
+            agent1.trustedPeers.add(agent2Id);
+            agent2.trustedPeers.add(agent1Id);
+
+            console.log(`🤝 Trust established: ${agent1.name} ↔ ${agent2.name}`);
+        }
+    }
+
+    /**
+     * Verify agent identities
+     */
+    async verifyAgentIdentity(agent1Id, agent2Id) {
+        // In production: Use PKI/certificate verification
+        return true;
+    }
+
+    /**
+     * Deliver message to agent
+     */
+    async deliverMessage(envelope) {
+        const toAgent = this.activeAgents.get(envelope.to.id);
+        if (!toAgent) throw new Error('Recipient offline');
+
+        toAgent.messageCount++;
+
+        // Track conversation
+        if (envelope.metadata.conversationId) {
+            this.trackConversation(envelope);
+        }
+
+        // In production: Send via WebSocket/HTTP to agent endpoint
+        return {
+            messageId: envelope.id,
+            status: 'delivered',
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    /**
+     * Queue message for offline agent
+     */
+    async queueMessage(agentId, envelope) {
+        if (!this.messageQueue.has(agentId)) {
+            this.messageQueue.set(agentId, []);
+        }
+
+        this.messageQueue.get(agentId).push(envelope);
+
+        return {
+            messageId: envelope.id,
+            status: 'queued',
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    /**
+     * Deliver queued messages when agent comes online
+     */
+    async deliverQueuedMessages(agentId) {
+        const queue = this.messageQueue.get(agentId) || [];
+        const delivered = [];
+
+        for (const envelope of queue) {
+            try {
+                await this.deliverMessage(envelope);
+                delivered.push(envelope.id);
+            } catch (error) {
+                // Keep in queue
+            }
+        }
+
+        // Remove delivered messages
+        this.messageQueue.set(agentId, 
+            queue.filter(e => !delivered.includes(e.id))
+        );
+
+        return { delivered: delivered.length, remaining: this.messageQueue.get(agentId)?.length || 0 };
+    }
+
+    /**
+     * Start conversation between agents
+     */
+    startConversation(agent1Id, agent2Id, topic) {
+        const conversationId = this.generateConversationId();
+
+        const conversation = {
+            id: conversationId,
+            participants: [agent1Id, agent2Id],
+            topic,
+            startedAt: new Date(),
+            messages: [],
+            status: 'active'
+        };
+
+        this.conversations.set(conversationId, conversation);
+        return conversation;
+    }
+
+    /**
+     * Track conversation
+     */
+    trackConversation(envelope) {
+        const conversation = this.conversations.get(envelope.metadata.conversationId);
+        if (conversation) {
+            conversation.messages.push({
+                messageId: envelope.id,
+                from: envelope.from.id,
+                timestamp: envelope.metadata.timestamp,
+                type: envelope.type
+            });
+        }
+    }
+
+    /**
+     * Delegate task to specialized agent
+     */
+    async delegateTask(fromAgentId, taskType, taskData) {
+        // Find best agent for this task
+        const specializedAgents = Array.from(this.activeAgents.values())
+            .filter(a => a.type === taskType && a.status === 'online');
+
+        if (specializedAgents.length === 0) {
+            throw new Error(`No ${taskType} agents available`);
+        }
+
+        // Choose least busy agent
+        const bestAgent = specializedAgents.sort((a, b) => a.messageCount - b.messageCount)[0];
+
+        return this.sendMessage(fromAgentId, bestAgent.id, {
+            type: 'DELEGATE',
+            payload: taskData,
+            priority: 'normal'
+        });
+    }
+
+    /**
+     * Escalate to higher authority
+     */
+    async escalate(fromAgentId, issue) {
+        const adminAgents = Array.from(this.activeAgents.values())
+            .filter(a => a.type === 'admin' || a.type === 'security')
+            .filter(a => a.status === 'online');
+
+        for (const admin of adminAgents) {
+            await this.sendMessage(fromAgentId, admin.id, {
+                type: 'ESCALATE',
+                priority: 'high',
+                payload: issue
+            });
+        }
+    }
+
+    /**
+     * Get network stats
+     */
+    getNetworkStats() {
+        const agents = Array.from(this.activeAgents.values());
+
+        return {
+            protocolVersion: this.protocolVersion,
+            totalAgents: agents.length,
+            onlineAgents: agents.filter(a => a.status === 'online').length,
+            byType: this.groupByType(agents),
+            activeConversations: Array.from(this.conversations.values())
+                .filter(c => c.status === 'active').length,
+            queuedMessages: Array.from(this.messageQueue.values())
+                .reduce((sum, q) => sum + q.length, 0),
+            totalMessagesDelivered: agents.reduce((sum, a) => sum + a.messageCount, 0)
+        };
+    }
+
+    groupByType(agents) {
+        const types = {};
+        for (const agent of agents) {
+            types[agent.type] = (types[agent.type] || 0) + 1;
+        }
+        return types;
+    }
+
+    signMessage(agentId, payload) {
+        // In production: Use agent's private key to sign
+        return `SIGNED_BY_${agentId}`;
+    }
+
+    generateMessageId() { return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`; }
+    generateConversationId() { return `conv_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`; }
+}
+
+module.exports = new UACPService();

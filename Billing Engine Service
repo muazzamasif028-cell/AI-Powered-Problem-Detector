@@ -1,0 +1,339 @@
+// service/BillingService.java
+package com.supreme.billing.service;
+
+import com.supreme.billing.dto.*;
+import com.supreme.billing.model.*;
+import com.supreme.billing.repository.*;
+import com.supreme.billing.gateway.*;
+import com.supreme.billing.exception.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class BillingService {
+    
+    private final SubscriptionRepository subscriptionRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final PaymentRepository paymentRepository;
+    private final CouponRepository couponRepository;
+    private final PlanRepository planRepository;
+    private final UserRepository userRepository;
+    private final PaymentGatewayFactory gatewayFactory;
+    private final TaxService taxService;
+    private final CurrencyService currencyService;
+    private final NotificationService notificationService;
+    
+    @Transactional
+    public SubscriptionResponse createSubscription(SubscriptionRequest request) {
+        User user = userRepository.findById(request.getUserId())
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        
+        Plan plan = planRepository.findById(request.getPlanId())
+            .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
+        
+        // Check for existing active subscription
+        subscriptionRepository.findActiveByUserId(user.getId())
+            .ifPresent(sub -> {
+                throw new SubscriptionExistsException("User already has an active subscription");
+            });
+        
+        // Apply coupon if provided
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        Coupon coupon = null;
+        if (request.getCouponCode() != null) {
+            coupon = couponRepository.findByCode(request.getCouponCode())
+                .orElseThrow(() -> new InvalidCouponException("Invalid coupon code"));
+            validateCoupon(coupon, plan.getPrice());
+            discountAmount = calculateDiscount(coupon, plan.getPrice());
+        }
+        
+        // Calculate tax
+        BigDecimal taxAmount = taxService.calculateTax(
+            plan.getPrice(),
+            request.getCountry(),
+            request.getTaxId()
+        );
+        
+        // Currency conversion if needed
+        BigDecimal finalPrice = currencyService.convert(
+            plan.getPrice(),
+            plan.getCurrency(),
+            request.getCurrency()
+        );
+        
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Create subscription
+        Subscription subscription = Subscription.builder()
+            .user(user)
+            .plan(plan)
+            .status(plan.getTrialDays() > 0 ? SubscriptionStatus.TRIAL : SubscriptionStatus.ACTIVE)
+            .startDate(now)
+            .trialEndDate(plan.getTrialDays() > 0 ? now.plusDays(plan.getTrialDays()) : null)
+            .nextBillingDate(now.plusMonths(1))
+            .autoRenew(true)
+            .currentPrice(finalPrice)
+            .currency(request.getCurrency())
+            .build();
+        
+        subscription = subscriptionRepository.save(subscription);
+        
+        // Generate invoice
+        Invoice invoice = generateInvoice(subscription, finalPrice, taxAmount, discountAmount);
+        
+        // Process payment if no trial
+        if (plan.getTrialDays() == 0) {
+            processSubscriptionPayment(subscription, invoice, request);
+        }
+        
+        // Update coupon usage
+        if (coupon != null) {
+            coupon.setCurrentUses(coupon.getCurrentUses() + 1);
+            couponRepository.save(coupon);
+        }
+        
+        // Send welcome email
+        notificationService.sendSubscriptionCreated(user, subscription);
+        
+        return SubscriptionResponse.from(subscription, invoice);
+    }
+    
+    @Transactional
+    public PaymentResponse processSubscriptionPayment(
+            Subscription subscription, 
+            Invoice invoice, 
+            SubscriptionRequest request) {
+        
+        PaymentGateway gateway = gatewayFactory.getGatewayForCountry(request.getCountry());
+        
+        PaymentRequest paymentRequest = PaymentRequest.builder()
+            .amount(invoice.getTotal())
+            .currency(invoice.getCurrency().toString())
+            .customerName(request.getCustomerName())
+            .customerEmail(request.getCustomerEmail())
+            .customerId(subscription.getUser().getId())
+            .paymentMethodId(request.getPaymentMethodId())
+            .orderId(invoice.getInvoiceNumber())
+            .returnUrl(request.getReturnUrl())
+            .cancelUrl(request.getCancelUrl())
+            .build();
+        
+        PaymentResponse response = gateway.processPayment(paymentRequest);
+        
+        if (response.isSuccess()) {
+            // Record payment
+            Payment payment = Payment.builder()
+                .subscription(subscription)
+                .invoice(invoice)
+                .amount(invoice.getTotal())
+                .currency(invoice.getCurrency())
+                .gateway(gateway.getType())
+                .transactionId(response.getTransactionId())
+                .status(PaymentStatus.SUCCESS)
+                .build();
+            
+            paymentRepository.save(payment);
+            
+            // Update invoice status
+            invoice.setStatus(InvoiceStatus.PAID);
+            invoice.setPaidAt(LocalDateTime.now());
+            invoiceRepository.save(invoice);
+            
+            // Update subscription status
+            subscription.setStatus(SubscriptionStatus.ACTIVE);
+            subscriptionRepository.save(subscription);
+            
+            // Send receipt
+            notificationService.sendPaymentReceipt(subscription.getUser(), invoice);
+        }
+        
+        return response;
+    }
+    
+    @Transactional
+    public void handleFailedPayment(String subscriptionId) {
+        Subscription subscription = subscriptionRepository.findById(subscriptionId)
+            .orElseThrow(() -> new ResourceNotFoundException("Subscription not found"));
+        
+        subscription.setStatus(SubscriptionStatus.PAST_DUE);
+        subscriptionRepository.save(subscription);
+        
+        // Send failure notification
+        notificationService.sendPaymentFailed(subscription.getUser(), subscription);
+        
+        // Schedule retry
+        schedulePaymentRetry(subscription);
+    }
+    
+    @Scheduled(cron = "0 0 */6 * * *") // Every 6 hours
+    @Transactional
+    public void retryFailedPayments() {
+        List<Subscription> pastDueSubscriptions = 
+            subscriptionRepository.findByStatusAndRetryCountLessThan(
+                SubscriptionStatus.PAST_DUE, 
+                3
+            );
+        
+        for (Subscription subscription : pastDueSubscriptions) {
+            retryPayment(subscription);
+        }
+    }
+    
+    @Transactional
+    public void retryPayment(Subscription subscription) {
+        PaymentGateway gateway = gatewayFactory.getGatewayForCountry(
+            subscription.getUser().getCountry()
+        );
+        
+        // Get latest unpaid invoice
+        Invoice invoice = invoiceRepository.findTopBySubscriptionAndStatusOrderByCreatedAtDesc(
+            subscription, 
+            InvoiceStatus.PENDING
+        ).orElse(null);
+        
+        if (invoice == null) {
+            // Generate new invoice if none exists
+            invoice = generateInvoice(subscription, subscription.getCurrentPrice(), 
+                taxService.calculateTax(subscription.getCurrentPrice(), 
+                    subscription.getUser().getCountry(), null), 
+                BigDecimal.ZERO);
+        }
+        
+        PaymentRequest paymentRequest = PaymentRequest.builder()
+            .amount(invoice.getTotal())
+            .currency(invoice.getCurrency().toString())
+            .customerId(subscription.getUser().getId())
+            .paymentMethodId(subscription.getUser().getDefaultPaymentMethodId())
+            .orderId(invoice.getInvoiceNumber())
+            .build();
+        
+        PaymentResponse response = gateway.processPayment(paymentRequest);
+        
+        if (response.isSuccess()) {
+            // Payment successful
+            recordSuccessfulPayment(subscription, invoice, response);
+        } else {
+            // Increment retry count
+            subscription.setRetryCount(subscription.getRetryCount() + 1);
+            
+            if (subscription.getRetryCount() >= 3) {
+                // Suspend after 3 failed attempts
+                subscription.setStatus(SubscriptionStatus.SUSPENDED);
+                notificationService.sendSubscriptionSuspended(subscription.getUser(), subscription);
+            }
+            
+            subscriptionRepository.save(subscription);
+        }
+    }
+    
+    @Transactional
+    public InvoiceResponse cancelSubscription(String subscriptionId, CancelRequest request) {
+        Subscription subscription = subscriptionRepository.findById(subscriptionId)
+            .orElseThrow(() -> new ResourceNotFoundException("Subscription not found"));
+        
+        subscription.setStatus(SubscriptionStatus.CANCELLED);
+        subscription.setAutoRenew(false);
+        subscription.setEndDate(LocalDateTime.now());
+        subscription.setCancelReason(request.getReason());
+        subscriptionRepository.save(subscription);
+        
+        // Process refund if applicable
+        if (request.isRefund()) {
+            processRefund(subscription, request.getRefundAmount());
+        }
+        
+        notificationService.sendSubscriptionCancelled(subscription.getUser(), subscription);
+        
+        return InvoiceResponse.from(subscription);
+    }
+    
+    private void processRefund(Subscription subscription, BigDecimal amount) {
+        Payment lastPayment = paymentRepository.findTopBySubscriptionOrderByCreatedAtDesc(subscription)
+            .orElseThrow(() -> new PaymentException("No payment found for refund"));
+        
+        PaymentGateway gateway = gatewayFactory.getGateway(lastPayment.getGateway());
+        PaymentResponse refundResponse = gateway.refund(lastPayment.getTransactionId(), amount);
+        
+        if (refundResponse.isSuccess()) {
+            // Create credit note invoice
+            Invoice creditNote = createCreditNote(subscription, amount);
+            
+            // Update last invoice
+            Invoice lastInvoice = lastPayment.getInvoice();
+            lastInvoice.setStatus(InvoiceStatus.REFUNDED);
+            invoiceRepository.save(lastInvoice);
+            
+            notificationService.sendRefundProcessed(subscription.getUser(), amount);
+        }
+    }
+    
+    private Invoice generateInvoice(Subscription subscription, BigDecimal amount, 
+                                  BigDecimal tax, BigDecimal discount) {
+        String invoiceNumber = generateInvoiceNumber();
+        
+        Invoice invoice = Invoice.builder()
+            .invoiceNumber(invoiceNumber)
+            .user(subscription.getUser())
+            .subscription(subscription)
+            .subtotal(amount.subtract(tax))
+            .taxAmount(tax)
+            .discountAmount(discount)
+            .total(amount.subtract(discount))
+            .currency(subscription.getCurrency())
+            .status(InvoiceStatus.PENDING)
+            .dueDate(LocalDateTime.now().plusDays(30))
+            .companyName(subscription.getUser().getCompanyName())
+            .country(subscription.getUser().getCountry())
+            .createdAt(LocalDateTime.now())
+            .build();
+        
+        // Add invoice items
+        InvoiceItem item = InvoiceItem.builder()
+            .invoice(invoice)
+            .description(subscription.getPlan().getName() + " - " + subscription.getPlan().getBillingCycle())
+            .quantity(1)
+            .unitPrice(amount.subtract(tax))
+            .total(amount.subtract(tax))
+            .build();
+        
+        invoice.setItems(List.of(item));
+        
+        return invoiceRepository.save(invoice);
+    }
+    
+    private String generateInvoiceNumber() {
+        String year = String.valueOf(LocalDateTime.now().getYear());
+        long count = invoiceRepository.count() + 1;
+        return String.format("INV-%s-%05d", year, count);
+    }
+    
+    private void validateCoupon(Coupon coupon, BigDecimal orderAmount) {
+        if (coupon.getStatus() != CouponStatus.ACTIVE) {
+            throw new InvalidCouponException("Coupon is not active");
+        }
+        if (coupon.getValidUntil().isBefore(LocalDateTime.now())) {
+            throw new InvalidCouponException("Coupon has expired");
+        }
+        if (coupon.getMaxUses() != null && coupon.getCurrentUses() >= coupon.getMaxUses()) {
+            throw new InvalidCouponException("Coupon usage limit reached");
+        }
+        if (coupon.getMinOrderAmount() != null && orderAmount.compareTo(coupon.getMinOrderAmount()) < 0) {
+            throw new InvalidCouponException("Order amount does not meet minimum requirement");
+        }
+    }
+    
+    private BigDecimal calculateDiscount(Coupon coupon, BigDecimal amount) {
+        if (coupon.getDiscountType() == Coupon.DiscountType.PERCENTAGE) {
+            return amount.multiply(coupon.getDiscountValue()).divide(new BigDecimal("100"));
+        } else {
+            return coupon.getDiscountValue();
+        }
+    }
+}

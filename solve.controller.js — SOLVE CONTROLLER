@@ -1,0 +1,68 @@
+// ============================================================
+// 📁 controllers/solve.controller.js — SOLVE CONTROLLER
+// ============================================================
+const solutionService = require('../services/solution.service');
+const executionService = require('../services/execution.service');
+
+class SolveController {
+    // =============================================
+    // 🔧 SOLVE
+    // =============================================
+    solve = async (req, res) => {
+        try {
+            const { problem, autoFix, problemType } = req.body;
+
+            // Get solutions
+            const solutions = await solutionService.getSolutions(problemType || 'GENERAL');
+
+            // Auto-apply if requested
+            let applied = null;
+            if (autoFix && solutions.length > 0) {
+                applied = await solutionService.applySolution(
+                    'PROB-' + Date.now().toString(36),
+                    solutions[0].id
+                );
+            }
+
+            res.json({
+                success: true,
+                problem,
+                solutions,
+                applied,
+                recommended: solutions[0] || null
+            });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    };
+
+    // =============================================
+    // 🔧 STATUS
+    // =============================================
+    status = async (req, res) => {
+        try {
+            const execution = executionService.getStatus(req.params.id);
+            if (!execution) {
+                return res.status(404).json({ error: 'Execution not found' });
+            }
+            res.json({ success: true, execution });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    };
+
+    // =============================================
+    // 🔧 HISTORY
+    // =============================================
+    history = async (req, res) => {
+        try {
+            const history = executionService.getHistory(50);
+            const solutionHistory = solutionService.getHistory(50);
+            res.json({ success: true, executions: history, solutions: solutionHistory });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    };
+}
+
+module.exports = new SolveController();

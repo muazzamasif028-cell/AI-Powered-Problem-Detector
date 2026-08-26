@@ -1,0 +1,52 @@
+// ============================================================
+// 📁 models/log.model.js — LOG MODEL
+// ============================================================
+const mongoose = require('mongoose');
+
+const LogSchema = new mongoose.Schema({
+    type: { 
+        type: String, 
+        enum: ['AUDIT', 'SYSTEM', 'ERROR', 'SECURITY', 'PERFORMANCE', 'EXECUTION'],
+        default: 'SYSTEM' 
+    },
+    
+    level: { 
+        type: String, 
+        enum: ['INFO', 'WARN', 'ERROR', 'CRITICAL', 'DEBUG'],
+        default: 'INFO' 
+    },
+    
+    message: { type: String, required: true },
+    
+    userId: String,
+    companyId: String,
+    tenantId: String,
+    
+    action: String,
+    resource: String,
+    resourceId: String,
+    
+    details: mongoose.Schema.Types.Mixed,
+    
+    metadata: {
+        ip: String,
+        userAgent: String,
+        method: String,
+        path: String,
+        statusCode: Number,
+        duration: Number
+    },
+    
+    timestamp: { type: Date, default: Date.now }
+});
+
+LogSchema.index({ timestamp: -1 });
+LogSchema.index({ type: 1, timestamp: -1 });
+LogSchema.index({ level: 1, timestamp: -1 });
+LogSchema.index({ userId: 1, timestamp: -1 });
+LogSchema.index({ companyId: 1, timestamp: -1 });
+
+// Auto-delete after 90 days
+LogSchema.index({ timestamp: 1 }, { expireAfterSeconds: 7776000 });
+
+module.exports = mongoose.model('Log', LogSchema);

@@ -1,0 +1,141 @@
+// supreme-safety/risk-engine/RiskEngine.js
+// Complete Risk Detection Pipeline
+
+import { APISignalCollector } from './signal-collector/APISignalCollector.js';
+import { NetworkSignalCollector } from './signal-collector/NetworkSignalCollector.js';
+import { UserSignalCollector } from './signal-collector/UserSignalCollector.js';
+import { PaymentSignalCollector } from './signal-collector/PaymentSignalCollector.js';
+import { AgentSignalCollector } from './signal-collector/AgentSignalCollector.js';
+import { PolicyEngine } from './policy-engine/PolicyEngine.js';
+import { AnomalyDetector } from './anomaly-engine/AnomalyDetector.js';
+import { RiskScorer } from './risk-scorer/RiskScorer.js';
+
+export class RiskEngine {
+    constructor(eventBus) {
+        this.eventBus = eventBus;
+        this.collectors = {
+            api: new APISignalCollector(),
+            network: new NetworkSignalCollector(),
+            users: new UserSignalCollector(),
+            payments: new PaymentSignalCollector(),
+            agents: new AgentSignalCollector()
+        };
+        this.policyEngine = new PolicyEngine();
+        this.anomalyDetector = new AnomalyDetector();
+        this.riskScorer = new RiskScorer();
+    }
+
+    /**
+     * Complete risk analysis pipeline
+     */
+    async analyze(companyId) {
+        // Phase 1: Collect Signals
+        const signals = await this.collectSignals(companyId);
+        
+        // Phase 2: Check Policy Rules
+        const policyResult = await this.policyEngine.evaluate(signals);
+        
+        // Phase 3: AI Anomaly Detection
+        const anomalyResult = await this.anomalyDetector.detect(signals);
+        
+        // Phase 4: Calculate Evidence Confidence
+        const confidence = this.calculateConfidence(policyResult, anomalyResult);
+        
+        // Phase 5: Risk Scoring (Rules + AI + Confidence)
+        const riskScore = await this.riskScorer.calculate({
+            policyViolations: policyResult.violations,
+            anomalyScore: anomalyResult.score,
+            evidenceConfidence: confidence,
+            signals
+        });
+
+        // Phase 6: Final Decision
+        const decision = this.makeDecision(riskScore, confidence);
+
+        // Phase 7: Publish Event
+        await this.eventBus.publish('supreme.safety.risk.detected', {
+            type: 'RISK_DETECTED',
+            companyId,
+            riskScore,
+            confidence,
+            policyResult,
+            anomalyResult,
+            decision,
+            timestamp: new Date().toISOString()
+        });
+
+        return {
+            companyId,
+            riskScore,
+            confidence,
+            decision,
+            signals,
+            policyResult,
+            anomalyResult
+        };
+    }
+
+    async collectSignals(companyId) {
+        return {
+            api: await this.collectors.api.collect(companyId),
+            network: await this.collectors.network.collect(companyId),
+            users: await this.collectors.users.collect(companyId),
+            payments: await this.collectors.payments.collect(companyId),
+            agents: await this.collectors.agents.collect(companyId)
+        };
+    }
+
+    calculateConfidence(policyResult, anomalyResult) {
+        let confidence = 50; // Base
+
+        if (policyResult.violations.length > 0) confidence += 20;
+        if (anomalyResult.score > 0.5) confidence += 15;
+        if (policyResult.violations.length > 3) confidence += 10;
+        if (anomalyResult.score > 0.8) confidence += 5;
+
+        return Math.min(confidence, 100);
+    }
+
+    makeDecision(riskScore, confidence) {
+        const { score, level } = riskScore;
+
+        // CRITICAL: Auto-containment if confidence is high
+        if (score >= 9 && confidence >= 80) {
+            return {
+                action: 'AUTO_CONTAIN',
+                reason: 'Critical risk with high confidence',
+                requiresApproval: false,
+                containmentLevel: 'FULL'
+            };
+        }
+
+        // HIGH: Require human review
+        if (score >= 7) {
+            return {
+                action: 'REQUIRE_APPROVAL',
+                reason: 'High risk detected — human review required',
+                requiresApproval: true,
+                approvalType: '2_OF_3',
+                containmentLevel: 'PARTIAL'
+            };
+        }
+
+        // MEDIUM: Automated restriction
+        if (score >= 4) {
+            return {
+                action: 'AUTO_RESTRICT',
+                reason: 'Medium risk — automated restriction',
+                requiresApproval: false,
+                containmentLevel: 'RESTRICTED'
+            };
+        }
+
+        // LOW: Warning only
+        return {
+            action: 'WARN',
+            reason: 'Low risk — monitoring',
+            requiresApproval: false,
+            containmentLevel: 'NONE'
+        };
+    }
+}

@@ -1,0 +1,135 @@
+// ============================================================
+// 📁 services/detection.service.js — DETECTION SERVICE
+// ============================================================
+const EventEmitter = require('events');
+
+class DetectionService extends EventEmitter {
+    constructor() {
+        super();
+        this.detectors = new Map();
+        this.initializeDetectors();
+    }
+
+    // =============================================
+    // 🔍 INITIALIZE ALL DETECTORS
+    // =============================================
+    initializeDetectors() {
+        this.detectors.set('PERFORMANCE', this.detectPerformance);
+        this.detectors.set('AVAILABILITY', this.detectAvailability);
+        this.detectors.set('SECURITY', this.detectSecurity);
+        this.detectors.set('RESOURCE', this.detectResource);
+        this.detectors.set('APPLICATION', this.detectApplication);
+    }
+
+    // =============================================
+    // 🔍 MAIN DETECTION
+    // =============================================
+    async detect(input, context = {}) {
+        const detectionId = 'DET-' + Date.now().toString(36);
+        const startTime = Date.now();
+
+        console.log(`🔍 [DETECTION] ${detectionId}: "${input}"`);
+
+        // Run all detectors
+        const results = {};
+        for (let [name, detector] of this.detectors) {
+            results[name] = await detector.call(this, input, context);
+        }
+
+        // Aggregate findings
+        const totalProblems = Object.values(results).reduce((sum, r) => sum + r.problems.length, 0);
+        const criticalCount = Object.values(results).reduce((sum, r) => sum + r.critical, 0);
+
+        const detectionResult = {
+            detectionId,
+            input,
+            timestamp: new Date().toISOString(),
+            detectorsRun: this.detectors.size,
+            totalProblems,
+            criticalCount,
+            severity: criticalCount > 0 ? 'CRITICAL' : totalProblems > 0 ? 'WARNING' : 'HEALTHY',
+            results,
+            processingTime: Date.now() - startTime + 'ms'
+        };
+
+        this.emit('detection:complete', detectionResult);
+        return detectionResult;
+    }
+
+    // =============================================
+    // 🔍 BATCH DETECTION
+    // =============================================
+    async detectBatch(problems) {
+        const results = [];
+        for (let problem of problems) {
+            const result = await this.detect(problem);
+            results.push(result);
+        }
+        return results;
+    }
+
+    // =============================================
+    // 🔍 INDIVIDUAL DETECTORS
+    // =============================================
+    async detectPerformance(input) {
+        const problems = [];
+        const lower = input.toLowerCase();
+        
+        if (lower.includes('cpu')) problems.push({ type: 'CPU_HIGH', severity: 'HIGH' });
+        if (lower.includes('memory') || lower.includes('ram')) problems.push({ type: 'MEMORY_LEAK', severity: 'HIGH' });
+        if (lower.includes('disk') || lower.includes('storage')) problems.push({ type: 'DISK_FULL', severity: 'MEDIUM' });
+        if (lower.includes('slow')) problems.push({ type: 'PERFORMANCE_DEGRADED', severity: 'MEDIUM' });
+
+        return { problems, critical: problems.filter(p => p.severity === 'CRITICAL').length };
+    }
+
+    async detectAvailability(input) {
+        const problems = [];
+        const lower = input.toLowerCase();
+        
+        if (lower.includes('down') || lower.includes('offline')) problems.push({ type: 'SERVICE_DOWN', severity: 'CRITICAL' });
+        if (lower.includes('timeout')) problems.push({ type: 'API_TIMEOUT', severity: 'HIGH' });
+        if (lower.includes('dns')) problems.push({ type: 'DNS_FAILURE', severity: 'HIGH' });
+        if (lower.includes('ssl') || lower.includes('certificate')) problems.push({ type: 'SSL_EXPIRED', severity: 'HIGH' });
+
+        return { problems, critical: problems.filter(p => p.severity === 'CRITICAL').length };
+    }
+
+    async detectSecurity(input) {
+        const problems = [];
+        const lower = input.toLowerCase();
+        
+        if (lower.includes('attack') || lower.includes('ddos')) problems.push({ type: 'DDOS_ATTACK', severity: 'CRITICAL' });
+        if (lower.includes('breach') || lower.includes('hacked')) problems.push({ type: 'SECURITY_BREACH', severity: 'CRITICAL' });
+        if (lower.includes('unauthorized')) problems.push({ type: 'UNAUTHORIZED_ACCESS', severity: 'CRITICAL' });
+        if (lower.includes('injection')) problems.push({ type: 'SQL_INJECTION', severity: 'CRITICAL' });
+
+        return { problems, critical: problems.filter(p => p.severity === 'CRITICAL').length };
+    }
+
+    async detectResource(input) {
+        const problems = [];
+        const lower = input.toLowerCase();
+        
+        if (lower.includes('io') || lower.includes('iops')) problems.push({ type: 'IOPS_LIMIT', severity: 'HIGH' });
+        if (lower.includes('thread')) problems.push({ type: 'THREAD_EXHAUSTION', severity: 'MEDIUM' });
+        if (lower.includes('descriptor') || lower.includes('fd')) problems.push({ type: 'FD_EXHAUSTION', severity: 'HIGH' });
+        if (lower.includes('quota')) problems.push({ type: 'QUOTA_EXCEEDED', severity: 'MEDIUM' });
+
+        return { problems, critical: problems.filter(p => p.severity === 'CRITICAL').length };
+    }
+
+    async detectApplication(input) {
+        const problems = [];
+        const lower = input.toLowerCase();
+        
+        if (lower.includes('crash')) problems.push({ type: 'APP_CRASH', severity: 'CRITICAL' });
+        if (lower.includes('deploy') || lower.includes('deployment')) problems.push({ type: 'DEPLOYMENT_FAILED', severity: 'HIGH' });
+        if (lower.includes('version')) problems.push({ type: 'VERSION_MISMATCH', severity: 'MEDIUM' });
+        if (lower.includes('migration')) problems.push({ type: 'MIGRATION_FAILED', severity: 'HIGH' });
+
+        return { problems, critical: problems.filter(p => p.severity === 'CRITICAL').length };
+    }
+}
+
+module.exports = new DetectionService();

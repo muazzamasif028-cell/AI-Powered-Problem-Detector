@@ -1,0 +1,26 @@
+// test-universal.js
+import { UniversalVehicleInterface } from './spl-v/UniversalVehicleInterface.js';
+
+async function testUniversalInterface() {
+    console.log('🌍 SPL-V UNIVERSAL VEHICLE TEST\n');
+    
+    const uvi = new UniversalVehicleInterface();
+    
+    // Connect to any vehicle
+    const connection = await uvi.connect();
+    console.log('Connection:', connection);
+    
+    // Execute universal commands
+    const status = await uvi.execute('getStatus');
+    console.log('\n📊 Vehicle Status:');
+    console.log(JSON.stringify(status, null, 2));
+    
+    // Read specific sensor
+    const speed = await uvi.execute('readSensor', { sensor: 'speed' });
+    console.log(`\n⚡ Speed: ${speed} km/h`);
+    
+    const battery = await uvi.execute('readSensor', { sensor: 'battery' });
+    console.log(`🔋 Battery: ${battery}%`);
+}
+
+testUniversalInterface();

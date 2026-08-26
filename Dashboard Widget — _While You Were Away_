@@ -1,0 +1,57 @@
+<div class="welcome-back-card" id="welcomeBackCard" style="display:none;">
+    <div class="welcome-header">
+        <span class="welcome-icon">🌟</span>
+        <div>
+            <h2>Welcome Back!</h2>
+            <p class="restore-time">Workspace restored in <strong id="restoreTime">0ms</strong></p>
+        </div>
+    </div>
+    
+    <div class="background-summary" id="backgroundSummary">
+        <h3>While you were away:</h3>
+        <div class="task-list" id="taskList"></div>
+    </div>
+    
+    <div class="workspace-stats">
+        <div class="stat">
+            <span class="stat-value" id="openTabs">0</span>
+            <span class="stat-label">Tabs Restored</span>
+        </div>
+        <div class="stat">
+            <span class="stat-value" id="agentsRunning">0</span>
+            <span class="stat-label">Agents Active</span>
+        </div>
+        <div class="stat">
+            <span class="stat-value" id="tasksCompleted">0</span>
+            <span class="stat-label">Tasks Done</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function loadWorkspace() {
+        const res = await fetch('/api/workspace/login', { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.success) {
+            document.getElementById('restoreTime').textContent = data.restoreTime;
+            document.getElementById('openTabs').textContent = data.workspace.restoreMetadata?.changes?.tabsRestored || 0;
+            document.getElementById('agentsRunning').textContent = data.workspace.workspace?.stats?.runningAgents || 0;
+            document.getElementById('tasksCompleted').textContent = data.backgroundWork?.completed || 0;
+            
+            // Show background tasks
+            const taskList = document.getElementById('taskList');
+            const recentTasks = data.backgroundWork?.recentTasks || [];
+            
+            taskList.innerHTML = recentTasks
+                .filter(t => t.status === 'completed')
+                .slice(0, 5)
+                .map(t => `<div class="task-item">✅ ${t.result?.message || t.type}</div>`)
+                .join('');
+            
+            document.getElementById('welcomeBackCard').style.display = 'block';
+        }
+    }
+    
+    loadWorkspace();
+</script>

@@ -1,0 +1,57 @@
+// ============================================================
+// 📊 network/SupremeFleetDashboard.js
+// SUPREME FLEET DASHBOARD — All Vehicles, One View
+// Cars | Trucks | Buses | Jets | Yachts | Bikes
+// ============================================================
+
+class SupremeFleetDashboard {
+    constructor() {
+        this.fleet = new Map();
+    }
+
+    /**
+     * 📊 Get Complete Fleet Overview
+     */
+    getFleetOverview() {
+        const vehicles = [];
+        
+        for (const [id, vehicle] of this.fleet) {
+            vehicles.push({
+                id,
+                model: vehicle.model,
+                type: vehicle.type,
+                icon: this.getVehicleIcon(vehicle.type),
+                status: vehicle.state?.mode || 'UNKNOWN',
+                location: vehicle.state?.location || 'Unknown',
+                battery: vehicle.state?.batteryLevel || vehicle.state?.fuelLevel || 'N/A',
+                range: vehicle.state?.range || 'N/A',
+                connectivity: vehicle.connect?.getStatus() || 'UNKNOWN',
+                lastUpdate: new Date().toISOString()
+            });
+        }
+        
+        return {
+            totalVehicles: vehicles.length,
+            online: vehicles.filter(v => v.connectivity !== 'OFFLINE').length,
+            inTransit: vehicles.filter(v => v.status === 'DRIVING' || v.status === 'CRUISING').length,
+            needsService: vehicles.filter(v => v.battery < 20).length,
+            vehicles
+        };
+    }
+
+    getVehicleIcon(type) {
+        const icons = {
+            'SupremeElite': '🚗',
+            'SupremeBike': '🏍️',
+            'SupremeBus': '🚌',
+            'SupremeTitanX': '🚛',
+            'SupremeLimousine': '👑',
+            'SupremeApexJet': '✈️',
+            'SupremeRoyalYacht': '🛥️',
+            'SupremeHelicopter': '🚁'
+        };
+        return icons[type] || '🚗';
+    }
+}
+
+module.exports = SupremeFleetDashboard;

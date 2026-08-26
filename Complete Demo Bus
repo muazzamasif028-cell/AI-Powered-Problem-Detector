@@ -1,0 +1,55 @@
+// ============================================================
+// 🚌 SUPREME BUS — Complete Demo
+// ============================================================
+const SupremeBus = require('./bus/SupremeBus');
+
+async function demoBus() {
+    console.log('🚌 Starting SUPREME Bus Demo...\n');
+    
+    const bus = new SupremeBus({
+        id: 'SUPREME-BUS-LHR-001',
+        fleetId: 'FLEET-PUNJAB-01',
+        routeId: 'ROUTE-LHR-ISB',
+        capacity: 50,
+        location: { lat: 31.5204, lng: 74.3587 } // Lahore
+    });
+    
+    await bus.initialize();
+    
+    // Driver authentication
+    console.log('\n👨‍✈️ Driver authenticating...');
+    await bus.authenticateDriver({
+        face: 'driver_face_data',
+        fingerprint: 'driver_fingerprint',
+        pin: '1234'
+    });
+    
+    // Voice commands
+    console.log('\n🎤 Driver: "Bus start karo"\n');
+    await bus.processVoiceCommand('Bus start karo', 'URDU');
+    
+    console.log('\n🎤 Driver: "Go to Islamabad"\n');
+    await bus.processVoiceCommand('Go to Islamabad');
+    
+    // Passenger boarding
+    console.log('\n🚪 Opening door for passengers...');
+    await bus.openDoor('FRONT');
+    bus.state.passengers = 35;
+    await bus.closeDoor('FRONT');
+    
+    console.log(`\n💺 Passengers onboard: ${bus.state.passengers}/50`);
+    
+    // Status check
+    console.log('\n🎤 Driver: "Status"\n');
+    await bus.processVoiceCommand('Status');
+    
+    console.log('\n🚌 SUPREME Bus is on route...');
+    console.log('🗺️ AI Route Agent optimizing...');
+    console.log('👁 360° Vision monitoring...');
+    console.log('🛡 Safety systems active...');
+    console.log('📡 Fleet cloud synced...');
+    
+    console.log('\n✅ SUPREME Bus Demo Complete!\n');
+}
+
+demoBus();

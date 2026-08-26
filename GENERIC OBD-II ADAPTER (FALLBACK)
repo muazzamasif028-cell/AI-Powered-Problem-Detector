@@ -1,0 +1,64 @@
+// ============================================================
+// 🚛 spl-v/adapters/manufacturers/GenericAdapter.js
+// SPL-V → Generic Vehicle (OBD-II Fallback)
+// Works with ANY vehicle that has OBD-II port
+// ============================================================
+
+export default class GenericAdapter {
+    constructor(model) {
+        this.name = 'Generic OBD-II Adapter';
+        this.manufacturer = 'Generic';
+        this.model = model || 'Unknown';
+        this.protocols = ['OBD-II', 'CAN 11-bit', 'CAN 29-bit'];
+        
+        // Standard OBD-II PIDs
+        this.pids = {
+            speed: { mode: 0x01, pid: 0x0D, formula: (a) => a },
+            rpm: { mode: 0x01, pid: 0x0C, formula: (a, b) => ((a * 256) + b) / 4 },
+            temperature: { mode: 0x01, pid: 0x05, formula: (a) => a - 40 },
+            battery: { mode: 0x01, pid: 0x42, formula: (a) => a * 0.1 },
+            throttle: { mode: 0x01, pid: 0x11, formula: (a) => a * 0.392 },
+            fuel: { mode: 0x01, pid: 0x2F, formula: (a) => a * 0.392 }
+        };
+    }
+
+    getProtocol() {
+        return this.protocols;
+    }
+
+    async readSensor(sensor) {
+        const pid = this.pids[sensor];
+        if (!pid) return null;
+        
+        try {
+            const data = await this.sendOBDCommand(pid.mode, pid.pid);
+            return pid.formula(...data);
+        } catch (error) {
+            return null;
+        }
+    }
+
+    async sendOBDCommand(mode, pid) {
+        // Send OBD-II command and get response
+        // This would interface with actual OBD-II hardware
+        return [0]; // Placeholder
+    }
+
+    // Basic commands that work on most vehicles
+    async start() {
+        // Not available via OBD-II (security)
+        return { error: 'Start not available via OBD-II' };
+    }
+
+    async stop() {
+        return { error: 'Stop not available via OBD-II' };
+    }
+
+    async lock() {
+        return { error: 'Lock not available via OBD-II' };
+    }
+
+    async unlock() {
+        return { error: 'Unlock not available via OBD-II' };
+    }
+}

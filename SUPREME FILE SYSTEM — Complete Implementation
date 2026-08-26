@@ -1,0 +1,599 @@
+// ============================================================
+// 📁 system/SupremeFileSystem.js
+// SUPREME PLANETARY OS — Intelligent File System Manager
+// ENOENT Detection | Auto-Creation | Recovery | Validation
+// ============================================================
+const fs = require('fs');
+const fsPromises = require('fs').promises;
+const path = require('path');
+const crypto = require('crypto');
+const EventEmitter = require('events');
+
+class SupremeFileSystem extends EventEmitter {
+    constructor(config = {}) {
+        super();
+        
+        this.config = {
+            rootPath: config.rootPath || process.cwd(),
+            autoCreate: config.autoCreate !== false, // Default: true
+            createBackup: config.createBackup || false,
+            validateContent: config.validateContent || false,
+            logErrors: config.logErrors !== false,
+            maxRetries: config.maxRetries || 3,
+            retryDelay: config.retryDelay || 100, // ms
+            ...config
+        };
+        
+        // File registry — tracks all managed files
+        this.fileRegistry = new Map();
+        
+        // Error log
+        this.errorLog = [];
+        
+        // Stats
+        this.stats = {
+            filesCreated: 0,
+            errorsHandled: 0,
+            autoRecovered: 0,
+            checksumVerified: 0
+        };
+        
+        // Required SUPREME system files
+        this.requiredFiles = [
+            'config/system.config.json',
+            'config/security.config.json',
+            'config/network.config.json',
+            'data/registry.json',
+            'logs/system.log',
+            'logs/error.log',
+            'logs/access.log'
+        ];
+        
+        console.log('📁 SUPREME File System Initialized');
+    }
+
+    /**
+     * 🔍 Check if file exists (ENOENT Detection)
+     */
+    async fileExists(filePath) {
+        try {
+            await fsPromises.access(filePath, fs.constants.F_OK);
+            return { exists: true, path: filePath };
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                return { exists: false, path: filePath, error: 'ENOENT', message: 'File not found' };
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * 📄 Safe File Read with ENOENT Handling
+     */
+    async safeReadFile(filePath, options = {}) {
+        const { defaultValue = null, createIfMissing = true, encoding = 'utf8' } = options;
+        
+        try {
+            const exists = await this.fileExists(filePath);
+            
+            if (!exists.exists) {
+                this.emit('file:missing', { path: filePath, action: 'READ_ATTEMPT' });
+                
+                if (createIfMissing && this.config.autoCreate) {
+                    await this.createFile(filePath, defaultValue);
+                    return defaultValue;
+                }
+                
+                return defaultValue;
+            }
+            
+            const data = await fsPromises.readFile(filePath, encoding);
+            
+            // Try JSON parse if it looks like JSON
+            if (filePath.endsWith('.json') && typeof data === 'string') {
+                try {
+                    return JSON.parse(data);
+                } catch (e) {
+                    return data;
+                }
+            }
+            
+            return data;
+            
+        } catch (error) {
+            return await this.handleFileError('READ', filePath, error, options);
+        }
+    }
+
+    /**
+     * 📝 Safe File Write with Directory Auto-Creation
+     */
+    async safeWriteFile(filePath, data, options = {}) {
+        const { encoding = 'utf8', createBackup = false, validateAfter = false } = options;
+        
+        try {
+            // Ensure directory exists
+            await this.ensureDirectory(path.dirname(filePath));
+            
+            // Format data
+            let content = data;
+            if (typeof data === 'object' && filePath.endsWith('.json')) {
+                content = JSON.stringify(data, null, 2);
+            }
+            
+            // Create backup if requested
+            if (createBackup || this.config.createBackup) {
+                await this.createBackup(filePath);
+            }
+            
+            // Write file
+            await fsPromises.writeFile(filePath, content, encoding);
+            
+            // Validate if requested
+            if (validateAfter || this.config.validateContent) {
+                await this.validateFile(filePath, content);
+            }
+            
+            // Register file
+            this.fileRegistry.set(filePath, {
+                path: filePath,
+                size: Buffer.byteLength(content, encoding),
+                created: new Date().toISOString(),
+                checksum: this.generateChecksum(content)
+            });
+            
+            this.emit('file:written', { path: filePath, size: Buffer.byteLength(content) });
+            
+            return { success: true, path: filePath };
+            
+        } catch (error) {
+            return await this.handleFileError('WRITE', filePath, error, options);
+        }
+    }
+
+    /**
+     * 📁 Create File with Default Content
+     */
+    async createFile(filePath, defaultContent = '') {
+        try {
+            const dir = path.dirname(filePath);
+            await this.ensureDirectory(dir);
+            
+            let content = defaultContent;
+            
+            // Generate default content based on file type
+            if (!defaultContent) {
+                content = this.generateDefaultContent(filePath);
+            }
+            
+            // Format content
+            if (typeof content === 'object') {
+                content = JSON.stringify(content, null, 2);
+            }
+            
+            await fsPromises.writeFile(filePath, content, 'utf8');
+            
+            this.stats.filesCreated++;
+            
+            console.log(`📄 Created: ${filePath}`);
+            
+            this.emit('file:created', { path: filePath });
+            
+            return { success: true, path: filePath, created: true };
+            
+        } catch (error) {
+            return await this.handleFileError('CREATE', filePath, error);
+        }
+    }
+
+    /**
+     * 📁 Ensure Directory Exists (Auto-Create)
+     */
+    async ensureDirectory(dirPath) {
+        try {
+            await fsPromises.access(dirPath);
+            return { exists: true, path: dirPath };
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                await fsPromises.mkdir(dirPath, { recursive: true });
+                console.log(`📁 Created directory: ${dirPath}`);
+                return { exists: false, path: dirPath, created: true };
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * 💾 Create Backup of File
+     */
+    async createBackup(filePath) {
+        try {
+            const exists = await this.fileExists(filePath);
+            if (!exists.exists) return null;
+            
+            const backupDir = path.join(this.config.rootPath, 'backups');
+            await this.ensureDirectory(backupDir);
+            
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const backupPath = path.join(backupDir, `${path.basename(filePath)}.${timestamp}.bak`);
+            
+            await fsPromises.copyFile(filePath, backupPath);
+            
+            console.log(`💾 Backup created: ${backupPath}`);
+            
+            return { success: true, backupPath };
+            
+        } catch (error) {
+            console.warn(`⚠️ Backup failed for ${filePath}:`, error.message);
+            return null;
+        }
+    }
+
+    /**
+     * ✅ Validate File Content
+     */
+    async validateFile(filePath, expectedContent) {
+        try {
+            const actual = await fsPromises.readFile(filePath, 'utf8');
+            
+            if (typeof expectedContent === 'string') {
+                const isValid = actual === expectedContent;
+                
+                if (!isValid) {
+                    console.warn(`⚠️ Validation failed for ${filePath}`);
+                    return { valid: false, reason: 'CONTENT_MISMATCH' };
+                }
+            }
+            
+            // Checksum validation
+            const checksum = this.generateChecksum(actual);
+            this.stats.checksumVerified++;
+            
+            return { valid: true, checksum };
+            
+        } catch (error) {
+            return { valid: false, reason: error.message };
+        }
+    }
+
+    /**
+     * 🚨 Handle File Errors (ENOENT & Others)
+     */
+    async handleFileError(operation, filePath, error, options = {}) {
+        const errorInfo = {
+            timestamp: new Date().toISOString(),
+            operation,
+            path: filePath,
+            code: error.code,
+            message: error.message,
+            handled: false
+        };
+        
+        this.stats.errorsHandled++;
+        this.errorLog.push(errorInfo);
+        
+        // Handle ENOENT specifically
+        if (error.code === 'ENOENT') {
+            console.log(`📁 ENOENT: ${filePath} not found`);
+            
+            if (operation === 'READ' && this.config.autoCreate) {
+                // Auto-create missing file
+                const defaultContent = options.defaultValue || this.generateDefaultContent(filePath);
+                await this.createFile(filePath, defaultContent);
+                
+                errorInfo.handled = true;
+                errorInfo.action = 'AUTO_CREATED';
+                this.stats.autoRecovered++;
+                
+                this.emit('error:recovered', { path: filePath, action: 'AUTO_CREATED' });
+                
+                return { success: true, path: filePath, recovered: true, content: defaultContent };
+            }
+            
+            if (operation === 'WRITE' || operation === 'CREATE') {
+                // Ensure directory and create file
+                await this.ensureDirectory(path.dirname(filePath));
+                const content = options.defaultValue || this.generateDefaultContent(filePath);
+                await fsPromises.writeFile(filePath, 
+                    typeof content === 'object' ? JSON.stringify(content, null, 2) : content
+                );
+                
+                errorInfo.handled = true;
+                errorInfo.action = 'DIRECTORY_CREATED_AND_FILE_WRITTEN';
+                
+                return { success: true, path: filePath, recovered: true };
+            }
+        }
+        
+        // Handle permission errors
+        if (error.code === 'EACCES') {
+            console.error(`🔒 Permission denied: ${filePath}`);
+            errorInfo.action = 'PERMISSION_DENIED';
+        }
+        
+        // Handle disk full
+        if (error.code === 'ENOSPC') {
+            console.error('💾 Disk full!');
+            errorInfo.action = 'DISK_FULL';
+        }
+        
+        if (this.config.logErrors) {
+            await this.logError(errorInfo);
+        }
+        
+        throw error;
+    }
+
+    /**
+     * 📋 Initialize All Required System Files
+     */
+    async initializeSystemFiles() {
+        console.log('📁 Initializing SUPREME System Files...\n');
+        
+        const results = [];
+        
+        for (const filePath of this.requiredFiles) {
+            const fullPath = path.join(this.config.rootPath, filePath);
+            const exists = await this.fileExists(fullPath);
+            
+            if (!exists.exists) {
+                const result = await this.createFile(fullPath);
+                results.push({ ...result, path: filePath });
+            } else {
+                results.push({ exists: true, path: filePath });
+            }
+        }
+        
+        console.log(`\n✅ System Files: ${results.length} checked\n`);
+        
+        return results;
+    }
+
+    /**
+     * 📊 Generate Default Content Based on File Type
+     */
+    generateDefaultContent(filePath) {
+        const ext = path.extname(filePath);
+        const basename = path.basename(filePath, ext);
+        
+        switch (ext) {
+            case '.json':
+                return this.getDefaultJSON(basename);
+            case '.log':
+                return `# SUPREME Log File: ${basename}\n# Created: ${new Date().toISOString()}\n\n`;
+            case '.config':
+            case '.conf':
+                return `# SUPREME Configuration: ${basename}\n`;
+            case '.txt':
+                return `SUPREME Planetary OS — ${basename}\n`;
+            case '.csv':
+                return 'timestamp,event,status\n';
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * 📋 Get Default JSON Configurations
+     */
+    getDefaultJSON(basename) {
+        const defaults = {
+            'system.config': {
+                version: '14.0.0',
+                name: 'SUPREME PLANETARY OS',
+                created: new Date().toISOString(),
+                environment: 'production',
+                features: {}
+            },
+            'security.config': {
+                encryption: 'AES-256-GCM',
+                authMethod: 'MULTI_FACTOR',
+                sessionTimeout: 3600,
+                maxLoginAttempts: 5
+            },
+            'network.config': {
+                protocol: 'HTTPS',
+                port: 443,
+                firewall: 'ENABLED',
+                vpn: 'ENABLED'
+            },
+            'registry': {
+                files: [],
+                lastScan: null,
+                totalSize: 0
+            }
+        };
+        
+        return defaults[basename] || { name: basename, created: new Date().toISOString() };
+    }
+
+    /**
+     * 🔐 Generate Checksum
+     */
+    generateChecksum(content) {
+        return crypto.createHash('sha256')
+            .update(typeof content === 'string' ? content : JSON.stringify(content))
+            .digest('hex');
+    }
+
+    /**
+     * 📝 Log Error
+     */
+    async logError(errorInfo) {
+        const logPath = path.join(this.config.rootPath, 'logs', 'fs_errors.log');
+        await this.ensureDirectory(path.dirname(logPath));
+        
+        const logEntry = JSON.stringify(errorInfo) + '\n';
+        await fsPromises.appendFile(logPath, logEntry);
+    }
+
+    /**
+     * 🔍 Scan Directory
+     */
+    async scanDirectory(dirPath) {
+        try {
+            const files = await fsPromises.readdir(dirPath, { withFileTypes: true });
+            
+            const result = {
+                path: dirPath,
+                files: [],
+                directories: [],
+                totalSize: 0
+            };
+            
+            for (const file of files) {
+                const fullPath = path.join(dirPath, file.name);
+                
+                if (file.isDirectory()) {
+                    result.directories.push({ name: file.name, path: fullPath });
+                } else {
+                    const stats = await fsPromises.stat(fullPath);
+                    result.files.push({
+                        name: file.name,
+                        path: fullPath,
+                        size: stats.size,
+                        modified: stats.mtime.toISOString()
+                    });
+                    result.totalSize += stats.size;
+                }
+            }
+            
+            return result;
+            
+        } catch (error) {
+            return await this.handleFileError('SCAN', dirPath, error);
+        }
+    }
+
+    /**
+     * 📊 Get File System Stats
+     */
+    getStats() {
+        return {
+            ...this.stats,
+            registeredFiles: this.fileRegistry.size,
+            errorsLogged: this.errorLog.length,
+            recentErrors: this.errorLog.slice(-5),
+            config: {
+                autoCreate: this.config.autoCreate,
+                createBackup: this.config.createBackup,
+                rootPath: this.config.rootPath
+            }
+        };
+    }
+
+    /**
+     * 🗑️ Safe Delete with Confirmation
+     */
+    async safeDelete(filePath, options = {}) {
+        const { createBackup = true, confirmDelete = true } = options;
+        
+        try {
+            const exists = await this.fileExists(filePath);
+            
+            if (!exists.exists) {
+                return { success: false, reason: 'ENOENT', message: 'File does not exist' };
+            }
+            
+            // Create backup before delete
+            if (createBackup) {
+                await this.createBackup(filePath);
+            }
+            
+            await fsPromises.unlink(filePath);
+            
+            this.fileRegistry.delete(filePath);
+            
+            console.log(`🗑️ Deleted: ${filePath}`);
+            
+            this.emit('file:deleted', { path: filePath });
+            
+            return { success: true, path: filePath, deleted: true };
+            
+        } catch (error) {
+            return await this.handleFileError('DELETE', filePath, error);
+        }
+    }
+}
+
+// ============================================================
+// 🚀 SUPREME FILE SYSTEM — Complete Demo
+// ============================================================
+
+async function demoFileSystem() {
+    console.log('📁 SUPREME PLANETARY OS — Intelligent File System');
+    console.log('═══════════════════════════════════════════════════\n');
+    
+    const supremeFS = new SupremeFileSystem({
+        rootPath: './supreme-system',
+        autoCreate: true,
+        createBackup: true,
+        validateContent: true
+    });
+    
+    // Listen for events
+    supremeFS.on('file:missing', (data) => {
+        console.log(`   ⚠️ Missing file detected: ${data.path}`);
+    });
+    
+    supremeFS.on('file:created', (data) => {
+        console.log(`   ✅ Auto-created: ${data.path}`);
+    });
+    
+    supremeFS.on('error:recovered', (data) => {
+        console.log(`   🔄 Auto-recovered: ${data.path}`);
+    });
+    
+    // Initialize all required system files
+    console.log('🔧 Initializing System Files...\n');
+    const initResults = await supremeFS.initializeSystemFiles();
+    
+    for (const result of initResults) {
+        if (result.created) {
+            console.log(`   ✅ Created: ${result.path}`);
+        } else {
+            console.log(`   ✓ Exists: ${result.path}`);
+        }
+    }
+    
+    // Test ENOENT handling — read a missing file
+    console.log('\n🔍 Testing ENOENT Recovery...\n');
+    
+    const missingConfig = await supremeFS.safeReadFile(
+        './supreme-system/config/missing.config.json',
+        { createIfMissing: true }
+    );
+    console.log(`   ENOENT Test: File auto-created with default content`);
+    
+    // Write with validation
+    console.log('\n📝 Writing with validation...\n');
+    
+    const writeResult = await supremeFS.safeWriteFile(
+        './supreme-system/data/test.json',
+        { name: 'SUPREME Test', timestamp: new Date().toISOString(), status: 'ACTIVE' },
+        { validateAfter: true }
+    );
+    console.log(`   Written: ${writeResult.path}`);
+    
+    // Create backup
+    console.log('\n💾 Creating backup...\n');
+    
+    const backup = await supremeFS.createBackup('./supreme-system/data/test.json');
+    if (backup) {
+        console.log(`   Backup: ${backup.backupPath}`);
+    }
+    
+    // Stats
+    console.log('\n📊 FILE SYSTEM STATS:');
+    const stats = supremeFS.getStats();
+    console.log(`   Files Created: ${stats.filesCreated}`);
+    console.log(`   Errors Handled: ${stats.errorsHandled}`);
+    console.log(`   Auto-Recovered: ${stats.autoRecovered}`);
+    console.log(`   Registered Files: ${stats.registeredFiles}`);
+    
+    console.log('\n✅ SUPREME File System Demo Complete!\n');
+}
+
+demoFileSystem().catch(console.error);
+
+module.exports = SupremeFileSystem;

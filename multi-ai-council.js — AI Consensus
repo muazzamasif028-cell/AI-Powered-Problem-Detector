@@ -1,0 +1,202 @@
+// ============================================================
+// 🤖 multi-ai-council.js
+// SUPREME Multi-AI Council — GPT + Claude + Gemini decide together
+// ============================================================
+
+class MultiAICouncil {
+    constructor() {
+        this.councilMembers = [
+            { name: 'GPT-4o', role: 'General Intelligence', provider: 'openai', weight: 1.0 },
+            { name: 'Claude-3-Opus', role: 'Safety & Ethics', provider: 'anthropic', weight: 1.0 },
+            { name: 'Gemini-1.5-Pro', role: 'Research & Analysis', provider: 'google', weight: 0.95 },
+            { name: 'Perplexity-Sonar', role: 'Fact Verification', provider: 'perplexity', weight: 0.85 },
+            { name: 'DeepSeek-R1', role: 'Code & Logic', provider: 'deepseek', weight: 0.90 }
+        ];
+
+        this.votingThreshold = 0.66; // 2/3 majority required
+        this.consensusRequired = true;
+    }
+
+    /**
+     * Multi-AI Council reviews architecture decisions
+     */
+    async review(architectReport) {
+        console.log(`🤖 Convening Multi-AI Council (${this.councilMembers.length} members)...`);
+
+        const questions = this.generateQuestions(architectReport);
+        const votes = await this.collectVotes(questions);
+        const consensus = this.buildConsensus(votes);
+
+        console.log(`   Verdict: ${consensus.verdict}`);
+        console.log(`   Agreement: ${(consensus.agreementRate * 100).toFixed(1)}%`);
+        console.log(`   Approved: ${consensus.approvedActions.length}`);
+        console.log(`   Rejected: ${consensus.rejectedActions.length}`);
+        console.log(`   Needs Review: ${consensus.needsReview.length}`);
+
+        return consensus;
+    }
+
+    /**
+     * Generate questions for the council
+     */
+    generateQuestions(report) {
+        const questions = [];
+
+        // Critical issues
+        for (const issue of report.criticalIssues) {
+            questions.push({
+                id: `Q-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+                type: 'critical',
+                context: issue,
+                question: `Should we immediately fix: ${issue.recommendation}?`,
+                options: ['APPROVE', 'REJECT', 'MODIFY']
+            });
+        }
+
+        // Architecture changes
+        for (const opt of report.optimizations) {
+            questions.push({
+                id: `Q-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+                type: 'optimization',
+                context: opt,
+                question: `Should we implement: ${opt.recommendation}?`,
+                options: ['APPROVE', 'REJECT', 'DEFER']
+            });
+        }
+
+        // Tech stack changes
+        for (const change of report.techStackChanges) {
+            questions.push({
+                id: `Q-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+                type: 'tech_stack',
+                context: change,
+                question: `Should we migrate: ${change.recommendation}?`,
+                options: ['APPROVE', 'REJECT', 'PLAN_FURTHER']
+            });
+        }
+
+        return questions.slice(0, 20); // Limit to 20 questions per session
+    }
+
+    /**
+     * Collect votes from all council members
+     */
+    async collectVotes(questions) {
+        const allVotes = [];
+
+        for (const question of questions) {
+            const memberVotes = await Promise.all(
+                this.councilMembers.map(async (member) => {
+                    const vote = await this.getMemberVote(member, question);
+                    return { member: member.name, ...vote };
+                })
+            );
+
+            allVotes.push({
+                question,
+                votes: memberVotes,
+                result: this.tallyVotes(memberVotes)
+            });
+        }
+
+        return allVotes;
+    }
+
+    /**
+     * Get a single member's vote
+     */
+    async getMemberVote(member, question) {
+        // In production: Call actual AI model
+        // Simulate AI reasoning
+        const reasoning = this.simulateAIReasoning(member, question);
+        
+        return {
+            vote: reasoning.vote,
+            confidence: reasoning.confidence,
+            reasoning: reasoning.explanation,
+            conditions: reasoning.conditions || []
+        };
+    }
+
+    /**
+     * Simulate AI reasoning (replace with real AI calls)
+     */
+    simulateAIReasoning(member, question) {
+        const votes = question.options;
+        const vote = votes[Math.floor(Math.random() * votes.length)];
+        const confidence = 0.7 + Math.random() * 0.3;
+
+        const explanations = {
+            'GPT-4o': 'Based on comprehensive analysis of the codebase...',
+            'Claude-3-Opus': 'After careful safety and ethical consideration...',
+            'Gemini-1.5-Pro': 'Research indicates this approach is optimal because...',
+            'Perplexity-Sonar': 'Verified against industry benchmarks...',
+            'DeepSeek-R1': 'Code analysis suggests this implementation...'
+        };
+
+        return {
+            vote,
+            confidence,
+            explanation: explanations[member.name] || 'Analysis complete.'
+        };
+    }
+
+    /**
+     * Tally votes for a question
+     */
+    tallyVotes(votes) {
+        const tally = {};
+        for (const v of votes) {
+            tally[v.vote] = (tally[v.vote] || 0) + 1;
+        }
+
+        const winner = Object.entries(tally).sort(([, a], [, b]) => b - a)[0];
+        const majority = winner[1] / votes.length >= this.votingThreshold;
+
+        return {
+            winner: winner[0],
+            count: winner[1],
+            total: votes.length,
+            majority,
+            tally
+        };
+    }
+
+    /**
+     * Build final consensus
+     */
+    buildConsensus(allVotes) {
+        const approved = [];
+        const rejected = [];
+        const needsReview = [];
+
+        for (const item of allVotes) {
+            if (item.result.winner === 'APPROVE' && item.result.majority) {
+                approved.push(item);
+            } else if (item.result.winner === 'REJECT' && item.result.majority) {
+                rejected.push(item);
+            } else {
+                needsReview.push(item);
+            }
+        }
+
+        const agreementRate = allVotes.filter(v => v.result.majority).length / allVotes.length;
+
+        let verdict;
+        if (agreementRate >= 0.9) verdict = '✅ STRONG CONSENSUS';
+        else if (agreementRate >= 0.7) verdict = '👍 CONSENSUS REACHED';
+        else if (agreementRate >= 0.5) verdict = '⚠️ DIVIDED — Human input needed';
+        else verdict = '❌ NO CONSENSUS — Requires executive decision';
+
+        return {
+            verdict,
+            agreementRate,
+            approvedActions: approved,
+            rejectedActions: rejected,
+            needsReview,
+            totalQuestions: allVotes.length
+        };
+    }
+}
+
+module.exports = new MultiAICouncil();

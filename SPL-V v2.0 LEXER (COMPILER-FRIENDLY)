@@ -1,0 +1,91 @@
+// ============================================================
+// 🔧 spl-vehicle/SupremeVehicleLexer.js
+// SPL-V v2.0 — Vehicle DSL Lexer
+// ============================================================
+
+class SupremeVehicleLexer {
+    constructor(source) {
+        this.source = source;
+        this.pos = 0;
+        this.tokens = [];
+    }
+
+    tokenize() {
+        while (this.pos < this.source.length) {
+            const ch = this.source[this.pos];
+
+            // Whitespace
+            if (/\s/.test(ch)) { this.pos++; continue; }
+
+            // Comments
+            if (ch === '/' && this.source[this.pos + 1] === '/') {
+                while (this.pos < this.source.length && this.source[this.pos] !== '\n') this.pos++;
+                continue;
+            }
+
+            // Strings
+            if (ch === '"') {
+                let val = ''; this.pos++;
+                while (this.pos < this.source.length && this.source[this.pos] !== '"') val += this.source[this.pos++];
+                this.pos++;
+                this.tokens.push({ type: 'STRING', value: val });
+                continue;
+            }
+
+            // Numbers with units
+            if (/[0-9]/.test(ch)) {
+                let val = ''; let unit = '';
+                while (this.pos < this.source.length && /[0-9.]/.test(this.source[this.pos])) val += this.source[this.pos++];
+                while (this.pos < this.source.length && /[a-zA-Z%]/.test(this.source[this.pos])) unit += this.source[this.pos++];
+                this.tokens.push({ type: 'NUMBER', value: parseFloat(val), unit: unit || null });
+                continue;
+            }
+
+            // Identifiers & Keywords
+            if (/[a-zA-Z_]/.test(ch)) {
+                let val = '';
+                while (this.pos < this.source.length && /[a-zA-Z0-9_]/.test(this.source[this.pos])) val += this.source[this.pos++];
+                
+                const keywords = [
+                    'copilot', 'autonomous', 'hardware', 'safety', 'pillar', 'fleet',
+                    'navigation', 'lane_keeping', 'adaptive_cruise', 'parking', 'ota',
+                    'llm', 'main', 'startup', 'driving_loop', 'shutdown', 'on', 'say',
+                    'mode', 'sensors', 'lidar', 'radar', 'cameras', 'ultrasonic',
+                    'gps', 'imu', 'powertrain', 'motor', 'battery', 'brakes',
+                    'steering', 'can_bus', 'platooning', 'mesh_network', 'if', 'else'
+                ];
+                
+                this.tokens.push({
+                    type: keywords.includes(val) ? 'KEYWORD' : 'IDENTIFIER',
+                    value: val
+                });
+                continue;
+            }
+
+            // Operators
+            if (ch === '<' && this.source[this.pos + 1] === '=') { this.tokens.push({ type: 'LTE', value: '<=' }); this.pos += 2; continue; }
+            if (ch === '>' && this.source[this.pos + 1] === '=') { this.tokens.push({ type: 'GTE', value: '>=' }); this.pos += 2; continue; }
+            if (ch === '=' && this.source[this.pos + 1] === '=') { this.tokens.push({ type: 'EQ', value: '==' }); this.pos += 2; continue; }
+            
+            const singles = {
+                '{': 'LBRACE', '}': 'RBRACE', '(': 'LPAREN', ')': 'RPAREN',
+                '[': 'LBRACKET', ']': 'RBRACKET', ':': 'COLON', ';': 'SEMICOLON',
+                ',': 'COMMA', '.': 'DOT', '<': 'LT', '>': 'GT', '=': 'ASSIGN',
+                '%': 'PERCENT', '+': 'PLUS', '-': 'MINUS', '*': 'STAR', '/': 'SLASH'
+            };
+            
+            if (singles[ch]) {
+                this.tokens.push({ type: singles[ch], value: ch });
+                this.pos++;
+                continue;
+            }
+
+            this.pos++;
+        }
+        
+        this.tokens.push({ type: 'EOF', value: null });
+        return this.tokens;
+    }
+}
+
+module.exports = SupremeVehicleLexer;

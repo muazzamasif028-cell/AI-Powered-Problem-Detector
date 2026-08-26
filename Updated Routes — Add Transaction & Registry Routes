@@ -1,0 +1,19 @@
+// Add to domain-os.routes.js
+const transactionController = require('../controllers/transaction.controller');
+
+// =============================================
+// 💳 TRANSACTIONS
+// =============================================
+router.post('/transactions', authMiddleware.authenticate(), asyncHandler(transactionController.createTransaction));
+router.post('/transactions/pay', authMiddleware.authenticate(), rateLimiter.paymentLimiter, asyncHandler(transactionController.processPayment));
+router.get('/transactions/:id', authMiddleware.authenticate(), asyncHandler(transactionController.getTransaction));
+router.get('/transactions', authMiddleware.authenticate(), asyncHandler(transactionController.getUserTransactions));
+router.post('/transactions/:id/refund', authMiddleware.authenticate(), asyncHandler(transactionController.refundTransaction));
+
+// =============================================
+// 📡 REAL-TIME PRICING & REGISTRY
+// =============================================
+router.get('/pricing/realtime/:tld', asyncHandler(transactionController.getRealTimePricing));
+router.get('/registry/status', authMiddleware.authenticate(), asyncHandler(transactionController.getRegistryStatus));
+router.post('/registry/sync/:tld', authMiddleware.authenticate(), authMiddleware.requireRole('admin'), asyncHandler(transactionController.syncTLD));
+router.get('/transactions/stats', authMiddleware.authenticate(), authMiddleware.requireRole('admin'), asyncHandler(transactionController.getTransactionStats));

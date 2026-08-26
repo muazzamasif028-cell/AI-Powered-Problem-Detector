@@ -1,0 +1,32 @@
+# ============================================================
+# 💾 Velero Backup Schedule — Disaster Recovery
+# ============================================================
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: supreme-daily-backup
+  namespace: velero
+spec:
+  schedule: "0 2 * * *"  # Every day at 2 AM
+  template:
+    includedNamespaces:
+    - supreme-production
+    - supreme-monitoring
+    ttl: 720h0m0s  # Retain for 30 days
+    storageLocation: supreme-backups
+    snapshotVolumes: true
+
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: supreme-hourly-backup
+  namespace: velero
+spec:
+  schedule: "0 * * * *"  # Every hour
+  template:
+    includedNamespaces:
+    - supreme-production
+    ttl: 24h0m0s  # Retain for 24 hours
+    storageLocation: supreme-backups
+    snapshotVolumes: true

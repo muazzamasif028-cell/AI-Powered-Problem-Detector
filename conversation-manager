@@ -1,0 +1,162 @@
+const manager = require("./conversation-manager");
+
+// ========================================================
+// TEST 1
+// Create Session
+// ========================================================
+
+const session = manager.create({
+
+    tenantId: "pak_economy_group",
+
+    userId: "moavia_01",
+
+    title: "Planetary OS"
+
+});
+
+console.log("✅ Session Created");
+
+
+// ========================================================
+// TEST 2
+// Valid Message
+// ========================================================
+
+manager.addMessage({
+
+    conversationId: session.id,
+
+    tenantId: "pak_economy_group",
+
+    userId: "moavia_01",
+
+    role: "user",
+
+    content: "Deploy Supreme Cloud"
+
+});
+
+console.log("✅ Authorized Write Passed");
+
+
+// ========================================================
+// TEST 3
+// Wrong Tenant
+// ========================================================
+
+try{
+
+    manager.addMessage({
+
+        conversationId: session.id,
+
+        tenantId:"evil_company",
+
+        userId:"evil",
+
+        role:"user",
+
+        content:"Hack"
+
+    });
+
+}catch(err){
+
+    console.log("🛡 Tenant Isolation OK");
+
+}
+
+
+// ========================================================
+// TEST 4
+// Wrong User
+// ========================================================
+
+try{
+
+    manager.addMessage({
+
+        conversationId: session.id,
+
+        tenantId:"pak_economy_group",
+
+        userId:"another_user",
+
+        role:"user",
+
+        content:"Hack"
+
+    });
+
+}catch(err){
+
+    console.log("🛡 User Isolation OK");
+
+}
+
+
+// ========================================================
+// TEST 5
+// Invalid Conversation
+// ========================================================
+
+try{
+
+    manager.addMessage({
+
+        conversationId:"invalid",
+
+        tenantId:"pak_economy_group",
+
+        userId:"moavia_01",
+
+        role:"user",
+
+        content:"Hack"
+
+    });
+
+}catch(err){
+
+    console.log("🛡 Invalid Session OK");
+
+}
+
+
+// ========================================================
+// TEST 6
+// Read Messages
+// ========================================================
+
+console.log(
+
+manager.getMessages({
+
+conversationId:session.id,
+
+tenantId:"pak_economy_group",
+
+userId:"moavia_01"
+
+})
+
+);
+
+
+// ========================================================
+// TEST 7
+// Delete
+// ========================================================
+
+manager.deleteSecure({
+
+conversationId:session.id,
+
+tenantId:"pak_economy_group",
+
+userId:"moavia_01"
+
+});
+
+console.log("✅ Session Deleted");

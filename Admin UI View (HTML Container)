@@ -1,0 +1,14 @@
+<section class="section" id="adminSection">
+    <div class="hero">
+        <h1>👑 SUPREME Sovereign Admin Terminal</h1>
+        <p>Live global user telemetry, API traffic analysis, and cryptographic key routing.</p>
+    </div>
+    <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:20px; font-family:monospace;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom:1px solid var(--border); padding-bottom:10px;">
+            <span style="color:var(--accent); font-weight:bold;">📡 LIVE TELEMETRY STREAM</span>
+            <span style="color:var(--success);">● LIVE SYSTEM SYNCED</span>
+        </div>
+        <div id="adminLogTable" style="max-height:400px; overflow-y:auto; font-size:12px; display:flex; flex-direction:column; gap:8px;">
+            </div>
+    </div>
+</section>

@@ -1,0 +1,74 @@
+// test-spl-v41.js
+import { SupremeVehicleLexer } from './spl-v/compiler/SupremeVehicleLexer.js';
+import { SupremeVehicleParser } from './spl-v/compiler/SupremeVehicleParser.js';
+import { UnitTypeChecker } from './spl-v/compiler/type-checker/UnitTypeChecker.js';
+import { UniversalVehicleIR } from './spl-v/compiler/ir/UniversalVehicleIR.js';
+
+const splvCode = `
+vehicle "SUPREME Elite" {
+    speed: 120 kmh
+    battery: 85 %
+    range: 800 km
+}
+
+copilot {
+    voice: "Calm"
+    language: "Urdu"
+    
+    on battery < 20 % {
+        say "Low battery. Finding charger."
+    }
+}
+
+safety {
+    pillars: 30
+    
+    pillar CollisionAvoidance {
+        priority: "CRITICAL"
+        condition: "obstacle < 5m"
+        action: ["emergency_brake", "alert_driver"]
+    }
+}
+
+main {
+    startup {
+        check_all_sensors: true
+        verify_safety_pillars: true
+    }
+    
+    driving_loop {
+        read_sensors: true
+        fuse_data: true
+        plan_path: true
+        execute_control: true
+    }
+}
+`;
+
+console.log('🚗 SPL-V v4.1 COMPILER TEST\n');
+
+// Lex
+const lexer = new SupremeVehicleLexer(splvCode);
+const tokens = lexer.tokenize();
+console.log(`🔧 Lexer: ${tokens.length} tokens`);
+
+// Parse
+const parser = new SupremeVehicleParser(tokens);
+const ast = parser.parse();
+console.log(`🔍 Parser: ${ast.modules.length} modules`);
+
+// Type Check
+const checker = new UnitTypeChecker();
+const result = checker.check(ast);
+console.log(`🎯 Type Checker: ${result.valid ? 'PASSED' : 'FAILED'}`);
+if (result.errors.length > 0) {
+    console.log('Errors:', result.errors);
+}
+
+// Generate IR
+const ir = new UniversalVehicleIR();
+const irOutput = ir.generate(ast);
+console.log(`🌐 IR: ${irOutput.commands.length} commands generated\n`);
+
+console.log('✅ Compilation Complete!');
+console.log(JSON.stringify(irOutput, null, 2));

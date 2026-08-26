@@ -1,0 +1,437 @@
+// ============================================================
+// 🔄 services/queue/transaction.queue.js
+// SUPREME Transaction Processing Queue v17.0
+// ============================================================
+const Queue = require('bull');
+const redisService = require('../cache/redis.service');
+const Transaction = require('../../models/Transaction');
+const EPPClient = require('../../providers/registry/epp-client');
+const stripeService = require('../billing/stripe.service');
+
+class TransactionQueue {
+    constructor() {
+        this.queues = new Map();
+        this.initialize();
+    }
+
+    /**
+     * Initialize queues
+     */
+    initialize() {
+        const redisConfig = {
+            host: process.env.REDIS_HOST || 'localhost',
+            port: parseInt(process.env.REDIS_PORT) || 6379,
+            password: process.env.REDIS_PASSWORD
+        };
+
+        // Main transaction queue
+        this.createQueue('domain:transactions', {
+            redis: redisConfig,
+            defaultJobOptions: {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 5000
+                },
+                removeOnComplete: 100,
+                removeOnFail: 50
+            }
+        });
+
+        // Payment processing queue
+        this.createQueue('domain:payments', {
+            redis: redisConfig,
+            defaultJobOptions: {
+                attempts: 5,
+                backoff: { type: 'exponential', delay: 2000 },
+                removeOnComplete: 50
+            }
+        });
+
+        // Registry operations queue
+        this.createQueue('domain:registry', {
+            redis: redisConfig,
+            defaultJobOptions: {
+                attempts: 3,
+                backoff: { type: 'fixed', delay: 10000 },
+                timeout: 60000,
+                removeOnComplete: 20
+            }
+        });
+
+        // DNS provisioning queue
+        this.createQueue('domain:dns', {
+            redis: redisConfig,
+            defaultJobOptions: {
+                attempts: 3,
+                backoff: { type: 'exponential', delay: 3000 }
+            }
+        });
+
+        // SSL provisioning queue
+        this.createQueue('domain:ssl', {
+            redis: redisConfig,
+            defaultJobOptions: {
+                attempts: 3,
+                backoff: { type: 'exponential', delay: 5000 }
+            }
+        });
+
+        // Notification queue
+        this.createQueue('domain:notifications', {
+            redis: redisConfig,
+            defaultJobOptions: {
+                attempts: 2,
+                removeOnComplete: true
+            }
+        });
+
+        this.setupProcessors();
+        this.setupEventHandlers();
+    }
+
+    /**
+     * Create queue
+     */
+    createQueue(name, config) {
+        const queue = new Queue(name, config);
+        this.queues.set(name, queue);
+        return queue;
+    }
+
+    /**
+     * Setup job processors
+     */
+    setupProcessors() {
+        // Main transaction processor
+        const transactionQueue = this.queues.get('domain:transactions');
+        transactionQueue.process(async (job) => {
+            return this.processTransaction(job.data);
+        });
+
+        // Payment processor
+        const paymentQueue = this.queues.get('domain:payments');
+        paymentQueue.process(async (job) => {
+            return this.processPayment(job.data);
+        });
+
+        // Registry processor
+        const registryQueue = this.queues.get('domain:registry');
+        registryQueue.process(async (job) => {
+            return this.processRegistryOperation(job.data);
+        });
+
+        // DNS processor
+        const dnsQueue = this.queues.get('domain:dns');
+        dnsQueue.process(async (job) => {
+            return this.processDNSSetup(job.data);
+        });
+
+        // SSL processor
+        const sslQueue = this.queues.get('domain:ssl');
+        sslQueue.process(async (job) => {
+            return this.processSSLSetup(job.data);
+        });
+
+        // Notification processor
+        const notificationQueue = this.queues.get('domain:notifications');
+        notificationQueue.process(async (job) => {
+            return this.sendNotification(job.data);
+        });
+    }
+
+    /**
+     * Setup event handlers
+     */
+    setupEventHandlers() {
+        for (const [name, queue] of this.queues) {
+            queue.on('completed', (job) => {
+                console.log(`✅ Queue [${name}] Job ${job.id} completed`);
+            });
+
+            queue.on('failed', (job, error) => {
+                console.error(`❌ Queue [${name}] Job ${job.id} failed:`, error.message);
+                
+                // If max attempts reached, mark transaction as failed
+                if (job.attemptsMade >= job.opts.attempts) {
+                    this.handlePermanentFailure(job, error);
+                }
+            });
+
+            queue.on('stalled', (job) => {
+                console.warn(`⚠️ Queue [${name}] Job ${job.id} stalled`);
+            });
+
+            queue.on('error', (error) => {
+                console.error(`Queue [${name}] error:`, error.message);
+            });
+        }
+    }
+
+    /**
+     * Process full transaction
+     */
+    async processTransaction(data) {
+        const { transactionId } = data;
+        
+        // Use distributed lock to prevent duplicate processing
+        return redisService.withLock(`tx:${transactionId}`, async () => {
+            const transaction = await Transaction.findOne({ transactionId });
+            
+            if (!transaction) {
+                throw new Error(`Transaction not found: ${transactionId}`);
+            }
+
+            // Process each step
+            await this.processStep(transaction, 'payment_processing');
+            await this.processStep(transaction, 'registry_registration');
+            await this.processStep(transaction, 'dns_setup');
+            await this.processStep(transaction, 'ssl_issuance');
+            await this.processStep(transaction, 'quantum_activation');
+            await this.processStep(transaction, 'completion');
+
+            return { transactionId, status: 'completed' };
+        });
+    }
+
+    /**
+     * Process individual step
+     */
+    async processStep(transaction, stepName) {
+        await transaction.addStep(stepName);
+
+        try {
+            switch (stepName) {
+                case 'payment_processing':
+                    await this.queues.get('domain:payments').add({
+                        transactionId: transaction.transactionId,
+                        amount: transaction.pricing.total,
+                        provider: transaction.payment.provider
+                    });
+                    break;
+
+                case 'registry_registration':
+                    await this.queues.get('domain:registry').add({
+                        transactionId: transaction.transactionId,
+                        operation: transaction.type,
+                        domain: transaction.domain
+                    });
+                    break;
+
+                case 'dns_setup':
+                    await this.queues.get('domain:dns').add({
+                        transactionId: transaction.transactionId,
+                        domain: transaction.domain,
+                        nameservers: transaction.config.nameservers
+                    });
+                    break;
+
+                case 'ssl_issuance':
+                    await this.queues.get('domain:ssl').add({
+                        transactionId: transaction.transactionId,
+                        domain: transaction.domain.fullDomain
+                    });
+                    break;
+            }
+
+            await transaction.completeStep(stepName);
+        } catch (error) {
+            await transaction.failStep(stepName, error);
+            
+            // If critical step fails, rollback
+            if (['payment_processing', 'registry_registration'].includes(stepName)) {
+                await transaction.rollback(error.message);
+            }
+            
+            throw error;
+        }
+    }
+
+    /**
+     * Process payment
+     */
+    async processPayment(data) {
+        const { transactionId, amount, provider } = data;
+        
+        // Actual payment processing via Stripe/PayPal
+        // This would call the real payment provider API
+        
+        return { transactionId, status: 'payment_completed' };
+    }
+
+    /**
+     * Process registry operation
+     */
+    async processRegistryOperation(data) {
+        const { transactionId, operation, domain } = data;
+        
+        // Create EPP client for appropriate registry
+        const eppClient = new EPPClient({
+            host: this.getRegistryHost(domain.tld),
+            port: 700,
+            username: process.env.EPP_USERNAME,
+            password: process.env.EPP_PASSWORD,
+            clientId: process.env.EPP_CLIENT_ID
+        });
+
+        try {
+            await eppClient.connect();
+            
+            switch (operation) {
+                case 'domain_purchase':
+                    const result = await eppClient.createDomain({
+                        domain: domain.name,
+                        tld: domain.tld,
+                        registrant: process.env.EPP_REGISTRANT_ID,
+                        years: 1
+                    });
+                    break;
+                    
+                case 'domain_transfer':
+                    // Transfer logic
+                    break;
+                    
+                case 'domain_renewal':
+                    // Renewal logic
+                    break;
+            }
+            
+            await eppClient.logout();
+        } catch (error) {
+            throw error;
+        } finally {
+            await eppClient.logout().catch(() => {});
+        }
+
+        return { transactionId, status: 'registry_completed' };
+    }
+
+    /**
+     * Process DNS setup
+     */
+    async processDNSSetup(data) {
+        // DNS provisioning via Cloudflare API
+        return { transactionId: data.transactionId, status: 'dns_configured' };
+    }
+
+    /**
+     * Process SSL setup
+     */
+    async processSSLSetup(data) {
+        // SSL provisioning via Let's Encrypt
+        return { transactionId: data.transactionId, status: 'ssl_issued' };
+    }
+
+    /**
+     * Send notification
+     */
+    async sendNotification(data) {
+        // Email/SMS/Push notification
+        return { sent: true };
+    }
+
+    /**
+     * Handle permanent failure
+     */
+    async handlePermanentFailure(job, error) {
+        const transaction = await Transaction.findOne({
+            transactionId: job.data.transactionId
+        });
+        
+        if (transaction) {
+            transaction.status = 'failed';
+            transaction.error = {
+                code: 'MAX_RETRIES_EXCEEDED',
+                message: error.message,
+                timestamp: new Date()
+            };
+            await transaction.save();
+        }
+    }
+
+    /**
+     * Get registry host for TLD
+     */
+    getRegistryHost(tld) {
+        const hosts = {
+            'com': 'epp.verisign-grs.com',
+            'net': 'epp.verisign-grs.com',
+            'org': 'epp.pir.org',
+            'ai': 'epp.nic.ai',
+            'io': 'epp.nic.io',
+            'uk': 'epp.nominet.org.uk',
+            'de': 'epp.denic.de'
+        };
+        
+        return hosts[tld] || 'epp.example.com';
+    }
+
+    /**
+     * Add transaction to queue
+     */
+    async enqueueTransaction(transactionId, priority = 'normal') {
+        const job = await this.queues.get('domain:transactions').add(
+            { transactionId },
+            { 
+                priority: priority === 'high' ? 1 : priority === 'low' ? 100 : 10,
+                jobId: transactionId // Use transaction ID as job ID for idempotency
+            }
+        );
+        
+        return job;
+    }
+
+    /**
+     * Get queue statistics
+     */
+    async getStats() {
+        const stats = {};
+        
+        for (const [name, queue] of this.queues) {
+            const [waiting, active, completed, failed, delayed] = await Promise.all([
+                queue.getWaitingCount(),
+                queue.getActiveCount(),
+                queue.getCompletedCount(),
+                queue.getFailedCount(),
+                queue.getDelayedCount()
+            ]);
+            
+            stats[name] = { waiting, active, completed, failed, delayed };
+        }
+        
+        return stats;
+    }
+
+    /**
+     * Pause all queues
+     */
+    async pauseAll() {
+        for (const [name, queue] of this.queues) {
+            await queue.pause();
+        }
+    }
+
+    /**
+     * Resume all queues
+     */
+    async resumeAll() {
+        for (const [name, queue] of this.queues) {
+            await queue.resume();
+        }
+    }
+
+    /**
+     * Clean old jobs
+     */
+    async cleanOldJobs() {
+        for (const [name, queue] of this.queues) {
+            await queue.clean(7 * 24 * 3600 * 1000, 'completed'); // 7 days
+            await queue.clean(30 * 24 * 3600 * 1000, 'failed'); // 30 days
+        }
+    }
+}
+
+// Singleton
+const transactionQueue = new TransactionQueue();
+
+module.exports = transactionQueue;

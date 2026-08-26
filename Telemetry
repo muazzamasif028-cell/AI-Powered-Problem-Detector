@@ -1,0 +1,13 @@
+emitTelemetry(event,data){
+
+    console.log(
+
+        "[TELEMETRY]",
+
+        event,
+
+        data
+
+    );
+
+}

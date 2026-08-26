@@ -1,0 +1,79 @@
+# 🚀 SUPREME OS — Quick Start Guide
+
+## Installation
+
+\`\`\`bash
+npm install @supreme-os/sdk
+\`\`\`
+
+## 5-Minute Quick Start
+
+### 1. Get API Key
+Sign up at [supreme-os.com](https://supreme-os.com) → Dashboard → API Keys
+
+### 2. Initialize SDK
+
+\`\`\`javascript
+const SupremeSDK = require('@supreme-os/sdk');
+
+const supreme = new SupremeSDK({
+    apiKey: 'sk_live_your_api_key_here'
+});
+\`\`\`
+
+### 3. Search & Register Domain
+
+\`\`\`javascript
+// Search
+const search = await supreme.domain.search('mycoolstartup');
+// → { available: true, price: 12.99 }
+
+// Register
+const domain = await supreme.domain.register({
+    domain: 'mycoolstartup',
+    tld: 'com'
+});
+// → { status: 'registered', domain: 'mycoolstartup.com' }
+\`\`\`
+
+### 4. Deploy Website (One Click)
+
+\`\`\`javascript
+const deploy = await supreme.domain.deploy(domain.data.id);
+// → { status: 'deploying', progress: 0 }
+
+// Check status
+setTimeout(async () => {
+    const status = await supreme.domain.get(domain.data.id);
+    console.log(status.data.deployProgress); // 100
+    console.log(status.data.url); // https://mycoolstartup.com
+}, 30000);
+\`\`\`
+
+### 5. Add AI Chatbot
+
+\`\`\`javascript
+const chatbot = await supreme.ai.createAgent({
+    name: 'My Site Assistant',
+    knowledge: ['https://mycoolstartup.com'],
+    model: 'gpt-4'
+});
+
+// Add to your website
+console.log(`<script src="https://supreme-os.com/chatbot/${chatbot.data.id}.js"></script>`);
+\`\`\`
+
+## 🎉 You're Live!
+
+Your domain is registered, website deployed, and AI chatbot is running.
+Total time: ~5 minutes.
+Total cost: $12.99/year for domain + $19/month for AI.
+
+## Next Steps
+
+- [ ] Add custom domain email
+- [ ] Set up analytics
+- [ ] Create more AI agents
+- [ ] Deploy to edge locations
+- [ ] Invite team members
+\`\`\`

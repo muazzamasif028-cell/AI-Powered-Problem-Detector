@@ -1,0 +1,86 @@
+// gateways/EasyPaisaGateway.js
+const BaseGateway = require('./BaseGateway');
+
+class EasyPaisaGateway extends BaseGateway {
+    constructor() {
+        const config = require('../config/gateways.config').easypaisa;
+        super(config);
+        this.gatewayId = 'EASYPAISA';
+    }
+
+    async processPayment(paymentData) {
+        try {
+            const transactionId = this.generateTransactionId();
+
+            const requestBody = {
+                merchantId: this.envConfig.merchantId,
+                merchantSecret: this.envConfig.secret,
+                orderId: transactionId,
+                amount: parseFloat(paymentData.amount).toFixed(2),
+                currency: 'PKR',
+                customerMSISDN: paymentData.customerPhone, // Mobile number required
+                customerEmail: paymentData.customerEmail,
+                description: paymentData.description || 'SUPREME Payment',
+                callbackUrl: 'https://api.supreme.com/webhooks/easypaisa',
+                returnUrl: `https://supreme.com/payment/easypaisa/return?order=${transactionId}`
+            };
+
+            const response = await this.client.post('/api/transaction/initiate', requestBody, {
+                headers: {
+                    'Authorization': `Bearer ${this.envConfig.secret}`
+                }
+            });
+
+            const { data } = response;
+
+            if (data.success) {
+                return {
+                    success: true,
+                    gateway: this.gatewayId,
+                    transactionId,
+                    gatewayTransactionId: data.transactionId,
+                    amount: paymentData.amount,
+                    currency: 'PKR',
+                    redirectUrl: data.paymentUrl,
+                    qrCode: data.qrCode || null,
+                    status: 'PENDING',
+                    expiryTime: data.expiryTime
+                };
+            }
+
+            throw new Error(data.message || 'Payment initiation failed');
+
+        } catch (error) {
+            return this.handleGatewayError(error);
+        }
+    }
+
+    /**
+     * Check EasyPaisa account status
+     */
+    async checkAccountStatus(phoneNumber) {
+        try {
+            const response = await this.client.get(`/api/account/status/${phoneNumber}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.envConfig.secret}`
+                }
+            });
+
+            return {
+                success: true,
+                gateway: this.gatewayId,
+                isRegistered: response.data.registered,
+                accountLevel: response.data.level,
+                limits: response.data.transactionLimits
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+}
+
+module.exports = EasyPaisaGateway;

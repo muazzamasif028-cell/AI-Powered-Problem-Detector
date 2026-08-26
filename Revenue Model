@@ -1,0 +1,51 @@
+const pricingStrategy = {
+    // Freemium to get users in
+    free: {
+        price: 0,
+        features: ['5 AI requests/day', '1 agent', 'Basic memory'],
+        goal: 'User acquisition',
+        conversionTarget: '5% to paid'
+    },
+    
+    // Starter for individual developers
+    starter: {
+        price: 19,
+        features: ['100 AI requests/day', '5 agents', 'All AI providers', 'API access'],
+        goal: 'Individual developers',
+        targetCustomer: 'Indie devs, freelancers'
+    },
+    
+    // Pro for power users
+    pro: {
+        price: 49,
+        features: ['1000 AI requests/day', '25 agents', 'Trust & Safety', 'Priority support'],
+        goal: 'Power users',
+        targetCustomer: 'Startup founders, CTOs'
+    },
+    
+    // Business for teams
+    business: {
+        price: 199,
+        features: ['10000 AI requests/day', '100 agents', 'SSO', 'Audit logs', 'Dedicated support'],
+        goal: 'Revenue growth',
+        targetCustomer: 'SMBs, agencies'
+    },
+    
+    // Enterprise for large companies
+    enterprise: {
+        price: 'Custom ($999-9999/mo)',
+        features: ['Unlimited AI requests', 'Custom agents', 'Sovereign deployment', '24/7 support', 'SLA'],
+        goal: 'High-value contracts',
+        targetCustomer: 'Enterprises, governments'
+    }
+};
+
+// Revenue Projections
+const revenueProjections = {
+    month1: { free: 400, starter: 15, pro: 4, business: 1, mrr: 680 },
+    month3: { free: 2000, starter: 80, pro: 30, business: 10, mrr: 4980 },
+    month6: { free: 8000, starter: 300, pro: 120, business: 40, enterprise: 3, mrr: 19500 },
+    month12: { free: 30000, starter: 1000, pro: 400, business: 150, enterprise: 15, mrr: 78000 },
+    year2: { mrr: 300000, arr: 3600000 },
+    year3: { mrr: 1000000, arr: 12000000 }
+};

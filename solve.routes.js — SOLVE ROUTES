@@ -1,0 +1,27 @@
+// ============================================================
+// 📁 routes/solve.routes.js — SOLVE ROUTES
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const solveController = require('../controllers/solve.controller');
+const executeController = require('../controllers/execute.controller');
+
+// =============================================
+// 🔧 SOLVE ENDPOINTS
+// =============================================
+router.post('/', solveController.solve);
+router.get('/status/:id', solveController.status);
+router.get('/history', solveController.history);
+
+// =============================================
+// ⚡ APPLY FIX (Execute)
+// =============================================
+router.post('/apply', executeController.applyFix);
+router.get('/apply/status/:jobId', executeController.fixStatus);
+
+// =============================================
+// 🔄 ROLLBACK
+// =============================================
+router.post('/rollback/:id', solveController.rollback);
+
+module.exports = router;

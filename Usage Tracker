@@ -1,0 +1,23 @@
+trackUsage(hash){
+
+    if(!this.usage.has(hash)){
+
+        this.usage.set(hash,{
+
+            requests:0,
+
+            tokens:0,
+
+            lastUsed:null
+
+        });
+
+    }
+
+    const usage=this.usage.get(hash);
+
+    usage.requests++;
+
+    usage.lastUsed=new Date().toISOString();
+
+}

@@ -1,0 +1,96 @@
+// audit/ProductionAuditLogger.js
+import crypto from 'crypto';
+import db from '../database/connection.js';
+
+export class ProductionAuditLogger {
+    /**
+     * Log event with hash-chain for immutability
+     */
+    async log(event) {
+        // Get last hash for chain
+        const [lastEvent] = await db('audit_events')
+            .select('current_hash')
+            .orderBy('occurred_at', 'desc')
+            .limit(1);
+
+        const previousHash = lastEvent?.current_hash || '0'.repeat(64);
+        const eventData = JSON.stringify(event);
+        const currentHash = crypto
+            .createHash('sha256')
+            .update(previousHash + eventData)
+            .digest('hex');
+
+        // Insert with hash chain
+        const [auditEntry] = await db('audit_events')
+            .insert({
+                event_type: event.type,
+                actor: event.actor,
+                target: event.target,
+                action: event.action,
+                reason: event.reason,
+                evidence: JSON.stringify(event.evidence || {}),
+                previous_hash: previousHash,
+                current_hash: currentHash
+            })
+            .returning('*');
+
+        return auditEntry;
+    }
+
+    /**
+     * Verify entire audit chain integrity
+     */
+    async verifyIntegrity() {
+        const events = await db('audit_events')
+            .orderBy('occurred_at', 'asc');
+
+        for (let i = 1; i < events.length; i++) {
+            const current = events[i];
+            const previous = events[i - 1];
+
+            const expectedHash = crypto
+                .createHash('sha256')
+                .update(previous.current_hash + JSON.stringify({
+                    type: current.event_type,
+                    actor: current.actor,
+                    target: current.target,
+                    action: current.action,
+                    reason: current.reason
+                }))
+                .digest('hex');
+
+            if (current.current_hash !== expectedHash) {
+                return { 
+                    valid: false, 
+                    tamperedAt: current.id,
+                    message: 'Audit trail has been tampered!'
+                };
+            }
+        }
+
+        return { 
+            valid: true, 
+            totalEntries: events.length,
+            firstEntry: events[0]?.occurred_at,
+            lastEntry: events[events.length - 1]?.occurred_at
+        };
+    }
+
+    /**
+     * Export audit for legal/compliance
+     */
+    async exportAudit(companyId, from, to) {
+        const events = await db('audit_events')
+            .where({ target: companyId })
+            .whereBetween('occurred_at', [from, to])
+            .orderBy('occurred_at', 'asc');
+
+        return {
+            companyId,
+            period: { from, to },
+            totalEntries: events.length,
+            chainVerified: (await this.verifyIntegrity()).valid,
+            events
+        };
+    }
+}

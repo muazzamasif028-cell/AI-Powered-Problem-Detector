@@ -1,0 +1,74 @@
+// supreme-events/GlobalEventFabric.js
+// Real-time infrastructure events across ALL regions
+
+export class GlobalEventFabric {
+    constructor() {
+        this.regions = new Map();
+        this.bridge = new CrossRegionBridge();
+        this.router = new EventRouter();
+        
+        // Initialize regions
+        this.initializeRegion('us-east', 'us-east-1');
+        this.initializeRegion('eu-west', 'eu-west-1');
+        this.initializeRegion('me-central', 'me-central-1');
+        this.initializeRegion('ap-southeast', 'ap-southeast-1');
+    }
+
+    /**
+     * Publish event globally
+     */
+    async publish(topic, event) {
+        const enrichedEvent = {
+            id: generateGlobalEventId(),
+            topic,
+            origin: process.env.REGION,
+            timestamp: new Date().toISOString(),
+            data: event,
+            ttl: event.ttl || 3600 // 1 hour default
+        };
+
+        // Route to relevant regions only
+        const targetRegions = this.router.getTargetRegions(event);
+        
+        for (const region of targetRegions) {
+            await this.bridge.send(region, enrichedEvent);
+        }
+
+        return enrichedEvent.id;
+    }
+
+    /**
+     * Subscribe to global events
+     */
+    subscribe(topic, handler, options = {}) {
+        const subscription = {
+            topic,
+            handler,
+            region: options.region || 'ALL',
+            filter: options.filter || null
+        };
+
+        if (subscription.region === 'ALL') {
+            for (const [name, region] of this.regions) {
+                region.subscribe(topic, handler);
+            }
+        } else {
+            this.regions.get(subscription.region)?.subscribe(topic, handler);
+        }
+
+        return subscription;
+    }
+
+    initializeRegion(name, awsRegion) {
+        this.regions.set(name, {
+            name,
+            awsRegion,
+            kafka: new KafkaCluster(awsRegion),
+            subscribers: new Map()
+        });
+    }
+}
+
+function generateGlobalEventId() {
+    return `GEVT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}

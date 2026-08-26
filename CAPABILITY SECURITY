@@ -1,0 +1,60 @@
+// supreme-security/CapabilitySecurity.js
+// Isolate individual capabilities — never destroy entire company
+
+export class CapabilitySecurity {
+    constructor() {
+        this.capabilities = {
+            API: new APICapability(),
+            NETWORK: new NetworkCapability(),
+            DEPLOY: new DeployCapability(),
+            DATA: new DataCapability(),
+            PAYMENTS: new PaymentCapability(),
+            AGENTS: new AgentCapability(),
+            COMPUTE: new ComputeCapability(),
+            STORAGE: new StorageCapability()
+        };
+        
+        this.policyEngine = new SecurityPolicyEngine();
+    }
+
+    /**
+     * Apply granular security policy
+     */
+    async applyPolicy(companyId, policy) {
+        const results = [];
+        
+        for (const [capability, rules] of Object.entries(policy)) {
+            const cap = this.capabilities[capability];
+            if (!cap) continue;
+
+            // Apply without affecting other capabilities
+            const result = await cap.applyRules(companyId, rules);
+            results.push({ capability, status: result.status });
+        }
+
+        return {
+            companyId,
+            appliedCapabilities: results.length,
+            unaffectedCapabilities: Object.keys(this.capabilities).length - results.length,
+            status: 'PARTIAL_ISOLATION' // NOT full destruction
+        };
+    }
+
+    /**
+     * Company status — shows which capabilities are affected
+     */
+    getCompanyStatus(companyId) {
+        const status = {};
+        
+        for (const [name, cap] of Object.entries(this.capabilities)) {
+            status[name] = cap.getStatus(companyId);
+        }
+
+        return {
+            companyId,
+            totalCapabilities: Object.keys(status).length,
+            restricted: Object.values(status).filter(s => s !== 'FULL').length,
+            status
+        };
+    }
+}

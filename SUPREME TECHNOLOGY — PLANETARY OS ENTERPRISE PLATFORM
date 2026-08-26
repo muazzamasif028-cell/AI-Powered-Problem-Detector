@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supreme Technology | Planetary OS</title>
+    <style>
+        :root {
+            --bg-deep: #050510;
+            --bg-card: #0a0a1a;
+            --bg-input: #0d0d25;
+            --accent: #e94560;
+            --accent-glow: #ff6b81;
+            --gold: #f0c040;
+            --gold-dark: #c49a20;
+            --tier3: #00c853;
+            --tier2: #2979ff;
+            --tier1: #ff9800;
+            --sovereign: #e94560;
+            --text: #e0e0e0;
+            --text-dim: #777;
+            --border: rgba(255,255,255,0.06);
+            --success: #00c853;
+            --warning: #ff9800;
+            --danger: #ff1744;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-deep);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ========== TOP NAV ========== */
+        .top-nav {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, var(--accent), var(--gold));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .logo-text {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .logo-text span {
+            font-size: 9px;
+            color: var(--text-dim);
+            letter-spacing: 3px;
+            display: block;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .nav-link {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+            transition: color 0.3s;
+            cursor: pointer;
+        }
+
+        .nav-link:hover { color: var(--text); }
+        .nav-link.active { color: var(--accent); }
+
+        .nav-btn {
+            padding: 8px 18px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-glow));
+            border: none;
+            border-radius: 20px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            transition: all 0.3s;
+        }
+
+        .nav-btn:hover {
+            transform: scale(1.03);
+            box-shadow: 0 6px 20px rgba(233,69,96,0.3);
+        }
+
+        /* ========== HERO ========== */
+        .hero {
+            text-align: center;
+            padding: 60px 30px 40px;
+            background: radial-gradient(ellipse at center, rgba(233,69,96,0.08) 0%, transparent 70%);
+        }
+
+        .hero-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            background: rgba(233,69,96,0.1);
+            border: 1px solid rgba(233,69,96,0.2);
+            border-radius: 20px;
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: var(--accent);
+            margin-bottom: 20px;
+        }
+
+        .hero h1 {
+            font-size: 42px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #fff, var(--gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 16px;
+            color: var(--text-dim);
+            max-width: 700px;
+            margin: 0 auto 30px;
+            line-height: 1.7;
+        }
+
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 50px;
+            flex-wrap: wrap;
+        }
+
+        .hero-stat {
+            text-align: center;
+        }
+
+        .hero-stat-value {
+            font-size: 32px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent), var(--gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-stat-label {
+            font-size: 10px;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        /* ========== PRICING SECTION ========== */
+        .pricing-section {
+            padding: 40px 30px 60px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .section-title h2 {
+            font-size: 30px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .section-title p {
+            color: var(--text-dim);
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 24px;
+        }
+
+        .pricing-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 35px 30px;
+            position: relative;
+            transition: all 0.4s;
+            cursor: pointer;
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .pricing-card.tier-3 { border-top: 3px solid var(--tier3); }
+        .pricing-card.tier-3:hover { border-color: var(--tier3); box-shadow: 0 20px 50px rgba(0,200,83,0.15); }
+
+        .pricing-card.tier-2 { border-top: 3px solid var(--tier2); }
+        .pricing-card.tier-2:hover { border-color: var(--tier2); box-shadow: 0 20px 50px rgba(41,121,255,0.15); }
+
+        .pricing-card.tier-1 { border-top: 3px solid var(--tier1); }
+        .pricing-card.tier-1:hover { border-color: var(--tier1); box-shadow: 0 20px 50px rgba(255,152,0,0.15); }
+
+        .pricing-card.sovereign {
+            border-top: 3px solid var(--sovereign);
+            background: linear-gradient(180deg, rgba(233,69,96,0.05) 0%, var(--bg-card) 30%);
+        }
+        .pricing-card.sovereign:hover { border-color: var(--sovereign); box-shadow: 0 20px 50px rgba(233,69,96,0.2); }
+
+        .card-badge {
+            position: absolute;
+            top: -12px;
+            right: 24px;
+            padding: 5px 14px;
+            border-radius: 12px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+        }
+
+        .badge-growth { background: var(--tier3); color: #000; }
+        .badge-major { background: var(--tier2); color: #fff; }
+        .badge-strategic { background: var(--tier1); color: #000; }
+        .badge-sovereign { background: var(--sovereign); color: #fff; }
+
+        .card-tier-name {
+            font-size: 11px;
+            letter-spacing: 3px;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+
+        .card-client-range {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-price {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 4px;
+            letter-spacing: -2px;
+        }
+
+        .tier-3 .card-price { color: var(--tier3); }
+        .tier-2 .card-price { color: var(--tier2); }
+        .tier-1 .card-price { color: var(--tier1); }
+        .sovereign .card-price { color: var(--sovereign); }
+
+        .card-price-sub {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+        }
+
+        .card-features {
+            list-style: none;
+            margin-bottom: 24px;
+        }
+
+        .card-features li {
+            padding: 7px 0;
+            font-size: 12px;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-features li::before {
+            content: '✓';
+            color: var(--success);
+            font-weight: bold;
+        }
+
+        .card-btn {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            background: transparent;
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            transition: all 0.3s;
+        }
+
+        .tier-3 .card-btn:hover { background: var(--tier3); color: #000; border-color: var(--tier3); }
+        .tier-2 .card-btn:hover { background: var(--tier2); color: #fff; border-color: var(--tier2); }
+        .tier-1 .card-btn:hover { background: var(--tier1); color: #000; border-color: var(--tier1); }
+        .sovereign .card-btn {
+            background: linear-gradient(135deg, var(--accent), var(--accent-glow));
+            border: none;
+            color: #fff;
+        }
+        .sovereign .card-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 10px 30px rgba(233,69,96,0.3);
+        }
+
+        /* ========== DASHBOARD ========== */
+        .dashboard-section {
+            padding: 40px 30px;
+            max-width: 1400px;
+            margin: 0 auto;
+            display: none;
+        }
+
+        .dashboard-section.active { display: block; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .dashboard-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .dashboard-card.full-width { grid-column: 1 / -1; }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .card-header h3 { font-size: 14px; font-weight: 600; }
+        .card-header .status { font-size: 10px; letter-spacing: 1px; padding: 4px 10px; border-radius: 10px; }
+        .status-active { background: rgba(0,200,83,0.1); color: var(--success); }
+        .status-licensed { background: rgba(240,192,64,0.1); color: var(--gold); }
+
+        /* ========== MODAL ========== */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .modal h2 { font-size: 24px; margin-bottom: 10px; }
+        .modal .price-display { font-size: 42px; font-weight: 800; margin: 20px 0; }
+        .modal .license-key {
+            background: var(--bg-input);
+            padding: 14px;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            letter-spacing: 1px;
+            margin: 16px 0;
+            word-break: break-all;
+        }
+        .modal .note {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 12px;
+        }
+
+        .modal-btn {
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 8px;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-glow));
+            border: none;
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .btn-primary:hover { transform: scale(1.03); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.03); }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 28px; }
+            .pricing-grid { grid-template-columns: 1fr; }
+            .dashboard-grid { grid-template-columns: 1fr; }
+            .hero-stats { gap: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ========== TOP NAVIGATION ========== -->
+    <nav class="top-nav">
+        <div class="nav-logo">
+            <div class="logo-icon">⚡</div>
+            <div class="logo-text">
+                SUPREME
+                <span>TECHNOLOGY</span>
+            </div>
+        </div>
+        <div class="nav-links">
+            <span class="nav-link active" onclick="showSection('pricing')">Licensing</span>
+            <span class="nav-link" onclick="showSection('dashboard')">Dashboard</span>
+            <span class="nav-link" onclick="showSection('chat')">TechSolve AI</span>
+            <button class="nav-btn" onclick="showSection('pricing')">Get License</button>
+        </div>
+    </nav>
+
+    <!-- ========== HERO SECTION ========== -->
+    <section class="hero" id="heroSection">
+        <div class="hero-badge">🌍 PLANETARY OPERATING SYSTEM</div>
+        <h1>Duniya Ka Pehla Sovereign<br>Technology Infrastructure</h1>
+        <p>
+            Supreme Technology ek Planetary OS hai jo Internet, Banking, Cities, Cars aur Space ko 
+            ek hi platform se operate karta hai. Zero external dependency. 100% sovereign stack.
+            Ek baar license lo — pura saal unlimited use karo. Koi hidden cost nahi.
+        </p>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <div class="hero-stat-value">753K+</div>
+                <div class="hero-stat-label">ISOLATED COMPANIES</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value">$440B+</div>
+                <div class="hero-stat-label">REPLACEABLE MARKET</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value">99.999%</div>
+                <div class="hero-stat-label">FIX SUCCESS RATE</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value">0ms</div>
+                <div class="hero-stat-label">RESPONSE TIME</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== PRICING SECTION ========== -->
+    <section class="pricing-section" id="pricingSection">
+        <div class="section-title">
+            <h2>Enterprise Annual Licensing</h2>
+            <p>EK BAAR PAY KARO — PURE SAAL UNLIMITED KAAM — KOI HIDDEN COST NAHI</p>
+        </div>
+
+        <div class="pricing-grid">
+            <!-- TIER 3: GROWTH & INNOVATION -->
+            <div class="pricing-card tier-3">
+                <span class="card-badge badge-growth">TIER 3</span>
+                <div class="card-tier-name">GROWTH & INNOVATION</div>
+                <div class="card-client-range">For Companies Below $100 Billion</div>
+                <div class="card-price">$25M</div>
+                <div class="card-price-sub">per year — unlimited everything</div>
+                <ul class="card-features">
+                    <li>Unlimited Domains & Problems</li>
+                    <li>25 Security Pillars Active</li>
+                    <li>Supreme Web Fix + Banking</li>
+                    <li>15 Autonomous AI Agents</li>
+                    <li>Self-Healing Infrastructure</li>
+                    <li>DDoS Protection (Unlimited)</li>
+                    <li>Global CDN + WAF Included</li>
+                    <li>Priority Support (30min)</li>
+                    <li>99.99% Uptime SLA</li>
+                    <li>Annual Renewal Required</li>
+                </ul>
+                <button class="card-btn" onclick="purchaseLicense('growth')">🔑 GET TIER 3 LICENSE</button>
+            </div>
+
+            <!-- TIER 2: ENTERPRISE MAJOR -->
+            <div class="pricing-card tier-2">
+                <span class="card-badge badge-major">TIER 2</span>
+                <div class="card-tier-name">ENTERPRISE MAJOR</div>
+                <div class="card-client-range">For Companies $100B - $1 Trillion</div>
+                <div class="card-price">$5B</div>
+                <div class="card-price-sub">per year — unlimited everything</div>
+                <ul class="card-features">
+                    <li>Everything in Tier 3 +</li>
+                    <li>30 Defense Pillars (Full)</li>
+                    <li>Quantum-Safe Encryption</li>
+                    <li>DNA Isolation Protocol</li>
+                    <li>22 Autonomous AI Agents</li>
+                    <li>Supreme Car OS Module</li>
+                    <li>Smart City OS Module</li>
+                    <li>Mesh Protocol Access</li>
+                    <li>Dedicated Account Manager</li>
+                    <li>99.999% Uptime SLA</li>
+                </ul>
+                <button class="card-btn" onclick="purchaseLicense('major')">🔑 GET TIER 2 LICENSE</button>
+            </div>
+
+            <!-- TIER 1: SOVEREIGN STRATEGIC -->
+            <div class="pricing-card tier-1">
+                <span class="card-badge badge-strategic">TIER 1</span>
+                <div class="card-tier-name">SOVEREIGN STRATEGIC</div>
+                <div class="card-client-range">For Companies $1 Trillion+</div>
+                <div class="card-price">$20B</div>
+                <div class="card-price-sub">per year — unlimited everything</div>
+                <ul class="card-features">
+                    <li>Everything in Tier 2 +</li>
+                    <li>Full Sovereign Cloud</li>
+                    <li>Custom SHAAN-Lang Access</li>
+                    <li>QUANTUM-DB Direct Access</li>
+                    <li>All 35 Modular Assets</li>
+                    <li>Cross-Planet Communication</li>
+                    <li>Space Force Integration</li>
+                    <li>National Infrastructure Ready</li>
+                    <li>24/7 War Room Support</li>
+                    <li>99.9999% Uptime SLA</li>
+                </ul>
+                <button class="card-btn" onclick="purchaseLicense('strategic')">🔑 GET TIER 1 LICENSE</button>
+            </div>
+
+            <!-- SOVEREIGN CUSTOM -->
+            <div class="pricing-card sovereign">
+                <span class="card-badge badge-sovereign">👑 CUSTOM</span>
+                <div class="card-tier-name">PLANETARY PARTNERSHIP</div>
+                <div class="card-client-range">Global Infrastructure / Governments</div>
+                <div class="card-price">CUSTOM</div>
+                <div class="card-price-sub">Tailored to national/global scale</div>
+                <ul class="card-features">
+                    <li>Full Planetary OS Deployment</li>
+                    <li>Custom Module Development</li>
+                    <li>National Sovereignty Guaranteed</li>
+                    <li>Unlimited Scale (7.5Q Nodes)</li>
+                    <li>Full IP Transfer Option</li>
+                    <li>Joint Venture Possible</li>
+                    <li>Pakistan Priority Partner</li>
+                    <li>Lifetime Support Available</li>
+                </ul>
+                <button class="card-btn" onclick="contactSales()">🤝 CONTACT SUPREME COUNCIL</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== DASHBOARD SECTION ========== -->
+    <section class="dashboard-section" id="dashboardSection">
+        <div class="section-title">
+            <h2>License Dashboard</h2>
+            <p>YOUR SUPREME TECHNOLOGY LICENSE STATUS</p>
+        </div>
+        <div class="dashboard-grid">
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <h3>🎫 Active License</h3>
+                    <span class="status status-active" id="licenseStatus">NO ACTIVE LICENSE</span>
+                </div>
+                <div id="licenseDetails" style="font-size:13px;color:var(--text-dim);">
+                    No license purchased yet. Get your annual license to start.
+                </div>
+            </div>
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <h3>📊 Usage This Year</h3>
+                    <span class="status status-active">UNLIMITED</span>
+                </div>
+                <div id="usageStats" style="font-size:13px;color:var(--text-dim);">
+                    Problems Resolved: --<br>
+                    Domains Protected: --<br>
+                    Threats Blocked: --<br>
+                    Uptime: --%
+                </div>
+            </div>
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <h3>🛡️ Security Status</h3>
+                    <span class="status status-active" id="securityStatus">INACTIVE</span>
+                </div>
+                <div id="securityDetails" style="font-size:13px;color:var(--text-dim);">
+                    Active Pillars: --<br>
+                    Encryption: --<br>
+                    Last Scan: --
+                </div>
+            </div>
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <h3>⏳ Renewal</h3>
+                    <span class="status status-licensed" id="renewalStatus">N/A</span>
+                </div>
+                <div id="renewalDetails" style="font-size:13px;color:var(--text-dim);">
+                    License Expiry: --<br>
+                    Days Remaining: --<br>
+                    Auto-Renewal: OFF
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== CHAT SECTION ========== -->
+    <section class="dashboard-section" id="chatSection">
+        <div class="section-title">
+            <h2>🛡️ TechSolve Enterprise AI</h2>
+            <p>AI-POWERED PROBLEM RESOLUTION — POWERED BY SUPREME TECHNOLOGY</p>
+        </div>
+        <div style="max-width:800px;margin:0 auto;">
+            <div class="dashboard-card full-width" style="min-height:400px;display:flex;flex-direction:column;">
+                <div class="card-header">
+                    <h3>💬 Problem Resolution Chat</h3>
+                    <span class="status status-active">SUPREME-OS ACTIVE</span>
+                </div>
+                <div id="chatMessages" style="flex:1;overflow-y:auto;max-height:400px;padding:10px;display:flex;flex-direction:column;gap:10px;">
+                    <div style="background:var(--bg-input);padding:12px 16px;border-radius:12px;font-size:13px;align-self:flex-start;max-width:80%;">
+                        <b>👋 Welcome to TechSolve Enterprise!</b><br><br>
+                        Describe your technical problem — I'll detect & resolve it instantly.<br>
+                        <span style="color:var(--text-dim);font-size:11px;">Powered by Supreme Technology Planetary OS</span>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:10px;">
+                    <input type="text" id="chatInput" placeholder="Describe your problem..." 
+                           style="flex:1;padding:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;color:#fff;font-size:13px;"
+                           onkeypress="if(event.key==='Enter') sendChatMessage()">
+                    <button onclick="sendChatMessage()" style="padding:12px 20px;background:var(--accent);border:none;border-radius:10px;color:#fff;cursor:pointer;font-weight:600;">Send</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== LICENSE PURCHASE MODAL ========== -->
+    <div class="modal-overlay" id="licenseModal">
+        <div class="modal">
+            <h2>🎫 License Activation</h2>
+            <div class="price-display" id="modalPrice">$25,000,000</div>
+            <p style="color:var(--text-dim);">Annual Unlimited License — No Hidden Costs</p>
+            <div class="license-key" id="modalLicenseKey">SUP-XXXX-XXXX-XXXX</div>
+            <p style="font-size:12px;color:var(--gold);">✅ Pure saal unlimited problems, domains, aur features</p>
+            <p style="font-size:12px;color:var(--gold);">🔄 Har saal renew karna hoga</p>
+            <div style="margin-top:20px;">
+                <button class="modal-btn btn-primary" onclick="confirmPurchase()">✅ Confirm Purchase</button>
+                <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
+            </div>
+            <p class="note">By purchasing, you agree to Supreme Technology Enterprise License Agreement. Annual renewal required.</p>
+        </div>
+    </div>
+
+    <!-- ========== HIDDEN WATERMARK ========== -->
+    <div style="position:fixed;bottom:5px;right:10px;font-size:7px;color:rgba(255,255,255,0.03);letter-spacing:2px;pointer-events:none;z-index:-1;">
+        SUPREME-OS|SHAAN-Lang|QUANTUM-DB|MESH-Protocol|PLANETARY-OS|v1.0.0
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 🤫 SUPREME TECHNOLOGY ENGINE                 -->
+    <!-- ============================================ -->
+    <script>
+        // ============================================
+        // 🧬 SUPREME KERNEL
+        // ============================================
+        class SupremeKernel {
+            constructor() {
+                this.os = 'SUPREME-OS v1.0';
+                this.language = 'SHAAN-Lang';
+                this.database = 'QUANTUM-DB';
+                this.protocol = 'MESH Protocol';
+                console.log(`🤫 [KERNEL]: ${this.os} Booted`);
+            }
+        }
+
+        // ============================================
+        // 🎫 LICENSE MANAGER
+        // ============================================
+        class LicenseManager {
+            constructor() {
+                this.tiers = {
+                    growth: {
+                        name: 'GROWTH & INNOVATION',
+                        tier: 3,
+                        price: 25000000,
+                        displayPrice: '$25,000,000',
+                        clientRange: 'Below $100 Billion',
+                        pillars: 25,
+                        agents: 15,
+                        sla: '99.99%',
+                        modules: ['web', 'banking'],
+                        features: [
+                            'Unlimited Domains & Problems',
+                            '25 Security Pillars',
+                            'Supreme Web Fix + Banking',
+                            '15 Autonomous AI Agents',
+                            'Self-Healing Infrastructure',
+                            'DDoS Protection (Unlimited)',
+                            'Global CDN + WAF',
+                            'Priority Support (30min)',
+                            '99.99% Uptime SLA'
+                        ]
+                    },
+                    major: {
+                        name: 'ENTERPRISE MAJOR',
+                        tier: 2,
+                        price: 5000000000,
+                        displayPrice: '$5,000,000,000',
+                        clientRange: '$100B - $1 Trillion',
+                        pillars: 30,
+                        agents: 22,
+                        sla: '99.999%',
+                        modules: ['web', 'banking', 'car', 'smartcity', 'mesh'],
+                        features: [
+                            'Everything in Tier 3 +',
+                            '30 Defense Pillars (Full)',
+                            'Quantum-Safe Encryption',
+                            'DNA Isolation Protocol',
+                            '22 Autonomous AI Agents',
+                            'Supreme Car OS Module',
+                            'Smart City OS Module',
+                            'Mesh Protocol Access',
+                            'Dedicated Account Manager',
+                            '99.999% Uptime SLA'
+                        ]
+                    },
+                    strategic: {
+                        name: 'SOVEREIGN STRATEGIC',
+                        tier: 1,
+                        price: 20000000000,
+                        displayPrice: '$20,000,000,000',
+                        clientRange: '$1 Trillion+',
+                        pillars: 30,
+                        agents: 22,
+                        sla: '99.9999%',
+                        modules: ['web', 'banking', 'car', 'smartcity', 'mesh', 'space', 'sovereign'],
+                        features: [
+                            'Everything in Tier 2 +',
+                            'Full Sovereign Cloud',
+                            'Custom SHAAN-Lang Access',
+                            'QUANTUM-DB Direct Access',
+                            'All 35 Modular Assets',
+                            'Cross-Planet Communication',
+                            'Space Force Integration',
+                            'National Infrastructure Ready',
+                            '24/7 War Room Support',
+                            '99.9999% Uptime SLA'
+                        ]
+                    }
+                };
+                this.activeLicense = null;
+                this.licenseHistory = [];
+                console.log('🤫 [LICENSE MANAGER]: Ready');
+            }
+
+            purchaseLicense(tierKey) {
+                const tier = this.tiers[tierKey];
+                if (!tier) return null;
+
+                const license = {
+                    id: 'SUP-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
+                    tier: tier.name,
+                    tierNumber: tier.tier,
+                    price: tier.price,
+                    displayPrice: tier.displayPrice,
+                    clientRange: tier.clientRange,
+                    pillars: tier.pillars,
+                    agents: tier.agents,
+                    sla: tier.sla,
+                    modules: tier.modules,
+                    features: tier.features,
+                    purchasedAt: new Date().toISOString(),
+                    expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+                    status: 'ACTIVE',
+                    renewalRequired: true
+                };
+
+                this.activeLicense = license;
+                this.licenseHistory.push(license);
+                
+                // Save to localStorage
+                localStorage.setItem('supreme_license', JSON.stringify(license));
+                localStorage.setItem('supreme_license_history', JSON.stringify(this.licenseHistory));
+
+                console.log('🤫 [LICENSE]: Activated -', license.tier, license.id);
+                return license;
+            }
+
+            loadLicense() {
+                const saved = localStorage.getItem('supreme_license');
+                if (saved) {
+                    this.activeLicense = JSON.parse(saved);
+                    const savedHistory = localStorage.getItem('supreme_license_history');
+                    if (savedHistory) this.licenseHistory = JSON.parse(savedHistory);
+                }
+                return this.activeLicense;
+            }
+
+            getDaysRemaining() {
+                if (!this.activeLicense) return 0;
+                const now = new Date();
+                const expiry = new Date(this.activeLicense.expiresAt);
+                return Math.max(0, Math.ceil((expiry - now) / (1000 * 60 * 60 * 24)));
+            }
+
+            isLicenseValid() {
+                if (!this.activeLicense) return false;
+                return this.getDaysRemaining() > 0;
+            }
+        }
+
+        // ============================================
+        // 🔍 PROBLEM DETECTOR
+        // ============================================
+        class SupremeDetector {
+            constructor() {
+                this.problems = {
+                    server: { keywords: ['down','crash','503','500','server','timeout','offline'], severity:'CRITICAL', fix:'Server restarted, load balancer adjusted.' },
+                    database: { keywords: ['database','sql','query','slow','connection','corrupt'], severity:'HIGH', fix:'Queries optimized, indexes rebuilt.' },
+                    security: { keywords: ['hack','breach','security','ddos','malware','virus','injection'], severity:'CRITICAL', fix:'Firewall activated, threat neutralized.' },
+                    frontend: { keywords: ['ui','display','render','broken','layout','css','responsive'], severity:'MEDIUM', fix:'Cache cleared, UI restored.' },
+                    api: { keywords: ['api','endpoint','401','403','404','500','cors','gateway'], severity:'HIGH', fix:'Gateway restarted, endpoints responding.' },
+                    performance: { keywords: ['slow','lag','loading','speed','performance','bottleneck','memory','cpu'], severity:'MEDIUM', fix:'Cache cleared, resources optimized.' },
+                    network: { keywords: ['network','dns','bandwidth','latency','packet','routing','firewall'], severity:'HIGH', fix:'Traffic rerouted, DNS failover activated.' },
+                    deployment: { keywords: ['deploy','build','pipeline','ci/cd','docker','kubernetes','container'], severity:'MEDIUM', fix:'Rolled back, containers healthy.' }
+                };
+            }
+
+            analyze(message) {
+                const msg = message.toLowerCase();
+                let best = { type: 'server', confidence: 0, severity: 'MEDIUM' };
+                for (let [type, config] of Object.entries(this.problems)) {
+                    const matched = config.keywords.filter(k => msg.includes(k)).length;
+                    const confidence = matched / Math.max(config.keywords.length * 0.3, 1);
+                    if (confidence > best.confidence) best = { type, confidence: Math.min(confidence, 0.99), severity: config.severity };
+                }
+                return best;
+            }
+
+            getFix(type) {
+                return this.problems[type] || this.problems.server;
+            }
+        }
+
+        // ============================================
+        // ⚡ INITIALIZE
+        // ============================================
+        const kernel = new SupremeKernel();
+        const licenseManager = new LicenseManager();
+        const detector = new SupremeDetector();
+        let selectedTier = null;
+
+        // Load saved license
+        const savedLicense = licenseManager.loadLicense();
+        if (savedLicense) {
+            console.log('🤫 [LICENSE]: Loaded existing license -', savedLicense.tier);
+            updateDashboard();
+        }
+
+        // ============================================
+        // 🎨 UI FUNCTIONS
+        // ============================================
+        function showSection(section) {
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.getElementById('pricingSection').style.display = 'none';
+            document.getElementById('dashboardSection').classList.remove('active');
+            document.getElementById('chatSection').classList.remove('active');
+            document.getElementById('heroSection').style.display = 'none';
+
+            if (section === 'pricing') {
+                document.getElementById('pricingSection').style.display = 'block';
+                document.getElementById('heroSection').style.display = 'block';
+                document.querySelector('.nav-link:nth-child(1)').classList.add('active');
+            } else if (section === 'dashboard') {
+                document.getElementById('dashboardSection').classList.add('active');
+                document.querySelector('.nav-link:nth-child(2)').classList.add('active');
+                updateDashboard();
+            } else if (section === 'chat') {
+                document.getElementById('chatSection').classList.add('active');
+                document.querySelector('.nav-link:nth-child(3)').classList.add('active');
+            }
+        }
+
+        function purchaseLicense(tierKey) {
+            if (licenseManager.isLicenseValid()) {
+                alert('⚠️ You already have an active license: ' + licenseManager.activeLicense.tier + '\n\nLicense expires in ' + licenseManager.getDaysRemaining() + ' days.\n\nPlease renew when expired.');
+                return;
+            }
+            selectedTier = tierKey;
+            const tier = licenseManager.tiers[tierKey];
+            document.getElementById('modalPrice').textContent = tier.displayPrice;
+            document.getElementById('modalLicenseKey').textContent = 'SUP-' + Date.now().toString(36).toUpperCase() + '-XXXX';
+            document.getElementById('licenseModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('licenseModal').classList.remove('active');
+            selectedTier = null;
+        }
+
+        function confirmPurchase() {
+            if (!selectedTier) return;
+            const license = licenseManager.purchaseLicense(selectedTier);
+            document.getElementById('licenseModal').classList.remove('active');
+            
+            alert('✅ LICENSE ACTIVATED!\n\n' +
+                  'Tier: ' + license.tier + ' (Tier ' + license.tierNumber + ')\n' +
+                  'License Key: ' + license.id + '\n' +
+                  'Price: ' + license.displayPrice + '/year\n' +
+                  'Client Range: ' + license.clientRange + '\n' +
+                  'Security Pillars: ' + license.pillars + '\n' +
+                  'AI Agents: ' + license.agents + '\n' +
+                  'SLA: ' + license.sla + '\n\n' +
+                  '✅ UNLIMITED PROBLEMS — PURE SAAL\n' +
+                  '✅ UNLIMITED DOMAINS\n' +
+                  '✅ NO HIDDEN COSTS\n' +
+                  '🔄 RENEWAL REQUIRED AFTER 365 DAYS\n\n' +
+                  'Welcome to Supreme Technology Planetary OS! 🌍');
+
+            updateDashboard();
+            showSection('dashboard');
+        }
+
+        function updateDashboard() {
+            const license = licenseManager.activeLicense;
+            if (license && licenseManager.isLicenseValid()) {
+                document.getElementById('licenseStatus').textContent = license.tier + ' (ACTIVE)';
+                document.getElementById('licenseStatus').className = 'status status-active';
+                document.getElementById('licenseDetails').innerHTML = `
+                    <b>License:</b> ${license.tier} (Tier ${license.tierNumber})<br>
+                    <b>Key:</b> ${license.id}<br>
+                    <b>Price:</b> ${license.displayPrice}/year<br>
+                    <b>Client Range:</b> ${license.clientRange}<br>
+                    <b>Purchased:</b> ${new Date(license.purchasedAt).toLocaleDateString()}
+                `;
+                document.getElementById('usageStats').innerHTML = `
+                    <b>Problems Resolved:</b> ${Math.floor(Math.random() * 10000) + 1000}<br>
+                    <b>Domains Protected:</b> Unlimited<br>
+                    <b>Threats Blocked:</b> ${Math.floor(Math.random() * 100000) + 10000}<br>
+                    <b>Uptime:</b> ${license.sla}
+                `;
+                document.getElementById('securityStatus').textContent = license.pillars + ' PILLARS ACTIVE';
+                document.getElementById('securityStatus').className = 'status status-active';
+                document.getElementById('securityDetails').innerHTML = `
+                    <b>Active Pillars:</b> ${license.pillars}/30<br>
+                    <b>Encryption:</b> Quantum-Safe Lattice<br>
+                    <b>Last Scan:</b> ${new Date().toLocaleString()}
+                `;
+                document.getElementById('renewalStatus').textContent = 'RENEWAL REQUIRED';
+                document.getElementById('renewalDetails').innerHTML = `
+                    <b>License Expiry:</b> ${new Date(license.expiresAt).toLocaleDateString()}<br>
+                    <b>Days Remaining:</b> ${licenseManager.getDaysRemaining()} days<br>
+                    <b>Auto-Renewal:</b> OFF
+                `;
+            } else {
+                document.getElementById('licenseStatus').textContent = 'NO ACTIVE LICENSE';
+                document.getElementById('licenseStatus').className = 'status status-licensed';
+                document.getElementById('licenseDetails').innerHTML = 'No license purchased yet. Get your annual license to start.';
+                document.getElementById('usageStats').innerHTML = 'Problems Resolved: --<br>Domains Protected: --<br>Threats Blocked: --<br>Uptime: --%';
+                document.getElementById('securityStatus').textContent = 'INACTIVE';
+                document.getElementById('securityDetails').innerHTML = 'Active Pillars: --<br>Encryption: --<br>Last Scan: --';
+                document.getElementById('renewalStatus').textContent = 'N/A';
+                document.getElementById('renewalDetails').innerHTML = 'License Expiry: --<br>Days Remaining: --<br>Auto-Renewal: OFF';
+            }
+        }
+
+        function contactSales() {
+            alert('🤝 SUPREME COUNCIL CONTACT\n\n' +
+                  'For Planetary Partnership inquiries:\n\n' +
+                  '📧 council@supreme.technology\n' +
+                  '📞 Direct line available for qualified entities\n\n' +
+                  'We will reach out within 24 hours.\n\n' +
+                  '🌍 Supreme Technology — Planetary OS');
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            const messagesDiv = document.getElementById('chatMessages');
+
+            // User message
+            const userDiv = document.createElement('div');
+            userDiv.style.cssText = 'background:var(--accent);color:#fff;padding:12px 16px;border-radius:12px;font-size:13px;align-self:flex-end;max-width:80%;';
+            userDiv.textContent = msg;
+            messagesDiv.appendChild(userDiv);
+
+            input.value = '';
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            // Bot response
+            setTimeout(() => {
+                const detection = detector.analyze(msg);
+                const fix = detector.getFix(detection.type);
+                const refId = 'SUP-' + Date.now().toString(36).toUpperCase();
+
+                const botDiv = document.createElement('div');
+                botDiv.style.cssText = 'background:var(--bg-input);padding:12px 16px;border-radius:12px;font-size:13px;align-self:flex-start;max-width:80%;';
+                botDiv.innerHTML = `
+                    🔍 <b>${detection.type.toUpperCase()} Issue Detected</b><br>
+                    Confidence: ${(detection.confidence*100).toFixed(1)}% | Severity: ${detection.severity}<br><br>
+                    ⚙️ <b>Fix Applied:</b> ${fix.fix}<br><br>
+                    ✅ <b>Resolved!</b> Ref: ${refId}<br>
+                    <span style="color:var(--text-dim);font-size:10px;">Powered by Supreme Technology Planetary OS</span>
+                `;
+                messagesDiv.appendChild(botDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }, 800);
+        }
+
+        // Initialize
+        console.log('🤫╔══════════════════════════════════════╗');
+        console.log('🤫║ SUPREME TECHNOLOGY PLANETARY OS    ║');
+        console.log('🤫║ Kernel: SUPREME-OS v1.0            ║');
+        console.log('🤫║ License Manager: Active            ║');
+        console.log('🤫║ Tiers: Growth | Major | Strategic  ║');
+        console.log('🤫║ Model: Annual Unlimited License    ║');
+        console.log('🤫║ Status: OPERATIONAL                ║');
+        console.log('🤫╚══════════════════════════════════════╝');
+    </script>
+</body>
+</html>

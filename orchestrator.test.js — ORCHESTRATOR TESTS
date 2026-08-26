@@ -1,0 +1,50 @@
+// ============================================================
+// 📁 tests/orchestrator.test.js — ORCHESTRATOR TESTS
+// ============================================================
+const orchestratorService = require('../services/orchestrator.service');
+
+describe('Orchestrator Service', () => {
+    test('should orchestrate a problem successfully', async () => {
+        const result = await orchestratorService.orchestrate(
+            'CPU usage is very high on production server',
+            { autoFix: false, companyId: 'TEST-COMPANY' }
+        );
+
+        expect(result).toBeDefined();
+        expect(result.id).toBeDefined();
+        expect(result.stages.detect).toBeDefined();
+        expect(result.stages.analyze).toBeDefined();
+    });
+
+    test('should detect problems in input', async () => {
+        const result = await orchestratorService.orchestrate(
+            'Database connection pool is exhausted and server is crashing',
+            { autoFix: false }
+        );
+
+        expect(result.stages.detect).toBeDefined();
+        expect(result.stages.detect.totalProblems).toBeGreaterThan(0);
+    });
+
+    test('should handle auto-fix when enabled', async () => {
+        const result = await orchestratorService.orchestrate(
+            'Memory leak detected in application server',
+            { autoFix: true, companyId: 'TEST-COMPANY' }
+        );
+
+        expect(result.stages.execute).toBeDefined();
+    });
+
+    test('should handle empty input', async () => {
+        const result = await orchestratorService.orchestrate('', { autoFix: false });
+        expect(result.stages.detect).toBeDefined();
+    });
+
+    test('should complete within reasonable time', async () => {
+        const startTime = Date.now();
+        await orchestratorService.orchestrate('Test problem', { autoFix: false });
+        const duration = Date.now() - startTime;
+        
+        expect(duration).toBeLessThan(5000); // Should complete under 5 seconds
+    });
+});

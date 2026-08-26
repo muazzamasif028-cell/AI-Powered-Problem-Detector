@@ -1,0 +1,364 @@
+// ============================================================
+// 🧠 src/services/memory/universal-memory.service.js
+// SUPREME Universal AI Memory — One memory across ALL AI providers
+// ============================================================
+const crypto = require('crypto');
+
+class UniversalMemoryLayer {
+    constructor() {
+        this.memories = new Map();        // Active memories
+        this.vectors = new Map();         // Vector embeddings
+        this.knowledgeGraph = new Map();  // Knowledge graph connections
+        this.providers = new Set();       // Connected providers
+        this.embeddingModel = 'supreme-embed-v1';
+        
+        // Memory types
+        this.memoryTypes = {
+            SHORT_TERM: { ttl: 3600, maxItems: 100 },      // 1 hour
+            LONG_TERM: { ttl: 86400 * 30, maxItems: 1000 }, // 30 days
+            PERMANENT: { ttl: Infinity, maxItems: 10000 },   // Forever
+            CONTEXTUAL: { ttl: 300, maxItems: 50 }           // 5 minutes
+        };
+    }
+
+    /**
+     * Store a memory (works across all providers)
+     */
+    async store(userId, content, options = {}) {
+        const {
+            type = 'LONG_TERM',
+            provider = 'any',
+            tags = [],
+            importance = 0.5,
+            metadata = {}
+        } = options;
+
+        const memoryId = this.generateMemoryId();
+        const embedding = await this.generateEmbedding(content);
+
+        const memory = {
+            id: memoryId,
+            userId,
+            content,
+            type,
+            provider,
+            tags,
+            importance,
+            metadata,
+            embedding,
+            createdAt: new Date(),
+            lastAccessed: new Date(),
+            accessCount: 0,
+            connections: []
+        };
+
+        // Store in appropriate memory bank
+        const key = `${userId}:${type}`;
+        if (!this.memories.has(key)) {
+            this.memories.set(key, []);
+        }
+        
+        const memoryBank = this.memories.get(key);
+        memoryBank.push(memory);
+
+        // Enforce max items
+        const config = this.memoryTypes[type];
+        if (memoryBank.length > config.maxItems) {
+            this.pruneMemories(memoryBank, config.maxItems);
+        }
+
+        // Store vector
+        this.vectors.set(memoryId, embedding);
+
+        // Connect to knowledge graph
+        await this.connectToGraph(memory);
+
+        // Notify all providers of new memory
+        this.notifyProviders('memory:stored', { userId, memoryId, type });
+
+        return memoryId;
+    }
+
+    /**
+     * Retrieve relevant memories (works across all providers)
+     */
+    async retrieve(userId, query, options = {}) {
+        const {
+            type = 'all',
+            maxResults = 10,
+            minRelevance = 0.5,
+            provider = null
+        } = options;
+
+        const queryEmbedding = await this.generateEmbedding(query);
+        const allMemories = this.getAllUserMemories(userId, type, provider);
+        
+        // Score each memory by relevance
+        const scored = allMemories.map(memory => ({
+            ...memory,
+            relevance: this.cosineSimilarity(queryEmbedding, memory.embedding)
+        }));
+
+        // Filter and sort
+        const relevant = scored
+            .filter(m => m.relevance >= minRelevance)
+            .sort((a, b) => b.relevance - a.relevance)
+            .slice(0, maxResults);
+
+        // Update access counts
+        relevant.forEach(m => {
+            m.lastAccessed = new Date();
+            m.accessCount++;
+        });
+
+        return {
+            query,
+            memories: relevant.map(m => ({
+                id: m.id,
+                content: m.content,
+                relevance: m.relevance,
+                type: m.type,
+                provider: m.provider,
+                tags: m.tags,
+                createdAt: m.createdAt
+            })),
+            totalFound: relevant.length
+        };
+    }
+
+    /**
+     * Get context for any AI provider
+     */
+    async getContextForProvider(userId, provider, maxTokens = 4000) {
+        // Get recent interactions
+        const recentMemories = await this.retrieve(userId, '', {
+            type: 'CONTEXTUAL',
+            maxResults: 20,
+            provider: provider
+        });
+
+        // Get important long-term memories
+        const importantMemories = await this.retrieve(userId, '', {
+            type: 'LONG_TERM',
+            maxResults: 10,
+            minRelevance: 0.7
+        });
+
+        // Build context string
+        let contextString = '[SUPREME MEMORY CONTEXT]\n\n';
+        contextString += 'Recent context:\n';
+        recentMemories.memories.forEach(m => {
+            contextString += `- ${m.content}\n`;
+        });
+
+        contextString += '\nImportant information:\n';
+        importantMemories.memories.forEach(m => {
+            contextString += `- [${m.tags.join(', ')}] ${m.content}\n`;
+        });
+
+        // Trim to max tokens
+        return this.trimToTokens(contextString, maxTokens);
+    }
+
+    /**
+     * Cross-provider memory transfer
+     */
+    async transferContext(fromProvider, toProvider, userId) {
+        const context = await this.getContextForProvider(userId, fromProvider);
+        
+        // Format for target provider
+        const formattedContext = this.formatForProvider(context, toProvider);
+        
+        return formattedContext;
+    }
+
+    /**
+     * Format context for specific provider
+     */
+    formatForProvider(context, provider) {
+        const formatters = {
+            'openai': (ctx) => ({
+                role: 'system',
+                content: `[Previous context from SUPREME Memory]\n${ctx}`
+            }),
+            'anthropic': (ctx) => ({
+                role: 'system',
+                content: `Here is relevant context from previous conversations:\n${ctx}`
+            }),
+            'google': (ctx) => ({
+                role: 'user',
+                parts: [{ text: `Context: ${ctx}` }]
+            }),
+            'default': (ctx) => ctx
+        };
+
+        const formatter = formatters[provider] || formatters.default;
+        return formatter(context);
+    }
+
+    /**
+     * Connect memories in knowledge graph
+     */
+    async connectToGraph(memory) {
+        const relatedMemories = await this.findRelated(memory);
+        
+        for (const related of relatedMemories) {
+            const connectionStrength = this.calculateConnectionStrength(memory, related);
+            
+            memory.connections.push({
+                targetId: related.id,
+                strength: connectionStrength,
+                type: this.determineConnectionType(memory, related)
+            });
+        }
+
+        // Store in knowledge graph
+        this.knowledgeGraph.set(memory.id, memory.connections);
+    }
+
+    /**
+     * Find related memories
+     */
+    async findRelated(memory) {
+        const allMemories = this.getAllUserMemories(memory.userId);
+        
+        return allMemories
+            .filter(m => m.id !== memory.id)
+            .map(m => ({
+                ...m,
+                similarity: this.cosineSimilarity(memory.embedding, m.embedding)
+            }))
+            .filter(m => m.similarity > 0.6)
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, 5);
+    }
+
+    /**
+     * Generate embedding for content
+     */
+    async generateEmbedding(content) {
+        // In production: use actual embedding model
+        // For now: generate pseudo-embedding using content hash
+        const hash = crypto.createHash('sha256').update(content).digest('hex');
+        
+        // Convert hash to vector (simplified)
+        const vector = [];
+        for (let i = 0; i < 128; i++) {
+            vector.push(parseInt(hash.substring(i * 2, i * 2 + 2), 16) / 255);
+        }
+        
+        return vector;
+    }
+
+    /**
+     * Calculate cosine similarity
+     */
+    cosineSimilarity(vecA, vecB) {
+        if (!vecA || !vecB) return 0;
+        
+        let dotProduct = 0;
+        let normA = 0;
+        let normB = 0;
+        
+        for (let i = 0; i < vecA.length; i++) {
+            dotProduct += vecA[i] * vecB[i];
+            normA += vecA[i] * vecA[i];
+            normB += vecB[i] * vecB[i];
+        }
+        
+        if (normA === 0 || normB === 0) return 0;
+        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    /**
+     * Get all memories for a user
+     */
+    getAllUserMemories(userId, type = 'all', provider = null) {
+        const allMemories = [];
+        
+        for (const [key, memories] of this.memories) {
+            if (!key.startsWith(userId)) continue;
+            if (type !== 'all' && !key.endsWith(type)) continue;
+            
+            for (const memory of memories) {
+                if (provider && memory.provider !== 'any' && memory.provider !== provider) continue;
+                allMemories.push(memory);
+            }
+        }
+        
+        return allMemories;
+    }
+
+    /**
+     * Prune old memories
+     */
+    pruneMemories(memoryBank, maxItems) {
+        // Sort by importance and recency
+        memoryBank.sort((a, b) => {
+            const scoreA = a.importance * 0.5 + (a.accessCount / 100) * 0.3 + 
+                          (1 / (Date.now() - a.createdAt.getTime())) * 0.2;
+            const scoreB = b.importance * 0.5 + (b.accessCount / 100) * 0.3 + 
+                          (1 / (Date.now() - b.createdAt.getTime())) * 0.2;
+            return scoreB - scoreA;
+        });
+
+        // Remove excess
+        const removed = memoryBank.splice(maxItems);
+        removed.forEach(m => {
+            this.vectors.delete(m.id);
+            this.knowledgeGraph.delete(m.id);
+        });
+    }
+
+    /**
+     * Notify providers of memory changes
+     */
+    notifyProviders(event, data) {
+        // In production: use event bus to notify all connected providers
+        console.log(`📢 Memory event: ${event}`, data);
+    }
+
+    generateMemoryId() {
+        return `mem_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+    }
+
+    trimToTokens(text, maxTokens) {
+        // Rough estimate: 1 token ≈ 4 characters
+        const maxChars = maxTokens * 4;
+        return text.length > maxChars ? text.substring(0, maxChars) + '...' : text;
+    }
+
+    calculateConnectionStrength(mem1, mem2) {
+        const tagOverlap = mem1.tags?.filter(t => mem2.tags?.includes(t)).length || 0;
+        const similarity = this.cosineSimilarity(mem1.embedding, mem2.embedding);
+        return (tagOverlap * 0.3 + similarity * 0.7).toFixed(2);
+    }
+
+    determineConnectionType(mem1, mem2) {
+        if (mem1.tags?.some(t => mem2.tags?.includes(t))) return 'tagged';
+        if (mem1.provider === mem2.provider) return 'same_provider';
+        return 'semantic';
+    }
+
+    /**
+     * Get memory statistics
+     */
+    getStats(userId) {
+        const allMemories = this.getAllUserMemories(userId);
+        
+        return {
+            totalMemories: allMemories.length,
+            byType: {
+                SHORT_TERM: allMemories.filter(m => m.type === 'SHORT_TERM').length,
+                LONG_TERM: allMemories.filter(m => m.type === 'LONG_TERM').length,
+                PERMANENT: allMemories.filter(m => m.type === 'PERMANENT').length,
+                CONTEXTUAL: allMemories.filter(m => m.type === 'CONTEXTUAL').length
+            },
+            byProvider: [...new Set(allMemories.map(m => m.provider))],
+            knowledgeGraphNodes: this.knowledgeGraph.size,
+            totalVectors: this.vectors.size
+        };
+    }
+}
+
+module.exports = new UniversalMemoryLayer();

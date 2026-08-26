@@ -1,0 +1,84 @@
+// ============================================================
+// 🛋️ apex/ApexCabinSystem.js
+// SUPREME APEX JET — Luxury Cabin Automation
+// ============================================================
+
+class ApexCabinSystem {
+    constructor(jet) {
+        this.jet = jet;
+        
+        this.zones = {
+            CONFERENCE: { lights: 'WARM', temp: 22, windows: 'TRANSPARENT', screen: 'OFF' },
+            BEDROOM: { lights: 'DIM', temp: 20, windows: 'OPAQUE', screen: 'OFF' },
+            LOUNGE: { lights: 'AMBIENT', temp: 23, windows: 'TRANSPARENT', screen: 'OFF' },
+            OFFICE: { lights: 'BRIGHT', temp: 22, windows: 'TRANSPARENT', screen: 'ON' }
+        };
+        
+        this.services = {
+            attendant: 'AVAILABLE',
+            catering: 'READY',
+            medical: 'EQUIPPED',
+            entertainment: 'READY'
+        };
+    }
+
+    async initialize() {
+        console.log('🛋️ Cabin Systems Ready');
+    }
+
+    async prepareConferenceRoom() {
+        this.zones.CONFERENCE.lights = 'BRIGHT';
+        this.zones.CONFERENCE.screen = 'ON';
+        this.zones.CONFERENCE.windows = 'SEMI_OPAQUE';
+        
+        return { 
+            success: true, 
+            message: 'Conference room prepared. Screen activated, lighting optimized.' 
+        };
+    }
+
+    async adjustTemperature(command) {
+        const temp = parseInt(command.match(/\d+/)?.[0] || '22');
+        Object.values(this.zones).forEach(z => z.temp = temp);
+        return { message: `Cabin temperature set to ${temp}°C` };
+    }
+
+    async adjustWindows(command) {
+        const mode = command.includes('dark') ? 'OPAQUE' : 'TRANSPARENT';
+        Object.values(this.zones).forEach(z => z.windows = mode);
+        return { message: `Windows set to ${mode}` };
+    }
+
+    async controlEntertainment(command) {
+        return { message: '8K entertainment system activated' };
+    }
+
+    async adjustLighting(command) {
+        return { message: 'Lighting adjusted' };
+    }
+
+    async callAttendant() {
+        return { message: 'Cabin attendant notified' };
+    }
+
+    async prepareForLanding() {
+        Object.values(this.zones).forEach(z => {
+            z.lights = 'BRIGHT';
+            z.windows = 'TRANSPARENT';
+        });
+    }
+
+    async monitor() {
+        // Check cabin environment
+    }
+
+    getStatus() {
+        return {
+            zones: Object.keys(this.zones).length,
+            attendant: this.services.attendant,
+            catering: this.services.catering
+        };
+    }
+}
+
+module.exports = ApexCabinSystem;

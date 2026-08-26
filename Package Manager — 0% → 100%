@@ -1,0 +1,78 @@
+// spl-tools/splpkg.js
+#!/usr/bin/env node
+
+import { readFile, writeFile, mkdir } from 'fs/promises';
+import { join } from 'path';
+
+class SPLPackageManager {
+    constructor() {
+        this.registry = 'https://registry.spl.dev';
+        this.packageFile = 'spl-package.json';
+    }
+
+    async install(packageName, version = 'latest') {
+        console.log(`📦 Installing ${packageName}@${version}...`);
+        
+        // Fetch package from registry
+        const pkg = await this.fetchPackage(packageName, version);
+        
+        // Download to spl_modules/
+        await this.downloadPackage(pkg);
+        
+        // Update spl-package.json
+        await this.updatePackageFile(packageName, version);
+        
+        console.log(`✅ ${packageName} installed successfully`);
+    }
+
+    async update(packageName) {
+        console.log(`🔄 Updating ${packageName}...`);
+        await this.install(packageName, 'latest');
+    }
+
+    async remove(packageName) {
+        console.log(`🗑️ Removing ${packageName}...`);
+        // Remove from spl_modules/
+        // Update spl-package.json
+    }
+
+    async list() {
+        const pkg = JSON.parse(await readFile(this.packageFile, 'utf8'));
+        console.log('📋 Installed packages:');
+        for (const [name, version] of Object.entries(pkg.dependencies || {})) {
+            console.log(`   ${name}@${version}`);
+        }
+    }
+
+    async fetchPackage(name, version) {
+        // Fetch from registry
+        return { name, version, files: [] };
+    }
+
+    async downloadPackage(pkg) {
+        await mkdir(`spl_modules/${pkg.name}`, { recursive: true });
+    }
+
+    async updatePackageFile(name, version) {
+        let pkg = {};
+        try {
+            pkg = JSON.parse(await readFile(this.packageFile, 'utf8'));
+        } catch (e) {
+            pkg = { name: 'my-project', version: '1.0.0', dependencies: {} };
+        }
+        pkg.dependencies[name] = version;
+        await writeFile(this.packageFile, JSON.stringify(pkg, null, 2));
+    }
+}
+
+// CLI handler
+const [,, command, ...args] = process.argv;
+const pm = new SPLPackageManager();
+
+switch (command) {
+    case 'install': pm.install(args[0], args[1]); break;
+    case 'update': pm.update(args[0]); break;
+    case 'remove': pm.remove(args[0]); break;
+    case 'list': pm.list(); break;
+    default: console.log('SPL Package Manager (splpkg)');
+}

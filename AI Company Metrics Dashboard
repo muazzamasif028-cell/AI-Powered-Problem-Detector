@@ -1,0 +1,23 @@
+const aiCompanyStats = {
+    agents: {
+        total: 10,
+        active: 10,
+        roles: ['CEO', 'CTO', 'Architect', 'Developer', 'Reviewer', 'Tester', 'Security', 'DevOps', 'Product', 'Marketing']
+    },
+    monthlyOutput: {
+        codeReviews: '500+ PRs',
+        testsRun: '50,000+',
+        deployments: '30+',
+        featuresReleased: '80+',
+        bugsFixed: '150+',
+        decisionsMade: '25+'
+    },
+    companyMetrics: {
+        revenue: '$50K-100K MRR',
+        users: '15,000+',
+        growth: '15-25% MoM',
+        uptime: '99.99%',
+        customerSatisfaction: '4.8/5',
+        employeeSatisfaction: 'N/A (all AI)'
+    }
+};

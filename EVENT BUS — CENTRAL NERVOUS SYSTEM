@@ -1,0 +1,75 @@
+// supreme-safety/event-bus/EventBus.js
+// Apache Kafka / NATS based event-driven architecture
+
+export class SafetyEventBus {
+    constructor() {
+        this.topics = {
+            TELEMETRY: 'supreme.safety.telemetry',
+            RISK_DETECTED: 'supreme.safety.risk.detected',
+            POLICY_VIOLATION: 'supreme.safety.policy.violation',
+            ENFORCEMENT_DECISION: 'supreme.safety.enforcement.decision',
+            APPROVAL_REQUESTED: 'supreme.safety.approval.requested',
+            APPROVAL_DECIDED: 'supreme.safety.approval.decided',
+            CONTAINMENT_APPLIED: 'supreme.safety.containment.applied',
+            CONTAINMENT_REMOVED: 'supreme.safety.containment.removed',
+            APPEAL_SUBMITTED: 'supreme.safety.appeal.submitted',
+            APPEAL_DECIDED: 'supreme.safety.appeal.decided',
+            AUDIT_EVENT: 'supreme.safety.audit'
+        };
+        
+        this.handlers = new Map();
+    }
+
+    /**
+     * Publish event to topic
+     */
+    async publish(topic, event) {
+        const enrichedEvent = {
+            id: generateEventId(),
+            topic,
+            timestamp: new Date().toISOString(),
+            traceId: getCurrentTraceId(),
+            data: event,
+            metadata: {
+                source: process.env.SERVICE_NAME,
+                version: '1.0.0'
+            }
+        };
+
+        console.log(`📡 [EVENT] ${topic}: ${event.type}`);
+        
+        // Persist to event log
+        await this.persistEvent(enrichedEvent);
+        
+        // Notify all subscribers
+        const subscribers = this.handlers.get(topic) || [];
+        for (const handler of subscribers) {
+            await handler(enrichedEvent);
+        }
+
+        return enrichedEvent;
+    }
+
+    /**
+     * Subscribe to topic
+     */
+    subscribe(topic, handler) {
+        if (!this.handlers.has(topic)) {
+            this.handlers.set(topic, []);
+        }
+        this.handlers.get(topic).push(handler);
+        console.log(`📡 [SUBSCRIBE] ${topic}`);
+    }
+
+    async persistEvent(event) {
+        // Store in event store (PostgreSQL)
+    }
+}
+
+export function generateEventId() {
+    return `EVT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+export function getCurrentTraceId() {
+    return `TRC-${Date.now()}`;
+}

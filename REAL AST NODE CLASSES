@@ -1,0 +1,118 @@
+// spl-v/compiler/ast/ASTNodes.js
+
+// Base Node
+export class ASTNode {
+    constructor(type, line) {
+        this.type = type;
+        this.line = line || 0;
+    }
+}
+
+// Program
+export class ProgramNode extends ASTNode {
+    constructor(modules) {
+        super('Program');
+        this.modules = modules || [];
+    }
+}
+
+// Vehicle Config
+export class VehicleNode extends ASTNode {
+    constructor(name, properties) {
+        super('Vehicle');
+        this.name = name;
+        this.properties = properties || {};
+    }
+}
+
+// Module
+export class ModuleNode extends ASTNode {
+    constructor(name, body) {
+        super('Module');
+        this.name = name;
+        this.body = body || {};
+    }
+}
+
+// Setting
+export class SettingNode extends ASTNode {
+    constructor(name, value) {
+        super('Setting');
+        this.name = name;
+        this.value = value;
+    }
+}
+
+// Task
+export class TaskNode extends ASTNode {
+    constructor(name, properties) {
+        super('Task');
+        this.name = name;
+        this.properties = properties || {};
+    }
+}
+
+// Safety Pillar
+export class SafetyPillarNode extends ASTNode {
+    constructor(name, properties) {
+        super('SafetyPillar');
+        this.name = name;
+        this.properties = properties || {};
+    }
+}
+
+// Condition (Expression)
+export class ConditionNode extends ASTNode {
+    constructor(left, op, right) {
+        super('Condition');
+        this.left = left;
+        this.op = op;
+        this.right = right;
+    }
+}
+
+// Binary Expression
+export class BinaryExprNode extends ASTNode {
+    constructor(left, op, right) {
+        super('BinaryExpr');
+        this.left = left;
+        this.op = op;
+        this.right = right;
+    }
+}
+
+// Value
+export class ValueNode extends ASTNode {
+    constructor(value, unit) {
+        super('Value');
+        this.value = value;
+        this.unit = unit || null;
+    }
+}
+
+// Event
+export class EventNode extends ASTNode {
+    constructor(trigger, actions) {
+        super('Event');
+        this.trigger = trigger;
+        this.actions = actions || [];
+    }
+}
+
+// Action
+export class ActionNode extends ASTNode {
+    constructor(actionType, params) {
+        super('Action');
+        this.actionType = actionType;
+        this.params = params || {};
+    }
+}
+
+// Main Phase
+export class MainPhaseNode extends ASTNode {
+    constructor(phase, statements) {
+        super('MainPhase');
+        this.phase = phase;
+        this.statements = statements || [];
+    }
+}

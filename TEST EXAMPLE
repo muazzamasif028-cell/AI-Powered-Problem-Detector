@@ -1,0 +1,86 @@
+// spl-v/examples/test-vehicle.splv
+const splvCode = `
+vehicle "SUPREME Elite" {
+    speed: 0
+    battery: 85
+    mode: "parked"
+}
+
+copilot {
+    voice: "Calm"
+    language: "Urdu"
+    
+    on battery < 20% {
+        say "Low battery. Finding charger."
+    }
+    
+    on obstacle < 5m {
+        say "Obstacle detected! Emergency brake."
+    }
+}
+
+safety {
+    pillars: 30
+    
+    pillar CollisionAvoidance {
+        priority: "CRITICAL"
+        condition: "obstacle.distance < 5m"
+        action: ["emergency_brake", "alert_driver"]
+    }
+    
+    pillar BatteryProtection {
+        priority: "HIGH"
+        condition: "battery < 10%"
+        action: ["eco_mode", "find_charger"]
+    }
+}
+
+autonomous {
+    navigation {
+        destination: "Islamabad"
+        prefer: "highways"
+    }
+    
+    lane_keeping {
+        center: true
+        tolerance: "10cm"
+    }
+}
+
+hardware {
+    sensors {
+        lidar {
+            range: "300m"
+            resolution: "0.1deg"
+        }
+    }
+}
+
+main {
+    startup {
+        check_all_sensors: true
+        verify_safety_pillars: true
+    }
+    
+    driving_loop {
+        read_sensors: true
+        fuse_data: true
+        plan_path: true
+        execute_control: true
+    }
+    
+    shutdown {
+        park_safely: true
+        lock_vehicle: true
+    }
+}
+`;
+
+// Run simulator
+import { SupremeVehicleSimulator } from './spl-v/simulator/SupremeVehicleSimulator.js';
+
+const simulator = new SupremeVehicleSimulator();
+simulator.loadAndRun(splvCode).then(report => {
+    console.log('\n📊 SIMULATION REPORT:');
+    console.log(JSON.stringify(report, null, 2));
+});

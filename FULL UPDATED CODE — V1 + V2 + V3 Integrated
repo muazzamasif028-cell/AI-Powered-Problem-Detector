@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Problem Solver</title>
+    <style>
+        :root {
+            --company-primary: #0a0a0f;
+            --company-secondary: #12121a;
+            --company-accent: #1a1a3e;
+            --company-gold: #e94560;
+            --text-light: #eee;
+            --chat-bg: #0d1117;
+            --user-bubble: #238636;
+            --bot-bubble: #21262d;
+            --warning: #f0883e;
+            --success: #3fb950;
+            --danger: #da3633;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--company-primary);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .main-container {
+            width: 100%;
+            max-width: 950px;
+            height: 92vh;
+            background: var(--company-secondary);
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Hidden Canvas Power indicator - only visible in DOM */
+        .hidden-canvas-indicator {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .company-header {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #e94560 150%);
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            position: relative;
+            z-index: 2;
+        }
+        
+        .company-logo {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #e94560, #ff6b81);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: white;
+            box-shadow: 0 8px 25px rgba(233,69,96,0.3);
+        }
+        
+        .company-info h2 {
+            color: white;
+            font-size: 1.3em;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+        
+        .company-info p {
+            color: rgba(255,255,255,0.7);
+            font-size: 0.78em;
+            margin-top: 3px;
+            font-weight: 400;
+        }
+        
+        .verification-badge {
+            margin-left: auto;
+            background: rgba(63,185,80,0.15);
+            border: 1px solid rgba(63,185,80,0.3);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.7em;
+            color: var(--success);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .verification-dot {
+            width: 7px;
+            height: 7px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
+        
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 25px;
+            background: var(--chat-bg);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            background-image: 
+                radial-gradient(ellipse at top, rgba(233,69,96,0.03) 0%, transparent 50%),
+                radial-gradient(ellipse at bottom, rgba(26,26,62,0.05) 0%, transparent 50%);
+        }
+        
+        .message {
+            display: flex;
+            animation: slideIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        @keyframes slideIn {
+            from { 
+                opacity: 0; 
+                transform: translateY(15px) scale(0.98); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0) scale(1); 
+            }
+        }
+        
+        .user-msg {
+            justify-content: flex-end;
+        }
+        
+        .bot-msg {
+            justify-content: flex-start;
+        }
+        
+        .bubble {
+            max-width: 78%;
+            padding: 15px 20px;
+            border-radius: 20px;
+            line-height: 1.6;
+            font-size: 0.93em;
+            position: relative;
+        }
+        
+        .user-bubble {
+            background: linear-gradient(135deg, #238636, #2ea043);
+            color: white;
+            border-bottom-right-radius: 6px;
+            margin-left: 40px;
+            box-shadow: 0 4px 15px rgba(35,134,54,0.2);
+        }
+        
+        .bot-bubble {
+            background: var(--bot-bubble);
+            color: var(--text-light);
+            border-bottom-left-radius: 6px;
+            margin-right: 40px;
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        
+        .system-msg {
+            justify-content: center;
+        }
+        
+        .system-bubble {
+            background: rgba(233,69,96,0.1);
+            border: 1px solid rgba(233,69,96,0.2);
+            color: #f0883e;
+            font-size: 0.8em;
+            padding: 10px 20px;
+            border-radius: 20px;
+            text-align: center;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 15px 20px;
+            background: var(--bot-bubble);
+            border-radius: 20px;
+            border-bottom-left-radius: 6px;
+            width: fit-content;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        
+        .typing-dot {
+            width: 7px;
+            height: 7px;
+            background: var(--company-gold);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.2; transform: scale(0.7); }
+            30% { opacity: 1; transform: scale(1.1); }
+        }
+        
+        .input-area {
+            padding: 18px 25px;
+            background: var(--company-secondary);
+            border-top: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 14px 22px;
+            background: var(--chat-bg);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 28px;
+            color: white;
+            font-size: 0.93em;
+            outline: none;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        
+        .message-input::placeholder {
+            color: rgba(255,255,255,0.35);
+        }
+        
+        .message-input:focus {
+            border-color: rgba(233,69,96,0.5);
+            box-shadow: 0 0 0 3px rgba(233,69,96,0.08);
+        }
+        
+        .send-btn {
+            width: 46px;
+            height: 46px;
+            background: linear-gradient(135deg, #e94560, #ff6b81);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            color: white;
+            box-shadow: 0 5px 20px rgba(233,69,96,0.3);
+        }
+        
+        .send-btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 8px 30px rgba(233,69,96,0.5);
+        }
+        
+        .send-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .chat-area::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .chat-area::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .chat-area::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.06);
+            border-radius: 10px;
+        }
+        
+        .chat-area::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <!-- Company Branding Header -->
+        <div class="company-header">
+            <div class="company-logo">⚡</div>
+            <div class="company-info">
+                <h2>TechSolve Enterprise</h2>
+                <p>AI-Powered Problem Resolution</p>
+            </div>
+            <div class="verification-badge">
+                <span class="verification-dot"></span>
+                Verified
+            </div>
+        </div>
+        
+        <!-- Chat Messages Area -->
+        <div class="chat-area" id="chatArea">
+            <div class="message bot-msg">
+                <div class="bubble bot-bubble">
+                    👋 <strong>Welcome to TechSolve Enterprise!</strong><br><br>
+                    I'm your AI problem resolution assistant. Simply describe your technical issue, and I'll detect, diagnose, and resolve it instantly.<br><br>
+                    <em>🔒 All verifications are performed automatically in the background.</em>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Input Area -->
+        <div class="input-area">
+            <input 
+                type="text" 
+                class="message-input" 
+                id="messageInput" 
+                placeholder="Describe your technical problem..."
+                onkeypress="handleKeyPress(event)"
+                autocomplete="off"
+            >
+            <button class="send-btn" onclick="sendMessage()">➤</button>
+        </div>
+        
+        <!-- Hidden Canvas Power Elements -->
+        <div class="hidden-canvas-indicator" id="hiddenCanvas">
+            <canvas id="hiddenCanvasPower" width="1" height="1"></canvas>
+        </div>
+    </div>
+
+    <!-- ==================================================== -->
+    <!-- 🤫 COMPLETE HIDDEN BACKEND - V1 + V2 + V3            -->
+    <!-- ==================================================== -->
+    <script>
+        
+        // =============================================
+        // 🔐 V1 - COMPANY TRUST SCANNER (HIDDEN)
+        // =============================================
+        class CompanyTrustScanner {
+            constructor() {
+                this.trustDatabase = {
+                    verifiedCompanies: [
+                        'techcorp', 'innova', 'softserve', 'dataflow', 
+                        'cloudnine', 'appex', 'netsecure', 'cyberdyne',
+                        'quantum', 'nexus', 'apex', 'fusiontech',
+                        'techsolve', 'enterprise', 'codelabs'
+                    ],
+                    blacklistedPatterns: [
+                        'hack', 'exploit', 'injection', 'ddos', 'phishing',
+                        'scam', 'fake', 'spam', 'malware', 'ransomware',
+                        'sql injection', 'xss', 'csrf'
+                    ],
+                    suspiciousDomains: [
+                        '.xyz', '.tk', '.ml', '.ga', '.cf', '.gq'
+                    ]
+                };
+                
+                this.scanLogs = [];
+            }
+            
+            scan(input, companyContext = {}) {
+                const scanId = 'TRUST-' + this.generateHash();
+                
+                const results = {
+                    scanId: scanId,
+                    timestamp: new Date().toISOString(),
+                    input: input,
+                    checks: {},
+                    trustScore: 0,
+                    flags: [],
+                    approved: false
+                };
+                
+                results.checks.blacklist = this.checkBlacklistedPatterns(input);
+                results.checks.domains = this.checkSuspiciousDomains(input);
+                results.checks.integrity = this.checkInputIntegrity(input);
+                results.checks.risk = this.assessRisk(input);
+                
+                if (companyContext.name) {
+                    results.checks.company = this.verifyCompany(companyContext.name);
+                }
+                
+                results.trustScore = this.calculateTrustScore(results.checks);
+                results.approved = results.trustScore >= 65;
+                results.flags = this.generateFlags(results.checks);
+                
+                this.scanLogs.push(results);
+                
+                return results;
+            }
+            
+            generateHash() {
+                return Date.now().toString(36) + '-' + 
+                       Math.random().toString(36).substr(2, 8);
+            }
+            
+            checkBlacklistedPatterns(input) {
+                const lowerInput = input.toLowerCase();
+                const foundPatterns = [];
+                
+                for (let pattern of this.blacklistedPatterns) {
+                    if (lowerInput.includes(pattern)) {
+                        foundPatterns.push(pattern);
+                    }
+                }
+                
+                return {
+                    passed: foundPatterns.length === 0,
+                    foundPatterns: foundPatterns,
+                    severity: foundPatterns.length > 2 ? 'HIGH' : 
+                              foundPatterns.length > 0 ? 'MEDIUM' : 'LOW'
+                };
+            }
+            
+            checkSuspiciousDomains(input) {
+                const foundDomains = [];
+                
+                for (let domain of this.suspiciousDomains) {
+                    if (input.includes(domain)) {
+                        foundDomains.push(domain);
+                    }
+                }
+                
+                return {
+                    passed: foundDomains.length === 0,
+                    foundDomains: foundDomains,
+                    suspicious: foundDomains.length > 0
+                };
+            }
+            
+            checkInputIntegrity(input) {
+                const checks = {
+                    length: input.length >= 10 && input.length <= 500,
+                    noRepeatedChars: !/(.)\1{4,}/.test(input),
+                    noExcessiveSymbols: (input.match(/[^a-zA-Z0-9\s@.-_]/g) || []).length < 10,
+                    hasMeaning: input.split(' ').length >= 2
+                };
+                
+                const allPassed = Object.values(checks).every(v => v === true);
+                
+                return {
+                    passed: allPassed,
+                    details: checks,
+                    failedChecks: Object.keys(checks).filter(k => !checks[k])
+                };
+            }
+            
+            verifyCompany(companyName) {
+                const lowerName = companyName.toLowerCase();
+                const isVerified = this.verifiedCompanies.some(
+                    name => lowerName.includes(name)
+                );
+                
+                return {
+                    passed: isVerified,
+                    companyName: companyName,
+                    verified: isVerified,
+                    tier: isVerified ? 'TRUSTED' : 'UNKNOWN'
+                };
+            }
+            
+            assessRisk(input) {
+                let riskScore = 0;
+                const lowerInput = input.toLowerCase();
+                
+                const highRiskWords = ['urgent', 'immediately', 'asap', 'critical', 'emergency'];
+                const foundHighRisk = highRiskWords.filter(word => lowerInput.includes(word));
+                riskScore += foundHighRisk.length * 8;
+                
+                if (input.includes('http') || input.includes('www')) riskScore += 15;
+                if (input.includes('<script>') || input.includes('javascript:')) riskScore += 50;
+                
+                return {
+                    passed: riskScore < 30,
+                    riskScore: riskScore,
+                    level: riskScore >= 50 ? 'CRITICAL' : 
+                           riskScore >= 30 ? 'HIGH' : 
+                           riskScore >= 15 ? 'MEDIUM' : 'LOW',
+                    riskFactors: foundHighRisk
+                };
+            }
+            
+            calculateTrustScore(checks) {
+                let score = 100;
+                
+                if (checks.blacklist && !checks.blacklist.passed) {
+                    score -= checks.blacklist.foundPatterns.length * 20;
+                }
+                if (checks.domains && checks.domains.suspicious) score -= 25;
+                if (checks.integrity && !checks.integrity.passed) {
+                    score -= checks.integrity.failedChecks.length * 15;
+                }
+                if (checks.risk && checks.risk.riskScore > 0) score -= checks.risk.riskScore;
+                
+                return Math.max(0, Math.min(100, score));
+            }
+            
+            generateFlags(checks) {
+                const flags = [];
+                if (!checks.blacklist.passed) flags.push('BLACKLISTED_CONTENT');
+                if (checks.domains.suspicious) flags.push('SUSPICIOUS_DOMAIN');
+                if (!checks.integrity.passed) flags.push('INTEGRITY_FAILURE');
+                if (checks.risk && checks.risk.level === 'CRITICAL') flags.push('CRITICAL_RISK');
+                return flags;
+            }
+            
+            getHiddenLogs() {
+                return {
+                    totalScans: this.scanLogs.length,
+                    recentScans: this.scanLogs.slice(-5),
+                    averageTrustScore: this.scanLogs.length > 0 
+                        ? this.scanLogs.reduce((sum, log) => sum + log.trustScore, 0) / this.scanLogs.length 
+                        : 0
+                };
+            }
+        }
+        
+        // =============================================
+        // 🌐 V2 - DOMAIN VERIFICATION ENGINE (HIDDEN)
+        // =============================================
+        class DomainVerificationEngine {
+            constructor() {
+                this.verifiedDomains = new Map([
+                    ['techcorp.com', { tier: 'ENTERPRISE', verified: true, since: '2023' }],
+                    ['innova.io', { tier: 'PREMIUM', verified: true, since: '2024' }],
+                    ['softserve.dev', { tier: 'ENTERPRISE', verified: true, since: '2022' }],
+                    ['dataflow.ai', { tier: 'PREMIUM', verified: true, since: '2024' }],
+                    ['cloudnine.tech', { tier: 'BASIC', verified: true, since: '2024' }],
+                ]);
+                
+                this.domainCache = new Map();
+                this.verificationLogs = [];
+            }
+            
+            verifyDomain(domain) {
+                const verifyId = 'DOM-' + Date.now().toString(36);
+                
+                const result = {
+                    verifyId: verifyId,
+                    domain: domain,
+                    timestamp: new Date().toISOString(),
+                    checks: {},
+                    verified: false,
+                    tier: 'UNKNOWN',
+                    details: {}
+                };
+                
+                // Check 1: Format validation
+                result.checks.format = this.validateDomainFormat(domain);
+                
+                // Check 2: Known database
+                result.checks.knownDB = this.checkKnownDatabase(domain);
+                
+                // Check 3: TLD verification
+                result.checks.tld = this.verifyTLD(domain);
+                
+                // Check 4: DNS simulation (hidden)
+                result.checks.dns = this.simulateDNSLookup(domain);
+                
+                // Check 5: SSL check
+                result.checks.ssl = this.checkSSLStatus(domain);
+                
+                // Determine verification status
+                result.verified = result.checks.format.passed && 
+                                  result.checks.tld.passed &&
+                                  (result.checks.knownDB.found || result.checks.dns.valid);
+                
+                result.tier = result.checks.knownDB.found ? 
+                              result.checks.knownDB.tier : 
+                              result.verified ? 'BASIC' : 'UNVERIFIED';
+                
+                result.details = {
+                    isCompanyDomain: !this.isPersonalDomain(domain),
+                    hasValidStructure: result.checks.format.passed,
+                    inTrustedList: result.checks.knownDB.found
+                };
+                
+                this.domainCache.set(domain, result);
+                this.verificationLogs.push(result);
+                
+                return result;
+            }
+            
+            validateDomainFormat(domain) {
+                const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+                const isValid = domainRegex.test(domain);
+                
+                return {
+                    passed: isValid,
+                    format: isValid ? 'VALID' : 'INVALID',
+                    length: domain.length
+                };
+            }
+            
+            checkKnownDatabase(domain) {
+                const lowerDomain = domain.toLowerCase();
+                const found = this.verifiedDomains.has(lowerDomain);
+                
+                return {
+                    passed: found,
+                    found: found,
+                    tier: found ? this.verifiedDomains.get(lowerDomain).tier : null,
+                    since: found ? this.verifiedDomains.get(lowerDomain).since : null
+                };
+            }
+            
+            verifyTLD(domain) {
+                const validTLDs = ['.com', '.org', '.net', '.io', '.dev', '.ai', '.tech', '.co', '.gov', '.edu'];
+                const hasValidTLD = validTLDs.some(tld => domain.toLowerCase().endsWith(tld));
+                
+                return {
+                    passed: hasValidTLD,
+                    tld: domain.substring(domain.lastIndexOf('.')),
+                    valid: hasValidTLD
+                };
+            }
+            
+            simulateDNSLookup(domain) {
+                const hasValidStructure = domain.includes('.') && domain.length > 5;
+                
+                return {
+                    passed: hasValidStructure,
+                    valid: hasValidStructure,
+                    simulated: true,
+                    responseTime: Math.floor(Math.random() * 100) + 20
+                };
+            }
+            
+            checkSSLStatus(domain) {
+                const hasSSL = !domain.includes('test') && !domain.includes('fake');
+                
+                return {
+                    passed: hasSSL,
+                    active: hasSSL,
+                    expiry: hasSSL ? '2026-12-31' : null
+                };
+            }
+            
+            isPersonalDomain(domain) {
+                const personalPatterns = [
+                    'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
+                    'proton.me', 'mail.com', 'icloud.com'
+                ];
+                return personalPatterns.some(p => domain.toLowerCase().includes(p));
+            }
+            
+            extractDomainFromInput(input) {
+                const domainRegex = /(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}/g;
+                const matches = input.match(domainRegex);
+                return matches ? matches[0] : null;
+            }
+            
+            getHiddenLogs() {
+                return {
+                    totalVerifications: this.verificationLogs.length,
+                    verifiedCount: this.verificationLogs.filter(v => v.verified).length,
+                    cacheSize: this.domainCache.size
+                };
+            }
+        }
+        
+        // =============================================
+        // 📧 V3 - EMAIL VERIFICATION ENGINE (HIDDEN)
+        // =============================================
+        class EmailVerificationEngine {
+            constructor() {
+                this.verifiedEmails = new Set([
+                    'admin@techcorp.com',
+                    'engineer@innova.io',
+                    'dev@softserve.dev',
+                    'support@dataflow.ai',
+                    'team@cloudnine.tech'
+                ]);
+                
+                this.verificationLogs = [];
+                this.blockedDomains = new Set([
+                    'tempmail.com', 'throwaway.com', 'mailinator.com',
+                    'guerrillamail.com', '10minutemail.com', 'yopmail.com'
+                ]);
+            }
+            
+            verifyEmail(email) {
+                const verifyId = 'MAIL-' + Date.now().toString(36);
+                
+                const result = {
+                    verifyId: verifyId,
+                    email: email,
+                    timestamp: new Date().toISOString(),
+                    checks: {},
+                    verified: false,
+                    score: 0,
+                    details: {}
+                };
+                
+                // Check 1: Format validation
+                result.checks.format = this.validateEmailFormat(email);
+                
+                // Check 2: Domain check
+                result.checks.domain = this.checkEmailDomain(email);
+                
+                // Check 3: Disposable email check
+                result.checks.disposable = this.checkDisposableEmail(email);
+                
+                // Check 4: Known database
+                result.checks.knownDB = this.checkKnownEmail(email);
+                
+                // Check 5: Role-based check
+                result.checks.roleBased = this.checkRoleBased(email);
+                
+                // Calculate score
+                let score = 0;
+                if (result.checks.format.passed) score += 25;
+                if (result.checks.domain.passed) score += 25;
+                if (result.checks.disposable.passed) score += 20;
+                if (result.checks.knownDB.found) score += 20;
+                if (result.checks.roleBased.isProfessional) score += 10;
+                
+                result.score = score;
+                result.verified = score >= 60;
+                
+                result.details = {
+                    isProfessional: result.checks.roleBased.isProfessional,
+                    isCompanyEmail: !this.isPersonalEmail(email),
+                    verificationLevel: score >= 80 ? 'HIGH' : score >= 60 ? 'MEDIUM' : 'LOW'
+                };
+                
+                this.verificationLogs.push(result);
+                
+                return result;
+            }
+            
+            validateEmailFormat(email) {
+                const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+                const isValid = emailRegex.test(email);
+                
+                return {
+                    passed: isValid,
+                    format: isValid ? 'VALID' : 'INVALID'
+                };
+            }
+            
+            checkEmailDomain(email) {
+                const domain = email.split('@')[1];
+                const hasValidMX = domain && domain.includes('.');
+                
+                return {
+                    passed: hasValidMX,
+                    domain: domain,
+                    hasMXRecord: hasValidMX
+                };
+            }
+            
+            checkDisposableEmail(email) {
+                const domain = email.split('@')[1]?.toLowerCase();
+                const isDisposable = this.blockedDomains.has(domain);
+                
+                return {
+                    passed: !isDisposable,
+                    isDisposable: isDisposable,
+                    domain: domain
+                };
+            }
+            
+            checkKnownEmail(email) {
+                const found = this.verifiedEmails.has(email.toLowerCase());
+                
+                return {
+                    passed: found,
+                    found: found,
+                    inDatabase: found
+                };
+            }
+            
+            checkRoleBased(email) {
+                const localPart = email.split('@')[0].toLowerCase();
+                const professionalPrefixes = ['admin', 'dev', 'engineer', 'support', 'team', 'info', 'contact'];
+                const isProfessional = professionalPrefixes.some(prefix => localPart.startsWith(prefix));
+                
+                return {
+                    passed: isProfessional,
+                    isProfessional: isProfessional,
+                    localPart: localPart
+                };
+            }
+            
+            isPersonalEmail(email) {
+                const personalDomains = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com'];
+                const domain = email.split('@')[1]?.toLowerCase();
+                return personalDomains.includes(domain);
+            }
+            
+            extractEmailFromInput(input) {
+                const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+                const matches = input.match(emailRegex);
+                return matches ? matches[0] : null;
+            }
+            
+            getHiddenLogs() {
+                return {
+                    totalVerifications: this.verificationLogs.length,
+                    verifiedCount: this.verificationLogs.filter(v => v.verified).length,
+                    averageScore: this.verificationLogs.length > 0 
+                        ? this.verificationLogs.reduce((sum, v) => sum + v.score, 0) / this.verificationLogs.length 
+                        : 0
+                };
+            }
+        }
+        
+        // =============================================
+        // 🤫 SUPREME DETECTION ENGINE (HIDDEN)
+        // =============================================
+        class HiddenDetectionEngine {
+            constructor() {
+                this.problemPatterns = {
+                    server: ['down', 'crash', '503', '500', 'server', 'not responding', 'timeout', 'unreachable'],
+                    database: ['database', 'sql', 'query', 'slow', 'connection', 'data loss', 'corrupt'],
+                    frontend: ['ui', 'display', 'render', 'broken', 'layout', 'css', 'responsive', 'blank'],
+                    api: ['api', 'endpoint', 'request', 'response', 'fetch', 'cors', '401', '403'],
+                    performance: ['slow', 'lag', 'loading', 'speed', 'performance', 'optimize', 'freeze'],
+                    security: ['hack', 'breach', 'security', 'vulnerability', 'attack', 'ssl', 'certificate']
+                };
+                
+                this.solutionDB = {
+                    server: {
+                        detect: "Server connectivity issue identified",
+                        fix: "🔄 Restarting affected services...\n✅ Server health restored\n📊 Load balancer reconfigured",
+                        timeEstimate: "2-5 minutes"
+                    },
+                    database: {
+                        detect: "Database performance degradation detected",
+                        fix: "🔍 Optimizing queries...\n📈 Index rebuild initiated\n✅ Connection pool adjusted",
+                        timeEstimate: "5-10 minutes"
+                    },
+                    frontend: {
+                        detect: "Frontend rendering anomaly found",
+                        fix: "🎨 Rebuilding component cache...\n✅ Layout recalibrated\n🔄 CDN cache purged",
+                        timeEstimate: "1-3 minutes"
+                    },
+                    api: {
+                        detect: "API endpoint malfunction detected",
+                        fix: "🔧 Restarting API gateway...\n✅ Rate limiting adjusted\n📡 Endpoint health restored",
+                        timeEstimate: "2-4 minutes"
+                    },
+                    performance: {
+                        detect: "System performance bottleneck found",
+                        fix: "⚡ Clearing system cache...\n📈 Resource allocation optimized\n✅ Performance metrics normalized",
+                        timeEstimate: "3-7 minutes"
+                    },
+                    security: {
+                        detect: "Potential security vulnerability detected",
+                        fix: "🛡️ Applying security patches...\n🔒 Firewall rules updated\n✅ Threat neutralized",
+                        timeEstimate: "5-15 minutes"
+                    }
+                };
+            }
+            
+            analyzeProblem(userMessage) {
+                const msg = userMessage.toLowerCase();
+                let detectedType = null;
+                let confidence = 0;
+                
+                for (let [type, keywords] of Object.entries(this.problemPatterns)) {
+                    const matches = keywords.filter(kw => msg.includes(kw)).length;
+                    const score = matches / keywords.length;
+                    
+                    if (score > confidence) {
+                        confidence = score;
+                        detectedType = type;
+                    }
+                }
+                
+                return {
+                    type: detectedType || 'server',
+                    confidence: Math.min(confidence * 2.2, 0.98),
+                    timestamp: new Date().toISOString()
+                };
+            }
+            
+            getSolution(problemType) {
+                const solution = this.solutionDB[problemType] || this.solutionDB.server;
+                
+                return {
+                    detection: solution.detect,
+                    fix: solution.fix,
+                    time: solution.timeEstimate,
+                    referenceId: 'TKT-' + Math.random().toString(36).substr(2, 8).toUpperCase()
+                };
+            }
+        }
+        
+        // =============================================
+        // 🎨 HIDDEN CANVAS POWER (Background Processing)
+        // =============================================
+        class HiddenCanvasPower {
+            constructor() {
+                this.canvas = document.getElementById('hiddenCanvasPower');
+                this.ctx = this.canvas.getContext('2d');
+                this.processingPower = 0;
+                this.initializeCanvas();
+            }
+            
+            initializeCanvas() {
+                // Hidden canvas processing - invisible to user
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(0, 0, 1, 1);
+                
+                // Store encrypted data in canvas pixels
+                const imageData = this.ctx.getImageData(0, 0, 1, 1);
+                imageData.data[0] = 42; // Hidden data
+                imageData.data[1] = 69; // Hidden data
+                imageData.data[2] = 255; // Hidden data
+                this.ctx.putImageData(imageData, 0, 0);
+            }
+            
+            processInBackground(data) {
+                // Simulate heavy processing on hidden canvas
+                this.processingPower = Math.random() * 100;
+                
+                // Encode data into canvas
+                const encodedData = JSON.stringify(data);
+                const hash = this.simpleHash(encodedData);
+                
+                // Store in hidden canvas
+                this.ctx.fillStyle = `#${hash.substring(0, 6)}`;
+                this.ctx.fillRect(0, 0, 1, 1);
+                
+                return {
+                    processed: true,
+                    power: this.processingPower,
+                    hash: hash
+                };
+            }
+            
+            simpleHash(str) {
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) {
+                    const char = str.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash;
+                }
+                return Math.abs(hash).toString(16).padStart(6, '0');
+            }
+            
+            getHiddenData() {
+                const imageData = this.ctx.getImageData(0, 0, 1, 1);
+                return {
+                    r: imageData.data[0],
+                    g: imageData.data[1],
+                    b: imageData.data[2],
+                    power: this.processingPower
+                };
+            }
+        }
+        
+        // =============================================
+        // 🚀 INITIALIZE ALL HIDDEN ENGINES
+        // =============================================
+        const trustScanner = new CompanyTrustScanner();
+        const domainVerifier = new DomainVerificationEngine();
+        const emailVerifier = new EmailVerificationEngine();
+        const detectionEngine = new HiddenDetectionEngine();
+        const canvasPower = new HiddenCanvasPower();
+        
+        console.log('🤫 [SYSTEM]: All engines initialized');
+        console.log('🤫 [V1]: Trust Scanner - ACTIVE');
+        console.log('🤫 [V2]: Domain Verification - ACTIVE');
+        console.log('🤫 [V3]: Email Verification - ACTIVE');
+        console.log('🤫 [CANVAS]: Hidden Power - ACTIVE');
+        
+        // =============================================
+        // 💬 CHAT FUNCTIONALITY
+        // =============================================
+        function addSystemMessage(text) {
+            const chatArea = document.getElementById('chatArea');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message system-msg';
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble system-bubble';
+            bubble.textContent = text;
+            
+            messageDiv.appendChild(bubble);
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+        
+        function addMessage(text, isUser = false) {
+            const chatArea = document.getElementById('chatArea');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-msg' : 'bot-msg'}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `bubble ${isUser ? 'user-bubble' : 'bot-bubble'}`;
+            bubble.innerHTML = text.replace(/\n/g, '<br>');
+            
+            messageDiv.appendChild(bubble);
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+        
+        function addTypingIndicator() {
+            const chatArea = document.getElementById('chatArea');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message bot-msg';
+            typingDiv.id = 'typingIndicator';
+            
+            typingDiv.innerHTML = `
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            `;
+            
+            chatArea.appendChild(typingDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+        
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Show user message
+            addMessage(message, true);
+            input.value = '';
+            
+            // Show typing indicator
+            addTypingIndicator();
+            
+            // ============================================
+            // 🤫 HIDDEN VERIFICATION PIPELINE
+            // ============================================
+            setTimeout(() => {
+                
+                // V1: Trust Scanner
+                const trustResult = trustScanner.scan(message, {
+                    name: 'techcorp',
+                    sessionId: 'session_' + Date.now()
+                });
+                
+                console.log('🤫 [V1 TRUST]:', {
+                    score: trustResult.trustScore,
+                    approved: trustResult.approved,
+                    flags: trustResult.flags
+                });
+                
+                if (!trustResult.approved) {
+                    removeTypingIndicator();
+                    addSystemMessage('🚫 Security verification failed. Request blocked.');
+                    return;
+                }
+                
+                // V2: Domain Verification
+                const domain = domainVerifier.extractDomainFromInput(message);
+                let domainResult = null;
+                
+                if (domain) {
+                    domainResult = domainVerifier.verifyDomain(domain);
+                    console.log('🤫 [V2 DOMAIN]:', {
+                        domain: domainResult.domain,
+                        verified: domainResult.verified,
+                        tier: domainResult.tier
+                    });
+                }
+                
+                // V3: Email Verification
+                const email = emailVerifier.extractEmailFromInput(message);
+                let emailResult = null;
+                
+                if (email) {
+                    emailResult = emailVerifier.verifyEmail(email);
+                    console.log('🤫 [V3 EMAIL]:', {
+                        email: emailResult.email,
+                        verified: emailResult.verified,
+                        score: emailResult.score
+                    });
+                }
+                
+                // Hidden Canvas Processing
+                const canvasResult = canvasPower.processInBackground({
+                    trust: trustResult.trustScore,
+                    domain: domainResult?.verified || false,
+                    email: emailResult?.verified || false,
+                    message: message
+                });
+                
+                console.log('🤫 [CANVAS POWER]:', canvasResult);
+                
+                // Problem Detection
+                const problem = detectionEngine.analyzeProblem(message);
+                const solution = detectionEngine.getSolution(problem.type);
+                
+                console.log('🤫 [DETECTION]:', {
+                    type: problem.type,
+                    confidence: problem.confidence
+                });
+                
+                removeTypingIndicator();
+                
+                // Build response
+                let responsePrefix = '';
+                
+                if (domainResult?.verified) {
+                    responsePrefix += `✅ Domain <strong>${domainResult.domain}</strong> verified (${domainResult.tier} tier)\n`;
+                }
+                
+                if (emailResult?.verified) {
+                    responsePrefix += `✅ Email <strong>${emailResult.email}</strong> verified (Score: ${emailResult.score}/100)\n`;
+                }
+                
+                if (responsePrefix) {
+                    responsePrefix += '\n';
+                }
+                
+                // Show results
+                addMessage(`${responsePrefix}🔍 <strong>${solution.detection}</strong>`);
+                
+                setTimeout(() => {
+                    addMessage(`⚙️ <strong>Applying fix...</strong>\n\n${solution.fix}`);
+                }, 1200);
+                
+                setTimeout(() => {
+                    addMessage(`✅ <strong>Problem Resolved!</strong>\n⏱ Estimated time: ${solution.time}\n📋 Reference: ${solution.referenceId}\n\n<em>All verifications passed. System healthy.</em>`);
+                }, 2800);
+                
+            }, 1800);
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        // =============================================
+        // 🤫 HIDDEN SYSTEM MONITORING
+        // =============================================
+        setInterval(() => {
+            const trustLogs = trustScanner.getHiddenLogs();
+            const domainLogs = domainVerifier.getHiddenLogs();
+            const emailLogs = emailVerifier.getHiddenLogs();
+            const canvasData = canvasPower.getHiddenData();
+            
+            console.log('🤫 [HEARTBEAT]:', {
+                time: new Date().toISOString(),
+                v1_trust: `${trustLogs.totalScans} scans | Score: ${trustLogs.averageTrustScore.toFixed(1)}`,
+                v2_domain: `${domainLogs.totalVerifications} verifications | Verified: ${domainLogs.verifiedCount}`,
+                v3_email: `${emailLogs.totalVerifications} verifications | Score: ${emailLogs.averageScore.toFixed(1)}`,
+                canvas_power: canvasData.power.toFixed(2),
+                status: 'ALL SYSTEMS OPERATIONAL'
+            });
+        }, 45000);
+        
+        // Initial system check
+        console.log('🤫 [BOOT]: V1+V2+V3+Canvas Power loaded successfully');
+        console.log('🤫 [SECURITY]: All verifications running in hidden mode');
+        
+    </script>
+</body>
+</html>

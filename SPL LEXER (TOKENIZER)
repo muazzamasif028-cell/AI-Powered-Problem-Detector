@@ -1,0 +1,118 @@
+// ============================================================
+// 🔧 spl/compiler/SupremeLexer.js
+// SPL v4.0 — Lexer (Tokenizer)
+// ============================================================
+
+class SupremeLexer {
+    constructor(source) {
+        this.source = source;
+        this.position = 0;
+        this.line = 1;
+        this.column = 1;
+        this.tokens = [];
+    }
+
+    tokenize() {
+        while (this.position < this.source.length) {
+            const char = this.source[this.position];
+
+            // Skip whitespace
+            if (/\s/.test(char)) {
+                if (char === '\n') { this.line++; this.column = 1; }
+                else this.column++;
+                this.position++;
+                continue;
+            }
+
+            // Comments
+            if (char === '/' && this.source[this.position + 1] === '/') {
+                while (this.position < this.source.length && this.source[this.position] !== '\n') {
+                    this.position++;
+                }
+                continue;
+            }
+
+            // Strings
+            if (char === '"') {
+                let value = '';
+                this.position++; // skip opening quote
+                while (this.position < this.source.length && this.source[this.position] !== '"') {
+                    value += this.source[this.position];
+                    this.position++;
+                }
+                this.position++; // skip closing quote
+                this.tokens.push({ type: 'STRING', value, line: this.line, column: this.column });
+                continue;
+            }
+
+            // Numbers
+            if (/[0-9]/.test(char)) {
+                let value = '';
+                while (this.position < this.source.length && /[0-9.]/.test(this.source[this.position])) {
+                    value += this.source[this.position];
+                    this.position++;
+                }
+                this.tokens.push({ type: 'NUMBER', value: parseFloat(value), line: this.line, column: this.column });
+                continue;
+            }
+
+            // Identifiers & Keywords
+            if (/[a-zA-Z_]/.test(char)) {
+                let value = '';
+                while (this.position < this.source.length && /[a-zA-Z0-9_]/.test(this.source[this.position])) {
+                    value += this.source[this.position];
+                    this.position++;
+                }
+                
+                const keywords = [
+                    'module', 'use', 'as', 'type', 'fn', 'class', 'contract', 'quantum',
+                    'ai', 'model', 'safety', 'rule', 'let', 'var', 'if', 'else', 'for',
+                    'while', 'return', 'guard', 'match', 'spawn', 'concurrent', 'query',
+                    'from', 'in', 'join', 'on', 'where', 'orderby', 'select', 'true', 'false',
+                    'qubit', 'measure', 'train', 'predict', 'framework', 'event', 'init',
+                    'Int', 'Float', 'String', 'Bool', 'Void', 'Any'
+                ];
+                
+                this.tokens.push({
+                    type: keywords.includes(value) ? 'KEYWORD' : 'IDENTIFIER',
+                    value,
+                    line: this.line,
+                    column: this.column
+                });
+                continue;
+            }
+
+            // Operators & Symbols
+            const symbols = {
+                '+': 'PLUS', '-': 'MINUS', '*': 'STAR', '/': 'SLASH', '%': 'PERCENT',
+                '=': 'EQUALS', '==': 'EQEQ', '!=': 'NEQ', '<': 'LT', '>': 'GT',
+                '<=': 'LTE', '>=': 'GTE', '&&': 'AND', '||': 'OR', '!': 'NOT',
+                '(': 'LPAREN', ')': 'RPAREN', '{': 'LBRACE', '}': 'RBRACE',
+                '[': 'LBRACKET', ']': 'RBRACKET', ',': 'COMMA', '.': 'DOT',
+                ':': 'COLON', ';': 'SEMICOLON', '->': 'ARROW', '=>': 'FATARROW',
+                '|': 'PIPE', '::': 'DOUBLECOLON', '?': 'QUESTION'
+            };
+
+            // Check multi-char operators first
+            let matched = false;
+            for (const [sym, type] of Object.entries(symbols)) {
+                if (this.source.startsWith(sym, this.position)) {
+                    this.tokens.push({ type, value: sym, line: this.line, column: this.column });
+                    this.position += sym.length;
+                    this.column += sym.length;
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched) {
+                throw new Error(`Unexpected character '${char}' at line ${this.line}, column ${this.column}`);
+            }
+        }
+
+        this.tokens.push({ type: 'EOF', value: null, line: this.line, column: this.column });
+        return this.tokens;
+    }
+}
+
+module.exports = SupremeLexer;

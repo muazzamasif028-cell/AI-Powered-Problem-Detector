@@ -1,0 +1,252 @@
+// ============================================================
+// ⚡ webhook-handler.js
+// SUPREME Webhook Handler — Process events from all providers
+// ============================================================
+const Domain = require('../../models/Domain');
+const User = require('../../models/User');
+const Invoice = require('../../models/Invoice');
+const Subscription = require('../../models/Subscription');
+const webhookLogger = require('./webhook-logger');
+
+class WebhookHandler {
+    constructor() {
+        this.handlers = {
+            paddle: require('./providers/paddle.handler'),
+            lemonsqueezy: require('./providers/lemonsqueezy.handler'),
+            paypal: require('./providers/paypal.handler')
+        };
+    }
+
+    /**
+     * Process a verified webhook event
+     */
+    async processEvent(provider, event) {
+        const startTime = Date.now();
+        const eventId = webhookLogger.extractEventId(provider, { body: event });
+        const eventType = webhookLogger.extractEventType(provider, { body: event });
+
+        await webhookLogger.logProcessing(provider, eventId, eventType);
+
+        try {
+            let result;
+
+            switch (provider) {
+                case 'paddle':
+                    result = await this.handlePaddleEvent(event);
+                    break;
+                case 'lemonsqueezy':
+                    result = await this.handleLemonSqueezyEvent(event);
+                    break;
+                case 'paypal':
+                    result = await this.handlePayPalEvent(event);
+                    break;
+                default:
+                    throw new Error(`Unknown provider: ${provider}`);
+            }
+
+            const duration = Date.now() - startTime;
+            
+            await webhookLogger.logSuccess(provider, eventId, { ...result, duration });
+
+            return {
+                success: true,
+                provider,
+                eventType,
+                result,
+                duration: `${duration}ms`
+            };
+
+        } catch (error) {
+            await webhookLogger.logFailure(provider, eventId, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Handle Paddle events
+     */
+    async handlePaddleEvent(event) {
+        const eventType = event.event_type;
+
+        switch (eventType) {
+            case 'transaction.completed':
+                return this.handlePaymentCompleted(event.data, 'paddle');
+            
+            case 'transaction.payment_failed':
+                return this.handlePaymentFailed(event.data, 'paddle');
+            
+            case 'transaction.refunded':
+                return this.handleRefund(event.data, 'paddle');
+            
+            case 'subscription.created':
+                return this.handleSubscriptionCreated(event.data, 'paddle');
+            
+            case 'subscription.updated':
+                return this.handleSubscriptionUpdated(event.data, 'paddle');
+            
+            case 'subscription.cancelled':
+                return this.handleSubscriptionCancelled(event.data, 'paddle');
+            
+            default:
+                console.log(`Unhandled Paddle event: ${eventType}`);
+                return { handled: false, reason: `Unhandled event: ${eventType}` };
+        }
+    }
+
+    /**
+     * Handle Lemon Squeezy events
+     */
+    async handleLemonSqueezyEvent(event) {
+        const eventName = event.meta?.event_name;
+
+        switch (eventName) {
+            case 'order_created':
+                return this.handlePaymentCompleted(event.data, 'lemonsqueezy');
+            
+            case 'subscription_created':
+                return this.handleSubscriptionCreated(event.data, 'lemonsqueezy');
+            
+            case 'subscription_cancelled':
+                return this.handleSubscriptionCancelled(event.data, 'lemonsqueezy');
+            
+            default:
+                console.log(`Unhandled Lemon Squeezy event: ${eventName}`);
+                return { handled: false, reason: `Unhandled event: ${eventName}` };
+        }
+    }
+
+    /**
+     * Handle PayPal events
+     */
+    async handlePayPalEvent(event) {
+        const eventType = event.event_type;
+
+        switch (eventType) {
+            case 'PAYMENT.SALE.COMPLETED':
+                return this.handlePaymentCompleted(event.resource, 'paypal');
+            
+            case 'BILLING.SUBSCRIPTION.CREATED':
+                return this.handleSubscriptionCreated(event.resource, 'paypal');
+            
+            case 'BILLING.SUBSCRIPTION.CANCELLED':
+                return this.handleSubscriptionCancelled(event.resource, 'paypal');
+            
+            default:
+                console.log(`Unhandled PayPal event: ${eventType}`);
+                return { handled: false };
+        }
+    }
+
+    // ==========================================
+    // COMMON HANDLERS
+    // ==========================================
+
+    async handlePaymentCompleted(data, provider) {
+        const { userId, domainName, tld } = data.custom_data || data.meta?.custom_data || {};
+
+        if (domainName && tld && userId) {
+            const domain = await Domain.create({
+                userId,
+                domainName: domainName.toLowerCase(),
+                tld: tld.toLowerCase(),
+                status: 'active',
+                paymentProvider: provider,
+                paymentTransactionId: data.id,
+                price: data.attributes?.total ? data.attributes.total / 100 : 0,
+                expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+            });
+
+            await User.findByIdAndUpdate(userId, {
+                $push: { domains: domain._id }
+            });
+
+            return { domainCreated: domain.fullDomain, domainId: domain._id };
+        }
+
+        return { handled: true };
+    }
+
+    async handlePaymentFailed(data, provider) {
+        // Notify user of failed payment
+        console.log(`Payment failed for ${provider} transaction ${data.id}`);
+        return { handled: true };
+    }
+
+    async handleRefund(data, provider) {
+        const domain = await Domain.findOne({
+            paymentProvider: provider,
+            paymentTransactionId: data.id
+        });
+
+        if (domain) {
+            domain.status = 'deleted';
+            await domain.save();
+            return { domainRefunded: domain.fullDomain };
+        }
+
+        return { handled: true };
+    }
+
+    async handleSubscriptionCreated(data, provider) {
+        const { userId, plan } = data.custom_data || {};
+
+        if (userId && plan) {
+            await Subscription.create({
+                userId,
+                provider,
+                providerSubscriptionId: data.id,
+                plan,
+                status: 'active',
+                currentPeriodStart: new Date(),
+                currentPeriodEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+            });
+
+            await User.findByIdAndUpdate(userId, {
+                plan,
+                subscriptionStatus: 'active'
+            });
+
+            return { subscriptionCreated: true, plan };
+        }
+
+        return { handled: true };
+    }
+
+    async handleSubscriptionUpdated(data, provider) {
+        const subscription = await Subscription.findOne({
+            provider,
+            providerSubscriptionId: data.id
+        });
+
+        if (subscription) {
+            subscription.status = data.status;
+            await subscription.save();
+            return { subscriptionUpdated: true };
+        }
+
+        return { handled: true };
+    }
+
+    async handleSubscriptionCancelled(data, provider) {
+        const subscription = await Subscription.findOne({
+            provider,
+            providerSubscriptionId: data.id
+        });
+
+        if (subscription) {
+            subscription.status = 'cancelled';
+            subscription.cancelledAt = new Date();
+            await subscription.save();
+
+            await User.findByIdAndUpdate(subscription.userId, {
+                subscriptionStatus: 'cancelled'
+            });
+
+            return { subscriptionCancelled: true };
+        }
+
+        return { handled: true };
+    }
+}
+
+module.exports = new WebhookHandler();

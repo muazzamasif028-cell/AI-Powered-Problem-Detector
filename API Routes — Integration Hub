@@ -1,0 +1,58 @@
+// ============================================================
+// 🛣️ src/routes/integrations.routes.js
+// SUPREME AI Integrations API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const hub = require('../integrations');
+const authMiddleware = require('../middleware/auth.middleware');
+
+router.use(authMiddleware.authenticate());
+
+// Get all available AI tools
+router.get('/tools', (req, res) => {
+    res.json({
+        success: true,
+        total: hub.providers.size,
+        categories: hub.getCategories(),
+        tools: Array.from(hub.providers.entries()).map(([name, provider]) => ({
+            name,
+            vendor: provider.vendor,
+            status: provider.status,
+            category: hub.getCategoryForProvider(name)
+        }))
+    });
+});
+
+// Get tools by category
+router.get('/tools/category/:category', (req, res) => {
+    const tools = hub.getByCategory(req.params.category);
+    res.json({ success: true, category: req.params.category, tools });
+});
+
+// Connect to a tool
+router.post('/tools/:name/connect', async (req, res) => {
+    try {
+        const result = await hub.connect(req.params.name, req.body);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+// Execute AI operation
+router.post('/tools/:name/:action', async (req, res) => {
+    try {
+        const result = await hub.execute(req.params.name, req.params.action, req.body);
+        res.json({ success: true, data: result });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+// Get integration stats
+router.get('/stats', (req, res) => {
+    res.json({ success: true, stats: hub.getStats() });
+});
+
+module.exports = router;

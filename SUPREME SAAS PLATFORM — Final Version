@@ -1,0 +1,534 @@
+// ============================================================
+// 💰 saas/SupremeSaaS.js
+// SUPREME Engineering Studio — Final SaaS Platform
+// Basic ($30) → Pro ($70) → Enterprise ($100+)
+// ============================================================
+const EventEmitter = require('events');
+const crypto = require('crypto');
+
+class SupremeSaaS extends EventEmitter {
+    constructor() {
+        super();
+        
+        // ============================================
+        // 💰 FINAL PRICING PLANS (3-Tier)
+        // ============================================
+        this.plans = {
+            BASIC: {
+                name: 'Basic',
+                emoji: '🟢',
+                monthlyPrice: 30,
+                annualPrice: 300, // $25/month billed annually (save 17%)
+                projects: 5,
+                features: [
+                    'Up to 5 Projects',
+                    'Basic AI Engineering Assistant',
+                    'Basic 3D Viewer',
+                    'Basic CAD Export',
+                    'AI Documentation',
+                    'Community Support'
+                ],
+                aiModel: 'BASIC',
+                cadExport: ['STL'],
+                support: 'COMMUNITY',
+                storage: '2 GB',
+                users: 1,
+                bestFor: 'Students, Hobbyists, Freelancers'
+            },
+            
+            PRO: {
+                name: 'Pro',
+                emoji: '🔵',
+                monthlyPrice: 70,
+                annualPrice: 700, // $58/month billed annually (save 17%)
+                projects: 'UNLIMITED',
+                popular: true,
+                features: [
+                    'Unlimited Projects',
+                    'Advanced AI Engineering',
+                    'Full CAD Export (STEP, IGES, STL)',
+                    'BOM Generator',
+                    'Manufacturing Planner',
+                    'AI Cost Estimator',
+                    'Team Collaboration',
+                    'Priority Support'
+                ],
+                aiModel: 'ADVANCED',
+                cadExport: ['STEP', 'IGES', 'STL', 'OBJ', 'FBX'],
+                support: 'PRIORITY',
+                storage: '50 GB',
+                users: 5,
+                bestFor: 'Startups, Engineers, Small Teams'
+            },
+            
+            ENTERPRISE: {
+                name: 'Enterprise',
+                emoji: '🟣',
+                monthlyPrice: 100, // Starting price
+                annualPrice: 1000,
+                projects: 'UNLIMITED',
+                features: [
+                    'Everything in Pro',
+                    'Unlimited Team Members',
+                    'Private Workspace',
+                    'Enterprise Security',
+                    'RBAC (Role-Based Access Control)',
+                    'API Access',
+                    'AI Engineering Agents',
+                    'Digital Twin Integration',
+                    'Custom AI Models',
+                    'Dedicated Support',
+                    'SSO Integration',
+                    'Audit Logs'
+                ],
+                aiModel: 'CUSTOM',
+                cadExport: ['ALL_FORMATS'],
+                support: 'DEDICATED',
+                storage: '500 GB',
+                users: 'UNLIMITED',
+                sso: true,
+                rbac: true,
+                api: true,
+                audit: true,
+                bestFor: 'Companies & Enterprises',
+                contactSales: true
+            }
+        };
+        
+        // ============================================
+        // 📦 OPTIONAL ADD-ONS
+        // ============================================
+        this.addons = {
+            AI_CREDITS: {
+                name: 'AI Simulation Credits',
+                emoji: '🤖',
+                price: 15,
+                unit: '1,000 credits',
+                description: 'Additional AI simulation runs'
+            },
+            STORAGE: {
+                name: 'Extra Cloud Storage',
+                emoji: '☁️',
+                price: 10,
+                unit: '50 GB',
+                description: 'Additional cloud storage space'
+            },
+            PREMIUM_AI: {
+                name: 'Premium AI Models',
+                emoji: '🧠',
+                price: 50,
+                unit: 'per model/month',
+                description: 'Access to premium AI engineering models'
+            },
+            HIGH_PERFORMANCE: {
+                name: 'High-Performance Compute',
+                emoji: '🚀',
+                price: 100,
+                unit: 'per 100 hours',
+                description: 'Priority compute for complex simulations'
+            },
+            MANUFACTURING: {
+                name: 'Manufacturing Simulation',
+                emoji: '🏭',
+                price: 200,
+                unit: 'per simulation',
+                description: 'Full factory production simulation'
+            }
+        };
+        
+        // ============================================
+        // 📊 PLATFORM STATE
+        // ============================================
+        this.state = {
+            tenants: new Map(),
+            subscriptions: new Map(),
+            invoices: new Map(),
+            revenue: {
+                mrr: 0,
+                arr: 0,
+                totalCustomers: 0,
+                activeSubscriptions: 0,
+                byPlan: { BASIC: 0, PRO: 0, ENTERPRISE: 0 }
+            }
+        };
+        
+        // Initialize
+        this.initialize();
+    }
+
+    async initialize() {
+        console.log('🏗️ SUPREME Engineering Studio — SaaS Platform\n');
+        console.log('📋 PRICING PLANS:');
+        console.log(`   🟢 Basic:     $30/month  — Students & Hobbyists`);
+        console.log(`   🔵 Pro:       $70/month  — Startups & Engineers ⭐`);
+        console.log(`   🟣 Enterprise: $100+/month — Companies & Enterprises\n`);
+        console.log('✅ Platform Ready\n');
+    }
+
+    /**
+     * 👤 Register New User
+     */
+    async registerUser(userData) {
+        const tenantId = `TEN-${Date.now().toString(36).toUpperCase()}`;
+        
+        const tenant = {
+            tenantId,
+            name: userData.name,
+            email: userData.email,
+            company: userData.company || '',
+            plan: 'BASIC',
+            status: 'TRIAL',
+            trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+            createdAt: new Date().toISOString(),
+            users: [{ id: 'OWNER', name: userData.name, email: userData.email, role: 'OWNER' }],
+            usage: {
+                projectsCreated: 0,
+                aiCreditsUsed: 0,
+                storageUsed: 0,
+                simulationsRun: 0
+            },
+            addons: [],
+            billing: {
+                paymentMethod: null,
+                nextBillingDate: null,
+                invoices: []
+            }
+        };
+        
+        this.state.tenants.set(tenantId, tenant);
+        this.state.revenue.totalCustomers++;
+        this.state.revenue.byPlan.BASIC++;
+        
+        console.log(`👤 Registered: ${tenant.name} (Basic Trial)`);
+        
+        this.emit('user:registered', { tenantId, name: tenant.name });
+        
+        return { tenantId, plan: 'BASIC', trialEndsAt: tenant.trialEndsAt };
+    }
+
+    /**
+     * 💰 Subscribe to Plan
+     */
+    async subscribe(tenantId, planKey, billingCycle = 'MONTHLY') {
+        const tenant = this.state.tenants.get(tenantId);
+        const plan = this.plans[planKey];
+        
+        if (!tenant) throw new Error('Tenant not found');
+        if (!plan) throw new Error('Invalid plan');
+        
+        // Calculate price
+        const isAnnual = billingCycle === 'ANNUAL';
+        const monthlyPrice = plan.monthlyPrice;
+        const price = isAnnual ? plan.annualPrice : monthlyPrice;
+        const savings = isAnnual ? `Save $${(monthlyPrice * 12) - plan.annualPrice}/year` : null;
+        
+        // Create subscription
+        const subscription = {
+            subscriptionId: `SUB-${Date.now().toString(36).toUpperCase()}`,
+            tenantId,
+            plan: planKey,
+            billingCycle,
+            price,
+            monthlyEquivalent: isAnnual ? Math.round(plan.annualPrice / 12) : price,
+            status: 'ACTIVE',
+            startedAt: new Date().toISOString(),
+            renewsAt: new Date(Date.now() + (isAnnual ? 365 : 30) * 24 * 60 * 60 * 1000).toISOString()
+        };
+        
+        // Update tenant
+        const oldPlan = tenant.plan;
+        tenant.plan = planKey;
+        tenant.status = 'ACTIVE';
+        tenant.billing.nextBillingDate = subscription.renewsAt;
+        
+        this.state.subscriptions.set(subscription.subscriptionId, subscription);
+        
+        // Update revenue stats
+        this.state.revenue.byPlan[oldPlan]--;
+        this.state.revenue.byPlan[planKey]++;
+        this.state.revenue.mrr += isAnnual ? (plan.annualPrice / 12) : monthlyPrice;
+        this.state.revenue.arr = this.state.revenue.mrr * 12;
+        this.state.revenue.activeSubscriptions++;
+        
+        // Generate invoice
+        const invoice = await this.generateInvoice(tenant, subscription);
+        
+        console.log(`💰 Subscribed: ${tenant.name} → ${plan.emoji} ${plan.name}`);
+        console.log(`   ${billingCycle}: $${price} ${savings ? `(${savings})` : ''}`);
+        
+        this.emit('subscription:created', { tenantId, plan: planKey, price, savings });
+        
+        return { 
+            success: true, 
+            plan: planKey, 
+            price, 
+            savings,
+            invoice 
+        };
+    }
+
+    /**
+     * ⬆️ Upgrade/Downgrade Plan
+     */
+    async changePlan(tenantId, newPlanKey) {
+        const tenant = this.state.tenants.get(tenantId);
+        const oldPlan = this.plans[tenant.plan];
+        const newPlan = this.plans[newPlanKey];
+        
+        if (!tenant) throw new Error('Tenant not found');
+        if (!newPlan) throw new Error('Invalid plan');
+        if (tenant.plan === newPlanKey) throw new Error('Already on this plan');
+        
+        const isUpgrade = newPlan.monthlyPrice > oldPlan.monthlyPrice;
+        const proration = this.calculateProration(tenant, newPlan, isUpgrade);
+        
+        console.log(`${isUpgrade ? '⬆️ UPGRADE' : '⬇️ DOWNGRADE'}: ${tenant.name}`);
+        console.log(`   ${oldPlan.emoji} ${oldPlan.name} → ${newPlan.emoji} ${newPlan.name}`);
+        
+        if (isUpgrade) {
+            console.log(`   Prorated charge: $${proration}`);
+        }
+        
+        // Update tenant
+        this.state.revenue.byPlan[tenant.plan]--;
+        this.state.revenue.byPlan[newPlanKey]++;
+        tenant.plan = newPlanKey;
+        
+        this.emit('plan:changed', { 
+            tenantId, 
+            from: tenant.plan, 
+            to: newPlanKey, 
+            isUpgrade 
+        });
+        
+        return { 
+            success: true, 
+            newPlan: newPlanKey, 
+            isUpgrade,
+            proration: isUpgrade ? proration : 0
+        };
+    }
+
+    /**
+     * 📦 Add Optional Add-on
+     */
+    async addAddon(tenantId, addonKey) {
+        const tenant = this.state.tenants.get(tenantId);
+        const addon = this.addons[addonKey];
+        
+        if (!tenant) throw new Error('Tenant not found');
+        if (!addon) throw new Error('Invalid add-on');
+        
+        tenant.addons.push({
+            addonKey,
+            name: addon.name,
+            price: addon.price,
+            addedAt: new Date().toISOString()
+        });
+        
+        console.log(`📦 Add-on: ${tenant.name} → ${addon.emoji} ${addon.name} (+$${addon.price}/mo)`);
+        
+        return { success: true, addon: addon.name, price: addon.price };
+    }
+
+    /**
+     * ❌ Cancel Subscription
+     */
+    async cancelSubscription(tenantId, reason = '') {
+        const tenant = this.state.tenants.get(tenantId);
+        
+        if (!tenant) throw new Error('Tenant not found');
+        
+        tenant.status = 'CANCELLED';
+        tenant.cancelledAt = new Date().toISOString();
+        tenant.cancellationReason = reason;
+        
+        this.state.revenue.activeSubscriptions--;
+        this.state.revenue.byPlan[tenant.plan]--;
+        this.state.revenue.mrr -= this.plans[tenant.plan].monthlyPrice;
+        this.state.revenue.arr = this.state.revenue.mrr * 12;
+        
+        console.log(`❌ Cancelled: ${tenant.name} — "${reason || 'No reason given'}"`);
+        
+        // Schedule downgrade to free after billing period
+        setTimeout(() => {
+            if (tenant.plan !== 'BASIC') {
+                this.state.revenue.byPlan.BASIC++;
+                tenant.plan = 'BASIC';
+                console.log(`🔄 ${tenant.name} → Basic Plan`);
+            }
+        }, 30 * 24 * 60 * 60 * 1000);
+        
+        return { success: true, message: 'Subscription cancelled' };
+    }
+
+    /**
+     * ✅ Check Feature Access
+     */
+    checkAccess(tenantId, feature) {
+        const tenant = this.state.tenants.get(tenantId);
+        if (!tenant) return { allowed: false, reason: 'TENANT_NOT_FOUND' };
+        
+        const plan = this.plans[tenant.plan];
+        
+        // Check project limit
+        if (feature === 'CREATE_PROJECT' && plan.projects !== 'UNLIMITED') {
+            if (tenant.usage.projectsCreated >= plan.projects) {
+                return {
+                    allowed: false,
+                    reason: 'LIMIT_REACHED',
+                    message: `Basic plan allows ${plan.projects} projects.`,
+                    upgradeTo: 'PRO',
+                    upgradePrice: '$70/month'
+                };
+            }
+        }
+        
+        // Check feature availability
+        const featureChecks = {
+            'BOM_GENERATOR': plan.features.some(f => f.includes('BOM')),
+            'MANUFACTURING_PLANNER': plan.features.some(f => f.includes('Manufacturing')),
+            'COST_ESTIMATOR': plan.features.some(f => f.includes('Cost Estimator')),
+            'TEAM_COLLABORATION': plan.features.some(f => f.includes('Collaboration')),
+            'API_ACCESS': plan.api || false,
+            'RBAC': plan.rbac || false,
+            'SSO': plan.sso || false,
+            'DIGITAL_TWIN': plan.features.some(f => f.includes('Digital Twin')),
+            'CUSTOM_AI': plan.aiModel === 'CUSTOM'
+        };
+        
+        if (featureChecks[feature] === false) {
+            return {
+                allowed: false,
+                reason: 'FEATURE_NOT_AVAILABLE',
+                message: 'This feature requires a higher plan.',
+                upgradeTo: 'PRO',
+                upgradePrice: '$70/month'
+            };
+        }
+        
+        return { allowed: true };
+    }
+
+    /**
+     * 📊 Get Tenant Dashboard
+     */
+    getTenantDashboard(tenantId) {
+        const tenant = this.state.tenants.get(tenantId);
+        if (!tenant) return { error: 'TENANT_NOT_FOUND' };
+        
+        const plan = this.plans[tenant.plan];
+        
+        return {
+            tenant: {
+                name: tenant.name,
+                email: tenant.email,
+                plan: `${plan.emoji} ${plan.name}`,
+                status: tenant.status,
+                memberSince: tenant.createdAt
+            },
+            usage: {
+                projects: `${tenant.usage.projectsCreated}/${plan.projects === 'UNLIMITED' ? '∞' : plan.projects}`,
+                aiCredits: tenant.usage.aiCreditsUsed,
+                storage: `${tenant.usage.storageUsed} / ${plan.storage}`,
+                simulations: tenant.usage.simulationsRun
+            },
+            billing: {
+                plan: plan.name,
+                monthlyPrice: `$${plan.monthlyPrice}`,
+                annualPrice: plan.annualPrice ? `$${plan.annualPrice}/year` : null,
+                nextBilling: tenant.billing.nextBillingDate,
+                addons: tenant.addons.map(a => `${a.name}: +$${a.price}/mo`),
+                totalMonthly: plan.monthlyPrice + tenant.addons.reduce((s, a) => s + a.price, 0)
+            },
+            quickActions: [
+                'Create Project',
+                'View Projects',
+                'Upgrade Plan',
+                'Add Add-ons',
+                'Manage Team',
+                'Billing History'
+            ]
+        };
+    }
+
+    /**
+     * 📈 Get Platform Analytics (SUPREME Internal)
+     */
+    getPlatformAnalytics() {
+        const tenants = Array.from(this.state.tenants.values());
+        const paid = tenants.filter(t => t.plan !== 'BASIC');
+        
+        return {
+            customers: {
+                total: tenants.length,
+                paid: paid.length,
+                free: tenants.filter(t => t.plan === 'BASIC').length,
+                byPlan: this.state.revenue.byPlan
+            },
+            revenue: {
+                mrr: `$${this.state.revenue.mrr.toLocaleString()}`,
+                arr: `$${this.state.revenue.arr.toLocaleString()}`,
+                averagePerUser: paid.length > 0 ? 
+                    `$${Math.round(this.state.revenue.mrr / paid.length)}` : '$0',
+                projectedAnnual: `$${(this.state.revenue.mrr * 12).toLocaleString()}`
+            },
+            subscriptions: {
+                active: this.state.revenue.activeSubscriptions,
+                conversionRate: tenants.length > 0 ?
+                    `${((paid.length / tenants.length) * 100).toFixed(1)}%` : '0%'
+            },
+            popularPlan: this.getMostPopularPlan()
+        };
+    }
+
+    // ============================================
+    // PRIVATE HELPERS
+    // ============================================
+
+    async generateInvoice(tenant, subscription) {
+        const invoiceId = `INV-${Date.now().toString(36).toUpperCase()}`;
+        
+        const invoice = {
+            invoiceId,
+            tenantId: tenant.tenantId,
+            tenantName: tenant.name,
+            subscriptionId: subscription.subscriptionId,
+            plan: subscription.plan,
+            amount: subscription.price,
+            billingCycle: subscription.billingCycle,
+            status: 'PAID',
+            createdAt: new Date().toISOString(),
+            downloadUrl: `/invoices/${invoiceId}.pdf`
+        };
+        
+        this.state.invoices.set(invoiceId, invoice);
+        tenant.billing.invoices.push(invoiceId);
+        
+        return invoice;
+    }
+
+    calculateProration(tenant, newPlan, isUpgrade) {
+        if (!isUpgrade) return 0;
+        
+        const daysInMonth = 30;
+        const daysRemaining = Math.ceil(
+            (new Date(tenant.billing.nextBillingDate || Date.now()) - new Date()) / 
+            (1000 * 60 * 60 * 24)
+        );
+        
+        const oldDaily = this.plans[tenant.plan].monthlyPrice / daysInMonth;
+        const newDaily = newPlan.monthlyPrice / daysInMonth;
+        
+        return Math.round((newDaily - oldDaily) * Math.max(daysRemaining, 1));
+    }
+
+    getMostPopularPlan() {
+        const counts = this.state.revenue.byPlan;
+        const max = Math.max(...Object.values(counts));
+        const popular = Object.entries(counts).find(([, v]) => v === max);
+        return popular ? `${this.plans[popular[0]].emoji} ${this.plans[popular[0]].name}` : 'N/A';
+    }
+}
+
+module.exports = SupremeSaaS;

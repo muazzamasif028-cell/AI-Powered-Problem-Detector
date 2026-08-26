@@ -1,0 +1,93 @@
+// ============================================================
+// 📁 services/orchestrator.service.js — ORCHESTRATOR SERVICE
+// ============================================================
+const detectionService = require('./detection.service');
+const executionService = require('./execution.service');
+const solutionService = require('./solution.service');
+const eventBus = require('../events/event.bus');
+
+class OrchestratorService {
+    constructor() {
+        this.activeOrchestrations = new Map();
+    }
+
+    // =============================================
+    // 🎯 FULL ORCHESTRATION FLOW
+    // =============================================
+    async orchestrate(problem, context = {}) {
+        const orchId = 'ORCH-' + Date.now().toString(36);
+        const startTime = Date.now();
+
+        console.log(`🎯 [ORCHESTRATOR] ${orchId}: Starting full flow`);
+
+        const result = {
+            id: orchId,
+            problem,
+            stages: {},
+            timestamp: new Date().toISOString()
+        };
+
+        try {
+            // Stage 1: DETECT
+            result.stages.detect = await detectionService.detect(problem, context);
+            
+            // Stage 2: ANALYZE (Root Cause)
+            result.stages.analyze = await this.analyze(result.stages.detect);
+            
+            // Stage 3: SOLVE
+            result.stages.solve = await solutionService.getSolutions(
+                result.stages.detect?.results?.PERFORMANCE?.problems[0]?.type || 'GENERAL'
+            );
+            
+            // Stage 4: EXECUTE (Auto-Fix)
+            if (context.autoFix) {
+                result.stages.execute = await executionService.execute(problem, context);
+            }
+
+            result.success = true;
+            result.totalTime = Date.now() - startTime + 'ms';
+
+            eventBus.emit('orchestration:complete', result);
+            console.log(`✅ [ORCHESTRATOR] ${orchId}: Complete (${result.totalTime})`);
+
+        } catch (err) {
+            result.success = false;
+            result.error = err.message;
+            eventBus.emit('orchestration:failed', result);
+            console.error(`❌ [ORCHESTRATOR] ${orchId}: ${err.message}`);
+        }
+
+        return result;
+    }
+
+    // =============================================
+    // 🔍 ANALYZE
+    // =============================================
+    async analyze(detectionResult) {
+        const problems = [];
+        
+        for (let [category, data] of Object.entries(detectionResult?.results || {})) {
+            if (data.problems?.length > 0) {
+                problems.push(...data.problems);
+            }
+        }
+
+        return {
+            totalProblems: problems.length,
+            severity: problems.some(p => p.severity === 'CRITICAL') ? 'CRITICAL' : 
+                      problems.length > 3 ? 'HIGH' : 'MEDIUM',
+            problems,
+            recommendation: problems.length > 0 ? 
+                'Immediate action recommended' : 'System healthy'
+        };
+    }
+
+    // =============================================
+    // 📊 STATUS
+    // =============================================
+    getStatus(orchId) {
+        return this.activeOrchestrations.get(orchId);
+    }
+}
+
+module.exports = new OrchestratorService();

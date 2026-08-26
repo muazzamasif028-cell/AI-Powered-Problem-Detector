@@ -1,0 +1,168 @@
+// utils/cardValidator.js
+class CardValidator {
+    /**
+     * Validate credit card number using Luhn algorithm
+     */
+    static validateCardNumber(cardNumber) {
+        // Remove spaces and dashes
+        const cleanNumber = cardNumber.replace(/[\s-]/g, '');
+        
+        // Check if contains only digits
+        if (!/^\d+$/.test(cleanNumber)) {
+            return { valid: false, error: 'Card number must contain only digits' };
+        }
+        
+        // Check length
+        if (cleanNumber.length < 13 || cleanNumber.length > 19) {
+            return { valid: false, error: 'Invalid card number length' };
+        }
+        
+        // Luhn algorithm
+        let sum = 0;
+        let isEven = false;
+        
+        for (let i = cleanNumber.length - 1; i >= 0; i--) {
+            let digit = parseInt(cleanNumber[i]);
+            
+            if (isEven) {
+                digit *= 2;
+                if (digit > 9) {
+                    digit -= 9;
+                }
+            }
+            
+            sum += digit;
+            isEven = !isEven;
+        }
+        
+        const isValid = sum % 10 === 0;
+        
+        // Detect card brand
+        const brand = this.detectCardBrand(cleanNumber);
+        
+        return {
+            valid: isValid,
+            brand,
+            last4: cleanNumber.slice(-4),
+            bin: cleanNumber.slice(0, 6),
+            length: cleanNumber.length
+        };
+    }
+
+    /**
+     * Detect card brand from number
+     */
+    static detectCardBrand(cardNumber) {
+        const patterns = {
+            visa: /^4/,
+            mastercard: /^(5[1-5]|2[2-7])/,
+            amex: /^3[47]/,
+            discover: /^(6011|65|64[4-9])/,
+            unionpay: /^62/,
+            jcb: /^35/,
+            diners: /^(30[0-5]|36|38|39)/
+        };
+        
+        for (const [brand, pattern] of Object.entries(patterns)) {
+            if (pattern.test(cardNumber)) {
+                return brand.toUpperCase();
+            }
+        }
+        
+        return 'UNKNOWN';
+    }
+
+    /**
+     * Validate expiry date
+     */
+    static validateExpiry(month, year) {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+        
+        const expMonth = parseInt(month);
+        const expYear = parseInt(year);
+        
+        if (expMonth < 1 || expMonth > 12) {
+            return { valid: false, error: 'Invalid month' };
+        }
+        
+        // Handle 2-digit year
+        const fullYear = expYear < 100 ? 2000 + expYear : expYear;
+        
+        if (fullYear < currentYear || (fullYear === currentYear && expMonth < currentMonth)) {
+            return { valid: false, error: 'Card has expired' };
+        }
+        
+        // Check if expiry is too far in future (10 years max)
+        if (fullYear > currentYear + 10) {
+            return { valid: false, error: 'Invalid expiry year' };
+        }
+        
+        return { valid: true, month: expMonth, year: fullYear };
+    }
+
+    /**
+     * Validate CVV
+     */
+    static validateCVV(cvv, brand) {
+        const cleanCVV = cvv.replace(/\D/g, '');
+        
+        // AMEX uses 4-digit CVV
+        const expectedLength = brand === 'AMEX' ? 4 : 3;
+        
+        if (cleanCVV.length !== expectedLength) {
+            return { 
+                valid: false, 
+                error: `CVV must be ${expectedLength} digits for ${brand}` 
+            };
+        }
+        
+        return { valid: true };
+    }
+
+    /**
+     * Full card validation
+     */
+    static validateCard(cardData) {
+        const { number, month, year, cvv, holderName } = cardData;
+        const errors = [];
+        
+        // Validate number
+        const numberValidation = this.validateCardNumber(number);
+        if (!numberValidation.valid) {
+            errors.push(numberValidation.error);
+        }
+        
+        // Validate expiry
+        if (month && year) {
+            const expiryValidation = this.validateExpiry(month, year);
+            if (!expiryValidation.valid) {
+                errors.push(expiryValidation.error);
+            }
+        }
+        
+        // Validate CVV
+        if (cvv && numberValidation.brand) {
+            const cvvValidation = this.validateCVV(cvv, numberValidation.brand);
+            if (!cvvValidation.valid) {
+                errors.push(cvvValidation.error);
+            }
+        }
+        
+        // Validate holder name
+        if (holderName && holderName.trim().length < 2) {
+            errors.push('Invalid cardholder name');
+        }
+        
+        return {
+            valid: errors.length === 0,
+            brand: numberValidation.brand,
+            last4: numberValidation.last4,
+            bin: numberValidation.bin,
+            errors: errors.length > 0 ? errors : undefined
+        };
+    }
+}
+
+module.exports = CardValidator;

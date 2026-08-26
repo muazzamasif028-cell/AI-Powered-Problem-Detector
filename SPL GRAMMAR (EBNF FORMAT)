@@ -1,0 +1,99 @@
+// ============================================================
+// 📐 SPL v4.0 — Formal Grammar (EBNF)
+// ============================================================
+
+Program         ::= (ModuleDecl | ImportDecl | TypeDecl | FunctionDecl | ClassDecl | ContractDecl | QuantumDecl | AIModelDecl | SafetyDecl | Statement)*
+
+// Modules
+ModuleDecl      ::= 'module' Identifier '{' Program '}'
+ImportDecl      ::= 'use' ImportPath ('as' Identifier)? ';'
+ImportPath      ::= Identifier ('::' Identifier)*
+
+// Types
+TypeDecl        ::= 'type' Identifier ('<' TypeParams '>')? '=' TypeDefinition ';'
+TypeDefinition  ::= TypeUnion | TypeStruct | TypeAlias
+TypeUnion       ::= Type ('|' Type)*
+TypeStruct      ::= '{' (Identifier '::' Type (',' Identifier '::' Type)*)? '}'
+TypeAlias       ::= Type
+Type            ::= BaseType | Identifier ('<' Type (',' Type)* '>')? | Type '[' ']' | Type '?'
+BaseType        ::= 'Int' | 'Float' | 'String' | 'Bool' | 'Void' | 'Any'
+
+// Functions
+FunctionDecl    ::= 'fn' Identifier '(' Params? ')' ('->' Type)? Block
+Params          ::= Param (',' Param)*
+Param           ::= Identifier '::' Type ('=' Expression)?
+
+// Classes
+ClassDecl       ::= 'class' Identifier (':' Identifier (',' Identifier)*)? '{' ClassMember* '}'
+ClassMember     ::= PropertyDecl | FunctionDecl | ConstructorDecl
+PropertyDecl    ::= ('let' | 'var') Identifier '::' Type ('=' Expression)? ';'
+ConstructorDecl ::= 'init' '(' Params? ')' Block
+
+// Contracts (Blockchain)
+ContractDecl    ::= 'contract' Identifier '{' ContractMember* '}'
+ContractMember  ::= PropertyDecl | FunctionDecl | EventDecl
+EventDecl       ::= 'event' Identifier '(' Params? ')' ';'
+
+// Quantum
+QuantumDecl     ::= 'quantum' Identifier '{' QuantumMember* '}'
+QuantumMember   ::= QubitDecl | GateStmt | MeasureStmt
+QubitDecl       ::= 'qubit' ':' Identifier (',' Identifier)* ';'
+GateStmt        ::= GateName '(' Expression (',' Expression)* ')' ';'
+GateName        ::= 'H' | 'X' | 'Y' | 'Z' | 'CNOT' | 'SWAP' | 'TOFFOLI'
+MeasureStmt     ::= 'measure' Identifier '->' Identifier ';'
+
+// AI Models
+AIModelDecl     ::= 'ai' 'model' Identifier '{' AIMember* '}'
+AIMember        ::= FrameworkDecl | TrainDecl | PredictDecl
+FrameworkDecl   ::= 'framework' ':' Identifier ';'
+TrainDecl       ::= 'train' '(' Params? ')' Block
+PredictDecl     ::= 'fn' 'predict' '(' Params? ')' '->' Type Block
+
+// Safety
+SafetyDecl      ::= 'safety' 'rule' Identifier Block
+
+// Statements
+Statement       ::= VarDecl | Assignment | IfStmt | LoopStmt | ReturnStmt | ExpressionStmt | GuardStmt | MatchStmt | ConcurrentStmt | QueryStmt
+VarDecl         ::= ('let' | 'var') Identifier ('::' Type)? '=' Expression ';'
+Assignment      ::= Expression '=' Expression ';'
+IfStmt          ::= 'if' Expression Block ('else' 'if' Expression Block)* ('else' Block)?
+LoopStmt        ::= 'for' Identifier 'in' Expression Block | 'while' Expression Block
+ReturnStmt      ::= 'return' Expression? ';'
+ExpressionStmt  ::= Expression ';'
+GuardStmt       ::= 'guard' Expression Block ('else' Block)?
+MatchStmt       ::= 'match' Expression '{' MatchCase* '}'
+MatchCase       ::= Pattern '=>' (Expression ';' | Block)
+ConcurrentStmt  ::= 'spawn' Block | 'concurrent' 'fn' Identifier '(' Params? ')' Block
+QueryStmt       ::= 'query' Identifier '{' QueryBody '}'
+QueryBody       ::= 'from' Identifier 'in' Expression ('join' Identifier 'in' Expression 'on' Expression)? ('where' Expression)? ('orderby' Expression)? ('select' Expression)?
+
+// Expressions
+Expression      ::= LogicalExpr
+LogicalExpr     ::= ComparisonExpr (('&&' | '||') ComparisonExpr)*
+ComparisonExpr  ::= AdditiveExpr (('==' | '!=' | '<' | '>' | '<=' | '>=') AdditiveExpr)?
+AdditiveExpr    ::= MultiplicativeExpr (('+' | '-') MultiplicativeExpr)*
+MultiplicativeExpr ::= UnaryExpr (('*' | '/' | '%') UnaryExpr)*
+UnaryExpr       ::= ('!' | '-')? PrimaryExpr
+PrimaryExpr     ::= Number | String | Bool | Identifier | '(' Expression ')' | FunctionCall | MemberAccess | LambdaExpr | ArrayLiteral | ObjectLiteral
+FunctionCall    ::= Identifier '(' (Expression (',' Expression)*)? ')'
+MemberAccess    ::= Expression '.' Identifier
+LambdaExpr      ::= '|' Params '|' '=>' Expression
+ArrayLiteral    ::= '[' (Expression (',' Expression)*)? ']'
+ObjectLiteral   ::= '{' (Identifier ':' Expression (',' Identifier ':' Expression)*)? '}'
+
+// Patterns
+Pattern         ::= LiteralPattern | VariablePattern | DestructurePattern | WildcardPattern
+LiteralPattern  ::= Number | String | Bool
+VariablePattern ::= Identifier
+DestructurePattern ::= '{' (Identifier (':' Pattern)? (',' Identifier (':' Pattern)?)*)? '}'
+WildcardPattern ::= '_'
+
+// Block
+Block           ::= '{' Statement* '}'
+
+// Lexical
+Identifier      ::= [a-zA-Z_][a-zA-Z0-9_]*
+Number          ::= [0-9]+ ('.' [0-9]+)?
+String          ::= '"' [^"]* '"'
+Bool            ::= 'true' | 'false'
+Comment         ::= '//' [^\n]* | '/*' .* '*/'

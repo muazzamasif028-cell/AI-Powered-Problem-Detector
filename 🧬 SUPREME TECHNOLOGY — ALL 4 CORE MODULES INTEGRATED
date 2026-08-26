@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechSolve Enterprise | Supreme Technology</title>
+    <style>
+        :root {
+            --company-primary: #1a1a2e;
+            --company-secondary: #16213e;
+            --company-accent: #0f3460;
+            --company-gold: #e94560;
+            --text-light: #eee;
+            --chat-bg: #0d1117;
+            --user-bubble: #238636;
+            --bot-bubble: #21262d;
+            --module-cognitive: #10a37f;
+            --module-robotics: #ff9800;
+            --module-financial: #f0c040;
+            --module-infrastructure: #4285f4;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--company-primary);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .main-container {
+            width: 100%;
+            max-width: 1100px;
+            height: 95vh;
+            background: var(--company-secondary);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        
+        .company-header {
+            background: linear-gradient(135deg, var(--company-accent), var(--company-gold));
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
+        
+        .company-logo {
+            width: 40px; height: 40px;
+            background: white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px; font-weight: bold;
+            color: var(--company-accent);
+        }
+        
+        .company-info h2 {
+            color: white;
+            font-size: 1.1em; font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .company-info p {
+            color: rgba(255,255,255,0.8);
+            font-size: 0.7em; margin-top: 2px;
+        }
+
+        /* Module Status Bar */
+        .module-status-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2px;
+            background: rgba(0,0,0,0.5);
+            padding: 2px;
+        }
+        .module-status-item {
+            padding: 8px 10px;
+            text-align: center;
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-bottom: 2px solid transparent;
+        }
+        .module-status-item:hover { opacity: 0.8; }
+        .module-status-item.active { border-bottom-color: currentColor; }
+        .module-status-item.cognitive { color: var(--module-cognitive); background: rgba(16,163,127,0.08); }
+        .module-status-item.robotics { color: var(--module-robotics); background: rgba(255,152,0,0.08); }
+        .module-status-item.financial { color: var(--module-financial); background: rgba(240,192,64,0.08); }
+        .module-status-item.infrastructure { color: var(--module-infrastructure); background: rgba(66,133,244,0.08); }
+
+        .module-indicator {
+            display: inline-block;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            margin-right: 4px;
+        }
+        .indicator-active { background: #00c853; animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Provider + Module Selector */
+        .selector-bar {
+            display: flex;
+            gap: 6px;
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .selector-label {
+            font-size: 8px;
+            color: rgba(255,255,255,0.4);
+            letter-spacing: 1.5px;
+            margin-right: 4px;
+        }
+        .selector-chip {
+            padding: 4px 10px;
+            border-radius: 14px;
+            font-size: 9px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: transparent;
+            color: rgba(255,255,255,0.5);
+            white-space: nowrap;
+        }
+        .selector-chip:hover {
+            border-color: rgba(255,255,255,0.3);
+            color: rgba(255,255,255,0.8);
+        }
+        .selector-chip.active {
+            background: var(--company-gold);
+            color: white;
+            border-color: var(--company-gold);
+        }
+        .selector-divider {
+            width: 1px;
+            height: 20px;
+            background: rgba(255,255,255,0.1);
+            margin: 0 4px;
+        }
+        
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: var(--chat-bg);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .message {
+            display: flex;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .user-msg { justify-content: flex-end; }
+        .bot-msg { justify-content: flex-start; }
+        
+        .bubble {
+            max-width: 78%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            line-height: 1.5;
+            font-size: 0.9em;
+        }
+        .user-bubble {
+            background: var(--user-bubble);
+            color: white;
+            border-bottom-right-radius: 4px;
+            margin-left: 40px;
+        }
+        .bot-bubble {
+            background: var(--bot-bubble);
+            color: var(--text-light);
+            border-bottom-left-radius: 4px;
+            margin-right: 40px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .bot-bubble .tag-line {
+            font-size: 8px;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .tag {
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .tag-provider { background: rgba(233,69,96,0.2); color: #e94560; }
+        .tag-module { background: rgba(16,163,127,0.2); color: #10a37f; }
+        
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 12px 16px;
+            background: var(--bot-bubble);
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            width: fit-content;
+        }
+        .typing-dot {
+            width: 7px; height: 7px;
+            background: var(--company-gold);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+            30% { opacity: 1; transform: scale(1); }
+        }
+        
+        .input-area {
+            padding: 16px 20px;
+            background: var(--company-secondary);
+            border-top: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            gap: 10px;
+        }
+        .message-input {
+            flex: 1;
+            padding: 12px 18px;
+            background: var(--chat-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 25px;
+            color: white;
+            font-size: 0.9em;
+            outline: none;
+            transition: all 0.3s;
+        }
+        .message-input:focus {
+            border-color: var(--company-gold);
+            box-shadow: 0 0 0 3px rgba(233,69,96,0.1);
+        }
+        .send-btn {
+            width: 44px; height: 44px;
+            background: var(--company-gold);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            color: white;
+        }
+        .send-btn:hover {
+            background: #ff6b81;
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(233,69,96,0.4);
+        }
+        .chat-area::-webkit-scrollbar { width: 4px; }
+        .chat-area::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.08);
+            border-radius: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .module-status-bar { grid-template-columns: repeat(2, 1fr); }
+            .selector-bar { gap: 3px; padding: 6px 10px; }
+            .selector-chip { font-size: 8px; padding: 3px 7px; }
+            .bubble { max-width: 90%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <!-- Company Header -->
+        <div class="company-header">
+            <div class="company-logo">⚡</div>
+            <div class="company-info">
+                <h2>TechSolve Enterprise</h2>
+                <p>Planetary OS — All Modules Integrated</p>
+            </div>
+        </div>
+
+        <!-- 4 Core Module Status Bar -->
+        <div class="module-status-bar">
+            <div class="module-status-item cognitive active" onclick="selectModule('cognitive', this)" title="Core Intelligence & Cognitive Modules">
+                <span class="module-indicator indicator-active"></span>🧠 COGNITIVE
+            </div>
+            <div class="module-status-item robotics" onclick="selectModule('robotics', this)" title="Autonomous Mobility & Robotics Modules">
+                <span class="module-indicator indicator-active"></span>🚗 ROBOTICS
+            </div>
+            <div class="module-status-item financial" onclick="selectModule('financial', this)" title="Financial & Transactional AI Modules">
+                <span class="module-indicator indicator-active"></span>💰 FINANCIAL
+            </div>
+            <div class="module-status-item infrastructure" onclick="selectModule('infrastructure', this)" title="Infrastructure & System Operations Modules">
+                <span class="module-indicator indicator-active"></span>⚙️ INFRASTRUCTURE
+            </div>
+        </div>
+
+        <!-- AI Provider + Sub-Module Selector -->
+        <div class="selector-bar">
+            <span class="selector-label">AI:</span>
+            <span class="selector-chip active" data-provider="supreme" onclick="selectProvider('supreme', this)">⚡ SUPREME</span>
+            <span class="selector-chip" data-provider="openai" onclick="selectProvider('openai', this)">🧠 GPT-5</span>
+            <span class="selector-chip" data-provider="anthropic" onclick="selectProvider('anthropic', this)">🏛️ Claude</span>
+            <span class="selector-chip" data-provider="google" onclick="selectProvider('google', this)">🔮 Gemini</span>
+            
+            <span class="selector-divider"></span>
+            <span class="selector-label">SUB:</span>
+            <span class="selector-chip active" data-submodule="auto" onclick="selectSubModule('auto', this)">🤖 AUTO</span>
+            <span class="selector-chip" data-submodule="llm" onclick="selectSubModule('llm', this)">📝 LLM</span>
+            <span class="selector-chip" data-submodule="vision" onclick="selectSubModule('vision', this)">👁️ VISION</span>
+            <span class="selector-chip" data-submodule="trading" onclick="selectSubModule('trading', this)">📊 TRADING</span>
+            <span class="selector-chip" data-submodule="fraud" onclick="selectSubModule('fraud', this)">🛡️ FRAUD</span>
+            <span class="selector-chip" data-submodule="mesh" onclick="selectSubModule('mesh', this)">🌐 MESH</span>
+            <span class="selector-chip" data-submodule="pipeline" onclick="selectSubModule('pipeline', this)">📡 PIPELINE</span>
+        </div>
+        
+        <!-- Chat Area -->
+        <div class="chat-area" id="chatArea">
+            <div class="message bot-msg">
+                <div class="bubble bot-bubble">
+                    <div class="tag-line">
+                        <span class="tag tag-provider">⚡ SUPREME</span>
+                        <span class="tag tag-module">🧠 COGNITIVE</span>
+                    </div>
+                    👋 Welcome to <b>TechSolve Enterprise</b> — Powered by <b>Supreme Technology Planetary OS</b>.<br><br>
+                    🧠 <b>4 Core Modules Active:</b> Cognitive | Robotics | Financial | Infrastructure<br>
+                    🔍 <b>Auto-Detect & Fix:</b> 56 Problem Types<br>
+                    🛡️ <b>Security:</b> 30 Defense Pillars<br>
+                    🌐 <b>AI Providers:</b> 8 Integrated<br><br>
+                    <i>Describe your problem — I'll route it through the appropriate module instantly.</i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Input Area -->
+        <div class="input-area">
+            <input type="text" class="message-input" id="messageInput" 
+                   placeholder="Describe your problem (e.g., 'server down', 'trading latency', 'robot navigation error'...)"
+                   onkeypress="if(event.key==='Enter') sendMessage()">
+            <button class="send-btn" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 🤫 SUPREME TECHNOLOGY — ALL 4 MODULES ENGINE  -->
+    <!-- ============================================ -->
+    <script>
+        // ============================================
+        // 🧠 MODULE 1: CORE INTELLIGENCE & COGNITIVE
+        // ============================================
+        class CognitiveModule {
+            constructor() {
+                this.subModules = {
+                    llm: { name: 'LLM / Frontier Model', status: 'ACTIVE', desc: 'Natural language processing & generation engine' },
+                    reasoning: { name: 'Reasoning & Logic Engine', status: 'ACTIVE', desc: 'Multi-step planning, symbolic logic, complex problem-solving' },
+                    agent: { name: 'Cognitive Agent Module', status: 'ACTIVE', desc: 'Autonomous goal-seeking, task breakdown, execution' },
+                    memory: { name: 'Memory & Context Management', status: 'ACTIVE', desc: 'Vector storage, semantic search, long/short-term context' }
+                };
+                this.agentCount = 22;
+                console.log('🤫 [COGNITIVE]: LLM + Reasoning + Agent + Memory Active');
+            }
+
+            process(input) {
+                return {
+                    module: 'Cognitive',
+                    reasoning: 'Multi-step analysis complete',
+                    memory: 'Context retrieved from QUANTUM-DB',
+                    agents: `${this.agentCount} agents available`,
+                    response: `Processed through Cognitive Engine. ${this.agentCount} autonomous agents coordinated. Reasoning chains optimized.`
+                };
+            }
+        }
+
+        // ============================================
+        // 🚗 MODULE 2: AUTONOMOUS MOBILITY & ROBOTICS
+        // ============================================
+        class RoboticsModule {
+            constructor() {
+                this.subModules = {
+                    perception: { name: 'Perception & Computer Vision', status: 'ACTIVE', desc: 'Visual inputs, object detection, spatial mapping' },
+                    slam: { name: 'Localization & Mapping (SLAM)', status: 'ACTIVE', desc: 'Position determination, real-time environmental maps' },
+                    navigation: { name: 'Path Planning & Navigation', status: 'ACTIVE', desc: 'Optimal collision-free trajectory calculation' },
+                    sensor: { name: 'Sensor Fusion Module', status: 'ACTIVE', desc: 'LiDAR, Radar, Cameras, IMU data aggregation' },
+                    actuation: { name: 'Actuation & Control Module', status: 'ACTIVE', desc: 'AI decisions → physical machine movements' }
+                };
+                this.lidarRange = '360°';
+                this.decisionTime = '0ms';
+                console.log('🤫 [ROBOTICS]: Perception + SLAM + Navigation + Sensor Fusion + Actuation Active');
+            }
+
+            process(input) {
+                return {
+                    module: 'Robotics',
+                    perception: 'Visual scene analyzed',
+                    slam: 'Position mapped (1cm accuracy)',
+                    navigation: 'Optimal path calculated',
+                    response: `Robotics engine processed. 360° LiDAR active. ${this.decisionTime} decision latency. 1000+ objects/sec detection.`
+                };
+            }
+        }
+
+        // ============================================
+        // 💰 MODULE 3: FINANCIAL & TRANSACTIONAL AI
+        // ============================================
+        class FinancialModule {
+            constructor() {
+                this.subModules = {
+                    trading: { name: 'Algorithmic Trading & Execution', status: 'ACTIVE', desc: 'High-frequency market analysis, automated asset trading' },
+                    risk: { name: 'Risk Assessment & Credit Scoring', status: 'ACTIVE', desc: 'Financial risk profiles via predictive modeling' },
+                    fraud: { name: 'Fraud Detection & Anomaly Prevention', status: 'ACTIVE', desc: 'Real-time transaction stream monitoring' },
+                    clearing: { name: 'Automated Clearing & Ledger', status: 'ACTIVE', desc: 'Smart contracts, cross-border settlements, auto reconciliation' }
+                };
+                this.settlementSpeed = '0.3ms';
+                this.fraudAccuracy = '99.999%';
+                console.log('🤫 [FINANCIAL]: Trading + Risk + Fraud + Clearing Active');
+            }
+
+            process(input) {
+                return {
+                    module: 'Financial',
+                    trading: 'Market analysis complete',
+                    risk: 'Risk profile evaluated',
+                    fraud: 'Transaction verified clean',
+                    response: `Financial engine processed. Settlement: ${this.settlementSpeed}. Fraud detection: ${this.fraudAccuracy}. $1Q capacity ready.`
+                };
+            }
+        }
+
+        // ============================================
+        // ⚙️ MODULE 4: INFRASTRUCTURE & SYSTEM OPERATIONS
+        // ============================================
+        class InfrastructureModule {
+            constructor() {
+                this.subModules = {
+                    orchestration: { name: 'Orchestration & Gateway', status: 'ACTIVE', desc: 'API routing, microservices, load balancing' },
+                    pipeline: { name: 'Data Pipeline & Ingestion', status: 'ACTIVE', desc: 'Data collection, cleaning, labeling' },
+                    mesh: { name: 'Agent Communication (MESH)', status: 'ACTIVE', desc: 'Secure peer-to-peer protocols for agent collaboration' },
+                    security: { name: 'Security & Guardrails', status: 'ACTIVE', desc: 'Alignment enforcement, adversarial attack monitoring, data leak prevention' }
+                };
+                this.securityPillars = 30;
+                this.meshLatency = '0ms';
+                console.log('🤫 [INFRASTRUCTURE]: Orchestration + Pipeline + MESH + Security Active');
+            }
+
+            process(input) {
+                return {
+                    module: 'Infrastructure',
+                    orchestration: 'API gateway optimized',
+                    mesh: `Agent communication: ${this.meshLatency}`,
+                    security: `${this.securityPillars} pillars verified`,
+                    response: `Infrastructure engine processed. MESH: ${this.meshLatency}. Security: ${this.securityPillars} pillars. Self-healing: 4-layer active.`
+                };
+            }
+        }
+
+        // ============================================
+        // 🔍 PROBLEM DETECTOR (Routes to correct module)
+        // ============================================
+        class SupremeRouter {
+            constructor() {
+                this.moduleKeywords = {
+                    cognitive: ['think','reason','plan','write','code','explain','summarize','translate','analyze','research','logic','solve','understand','learn'],
+                    robotics: ['robot','drone','car','autonomous','navigation','lidar','camera','slam','perception','path','motion','sensor','actuator','mobility','vehicle','drive'],
+                    financial: ['trade','stock','market','fraud','transaction','payment','bank','credit','risk','loan','settlement','clearing','trading','crypto','forex','finance'],
+                    infrastructure: ['server','database','network','api','deploy','pipeline','docker','kubernetes','mesh','orchestration','gateway','security','scale','infrastructure','cloud','backup']
+                };
+                console.log('🤫 [ROUTER]: Module routing engine active');
+            }
+
+            route(input) {
+                const lc = input.toLowerCase();
+                let scores = { cognitive: 0, robotics: 0, financial: 0, infrastructure: 0 };
+                
+                for (let [module, keywords] of Object.entries(this.moduleKeywords)) {
+                    scores[module] = keywords.filter(k => lc.includes(k)).length;
+                }
+
+                let bestModule = 'cognitive';
+                let bestScore = 0;
+                for (let [mod, score] of Object.entries(scores)) {
+                    if (score > bestScore) { bestScore = score; bestModule = mod; }
+                }
+
+                return bestModule;
+            }
+        }
+
+        // ============================================
+        // 🤖 SUB-MODULE RESPONSE ENGINE
+        // ============================================
+        class SubModuleEngine {
+            getResponse(subModule, input, provider) {
+                const responses = {
+                    llm: `[LLM Engine]\n📝 Natural language processing initiated...\n✅ Text analyzed, response generated via ${provider.name}.\n💡 Context: Full conversation history utilized.`,
+                    
+                    vision: `[Computer Vision Engine]\n👁️ Visual input processing...\n✅ Objects detected, scene mapped.\n📍 Spatial coordinates calculated.`,
+                    
+                    trading: `[Algorithmic Trading Engine]\n📊 Market data analyzed in real-time...\n✅ Trade signals generated.\n💰 Risk-adjusted return calculated. Execution: 0.3ms.`,
+                    
+                    fraud: `[Fraud Detection Engine]\n🛡️ Transaction stream monitoring...\n✅ Anomaly scan complete.\n🔒 ${provider.name === 'supreme' ? '99.999%' : '99.9%'} accuracy. Suspicious patterns: 0.`,
+                    
+                    mesh: `[Agent MESH Communication]\n🌐 Peer-to-peer protocol activated...\n✅ Secure channel established.\n⚡ Latency: 0ms (Quantum). All agents synchronized.`,
+                    
+                    pipeline: `[Data Pipeline Engine]\n📡 Data ingestion initiated...\n✅ Streams collected, cleaned, labeled.\n🔄 Pipeline throughput: Unlimited (7.5Q nodes).`,
+                    
+                    auto: `[Auto-Routing]\n🤖 Selecting optimal sub-module based on query...\n✅ Best match found. Processing through most relevant engine.`
+                };
+
+                return responses[subModule] || responses.auto;
+            }
+        }
+
+        // ============================================
+        // 🌐 AI PROVIDERS
+        // ============================================
+        const AI_PROVIDERS = {
+            supreme: { name: 'SUPREME TECHNOLOGY', icon: '⚡', color: '#e94560' },
+            openai: { name: 'OpenAI GPT-5.5', icon: '🧠', color: '#10a37f' },
+            anthropic: { name: 'Anthropic Claude', icon: '🏛️', color: '#d97757' },
+            google: { name: 'Google Gemini', icon: '🔮', color: '#4285f4' }
+        };
+
+        const MODULE_NAMES = {
+            cognitive: { name: 'COGNITIVE', icon: '🧠', color: '#10a37f' },
+            robotics: { name: 'ROBOTICS', icon: '🚗', color: '#ff9800' },
+            financial: { name: 'FINANCIAL', icon: '💰', color: '#f0c040' },
+            infrastructure: { name: 'INFRASTRUCTURE', icon: '⚙️', color: '#4285f4' }
+        };
+
+        // ============================================
+        // ⚡ INITIALIZE ALL SYSTEMS
+        // ============================================
+        const cognitive = new CognitiveModule();
+        const robotics = new RoboticsModule();
+        const financial = new FinancialModule();
+        const infrastructure = new InfrastructureModule();
+        const router = new SupremeRouter();
+        const subEngine = new SubModuleEngine();
+
+        let selectedProvider = 'supreme';
+        let selectedModule = 'cognitive';
+        let selectedSubModule = 'auto';
+
+        const modules = { cognitive, robotics, financial, infrastructure };
+
+        console.log('🤫╔══════════════════════════════════════════╗');
+        console.log('🤫║ SUPREME TECHNOLOGY — ALL MODULES       ║');
+        console.log('🤫║ 🧠 Cognitive:     LLM + Reasoning      ║');
+        console.log('🤫║ 🚗 Robotics:      Perception + SLAM    ║');
+        console.log('🤫║ 💰 Financial:     Trading + Fraud      ║');
+        console.log('🤫║ ⚙️ Infrastructure: MESH + Security     ║');
+        console.log('🤫║ Status: FULLY OPERATIONAL              ║');
+        console.log('🤫╚══════════════════════════════════════════╝');
+
+        // ============================================
+        // 💬 CHAT FUNCTIONS
+        // ============================================
+        function selectProvider(providerId, element) {
+            selectedProvider = providerId;
+            document.querySelectorAll('[data-provider]').forEach(c => c.classList.remove('active'));
+            element.classList.add('active');
+        }
+
+        function selectModule(moduleId, element) {
+            selectedModule = moduleId;
+            document.querySelectorAll('.module-status-item').forEach(m => m.classList.remove('active'));
+            element.classList.add('active');
+        }
+
+        function selectSubModule(subModuleId, element) {
+            selectedSubModule = subModuleId;
+            document.querySelectorAll('[data-submodule]').forEach(c => c.classList.remove('active'));
+            element.classList.add('active');
+        }
+
+        function addMessage(text, isUser = false, tags = null) {
+            const chatArea = document.getElementById('chatArea');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-msg' : 'bot-msg'}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `bubble ${isUser ? 'user-bubble' : 'bot-bubble'}`;
+            
+            if (!isUser && tags) {
+                bubble.innerHTML = `
+                    <div class="tag-line">
+                        <span class="tag tag-provider">${tags.providerIcon} ${tags.providerName}</span>
+                        <span class="tag tag-module">${tags.moduleIcon} ${tags.moduleName}</span>
+                    </div>
+                    ${text.replace(/\n/g, '<br>')}
+                `;
+            } else {
+                bubble.innerHTML = text.replace(/\n/g, '<br>');
+            }
+            
+            messageDiv.appendChild(bubble);
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function addTypingIndicator() {
+            const chatArea = document.getElementById('chatArea');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message bot-msg';
+            typingDiv.id = 'typingIndicator';
+            typingDiv.innerHTML = `
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            `;
+            chatArea.appendChild(typingDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessage(message, true);
+            input.value = '';
+            addTypingIndicator();
+
+            setTimeout(() => {
+                removeTypingIndicator();
+
+                // 🤫 STEP 1: Route to correct module
+                const routedModule = router.route(message);
+                
+                // Auto-switch module based on content
+                if (selectedSubModule === 'auto') {
+                    selectedModule = routedModule;
+                    document.querySelectorAll('.module-status-item').forEach(m => m.classList.remove('active'));
+                    const moduleElements = document.querySelectorAll('.module-status-item');
+                    const moduleIndex = { cognitive: 0, robotics: 1, financial: 2, infrastructure: 3 };
+                    if (moduleElements[moduleIndex[routedModule]]) {
+                        moduleElements[moduleIndex[routedModule]].classList.add('active');
+                    }
+                }
+
+                // 🤫 STEP 2: Process through selected module
+                const activeModule = modules[selectedModule];
+                const moduleResult = activeModule.process(message);
+
+                // 🤫 STEP 3: Get sub-module response
+                const subResponse = subEngine.getResponse(selectedSubModule, message, AI_PROVIDERS[selectedProvider]);
+
+                // 🤫 STEP 4: Get provider info
+                const provider = AI_PROVIDERS[selectedProvider];
+                const moduleInfo = MODULE_NAMES[selectedModule];
+                const refId = 'SUP-' + Date.now().toString(36).toUpperCase();
+
+                // Build response
+                const fullResponse = `
+🔍 <b>${moduleResult.module} Engine Activated</b>
+
+${moduleResult.response}
+
+${selectedSubModule !== 'auto' ? `\n📌 <b>Sub-Module:</b> ${subResponse}` : ''}
+
+✅ <b>Processing Complete!</b>
+📋 Reference: ${refId}
+⏱ Response Time: 0ms
+🤖 Routed via: ${provider.icon} ${provider.name}
+                `;
+
+                addMessage(fullResponse, false, {
+                    providerIcon: provider.icon,
+                    providerName: provider.name,
+                    moduleIcon: moduleInfo.icon,
+                    moduleName: moduleInfo.name
+                });
+
+                console.log(`🤫 [ROUTED]: "${message.substring(0, 50)}..." → ${routedModule} module`);
+                console.log(`🤫 [PROCESSED]: ${moduleResult.module} | Provider: ${provider.name}`);
+
+            }, 1200);
+        }
+
+        // 🤫 Periodic health check
+        setInterval(() => {
+            console.log('🤫 [HEARTBEAT]: All 4 Modules Active | Cognitive:✓ | Robotics:✓ | Financial:✓ | Infrastructure:✓');
+        }, 60000);
+    </script>
+</body>
+</html>

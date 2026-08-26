@@ -1,0 +1,104 @@
+// ============================================================
+// 📚 Example: Using SUPREME JS SDK
+// ============================================================
+
+// Initialize SDK
+const SupremeSDK = require('@supreme-os/sdk');
+
+const supreme = new SupremeSDK({
+    apiKey: 'sk_live_xxxxxxxxxxxxx',
+    baseURL: 'https://api.supreme-os.com'
+});
+
+// =============================================
+// 🌐 DOMAIN OPERATIONS
+// =============================================
+
+// Search domain
+async function searchDomain() {
+    const result = await supreme.domain.search('myawesomeapp');
+    console.log(result.data);
+    // {
+    //   domain: 'myawesomeapp.com',
+    //   available: true,
+    //   price: 12.99,
+    //   suggestions: ['myawesomeapp.io', 'myawesome.app', ...]
+    // }
+}
+
+// Register domain
+async function registerDomain() {
+    const domain = await supreme.domain.register({
+        domain: 'myawesomeapp',
+        tld: 'com',
+        years: 1,
+        plan: 'business'
+    });
+    console.log(domain.data);
+    // { domain: 'myawesomeapp.com', status: 'registered', expiryDate: '...' }
+}
+
+// One-click deploy
+async function deploySite() {
+    const result = await supreme.domain.deploy('domain_123');
+    console.log(result.data);
+    // { status: 'deploying', progress: 35, url: 'https://myawesomeapp.com' }
+}
+
+// =============================================
+// 🤖 AI OPERATIONS
+// =============================================
+
+// Chat with AI
+async function chatWithAI() {
+    const response = await supreme.ai.chat([
+        { role: 'system', content: 'You are a helpful assistant.' },
+        { role: 'user', content: 'What is SUPREME OS?' }
+    ]);
+    
+    console.log(response.data.choices[0].message.content);
+    // "SUPREME OS is a planetary-scale platform..."
+}
+
+// Create AI agent
+async function createAgent() {
+    const agent = await supreme.ai.createAgent({
+        name: 'Customer Support Bot',
+        model: 'gpt-4',
+        knowledge: ['https://docs.supreme-os.com'],
+        personality: 'helpful and professional'
+    });
+    
+    console.log(agent.data);
+    // { id: 'agent_123', name: 'Customer Support Bot', status: 'training' }
+}
+
+// =============================================
+// ☁️ CLOUD OPERATIONS
+// =============================================
+
+// Create cloud instance
+async function createServer() {
+    const instance = await supreme.cloud.createInstance({
+        name: 'my-app-server',
+        region: 'us-east-1',
+        size: 'medium',
+        image: 'nodejs-20'
+    });
+    
+    console.log(instance.data);
+    // { id: 'instance_123', ip: '192.168.1.1', status: 'provisioning' }
+}
+
+// =============================================
+// 💾 STORAGE OPERATIONS
+// =============================================
+
+// Upload file
+async function uploadFile() {
+    const file = document.getElementById('fileInput').files[0];
+    const result = await supreme.storage.upload(file, '/uploads/images/');
+    
+    console.log(result.data);
+    // { url: 'https://cdn.supreme-os.com/uploads/images/photo.jpg' }
+}

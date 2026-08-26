@@ -1,0 +1,208 @@
+// ============================================================
+// 🏗️ spl-core/compiler/SupremeCompilerCore.js
+// SPL Shared Compiler Infrastructure
+// ============================================================
+
+class SupremeCompilerCore {
+    constructor(options = {}) {
+        this.options = {
+            target: options.target || 'vehicle',
+            optimization: options.optimization || 2,
+            debug: options.debug || false,
+            backend: options.backend || 'cpp',
+            ...options
+        };
+        
+        // Compiler phases
+        this.phases = [
+            new LexicalAnalyzer(),
+            new SyntaxAnalyzer(),
+            new SemanticAnalyzer(),
+            new IntermediateCodeGenerator(),
+            new Optimizer(),
+            new CodeGenerator()
+        ];
+        
+        // Infrastructure
+        this.symbolTable = new SymbolTable();
+        this.typeSystem = new TypeSystem();
+        this.diagnosticEngine = new DiagnosticEngine();
+        this.errorRecovery = new ErrorRecovery();
+    }
+
+    async compile(source, target) {
+        console.log(`🧬 SPL-CORE Compiling for ${target}...\n`);
+        
+        let ast = source;
+        
+        for (const phase of this.phases) {
+            console.log(`  ⚡ ${phase.name}...`);
+            ast = await phase.process(ast, {
+                symbolTable: this.symbolTable,
+                typeSystem: this.typeSystem,
+                diagnostics: this.diagnosticEngine,
+                options: this.options
+            });
+            
+            if (this.diagnosticEngine.hasErrors()) {
+                return { success: false, errors: this.diagnosticEngine.getErrors() };
+            }
+        }
+        
+        console.log(`\n✅ Compilation successful\n`);
+        return { success: true, code: ast };
+    }
+}
+
+// ============================================================
+// 📊 SYMBOL TABLE
+// ============================================================
+class SymbolTable {
+    constructor() {
+        this.scopes = [new Map()]; // Global scope
+        this.currentScope = 0;
+    }
+
+    enterScope() {
+        this.scopes.push(new Map());
+        this.currentScope++;
+    }
+
+    exitScope() {
+        this.scopes.pop();
+        this.currentScope--;
+    }
+
+    define(name, info) {
+        this.scopes[this.currentScope].set(name, info);
+    }
+
+    lookup(name) {
+        for (let i = this.currentScope; i >= 0; i--) {
+            if (this.scopes[i].has(name)) {
+                return this.scopes[i].get(name);
+            }
+        }
+        return null;
+    }
+}
+
+// ============================================================
+// 🎯 TYPE SYSTEM
+// ============================================================
+class TypeSystem {
+    constructor() {
+        this.types = new Map();
+        this.registerBuiltinTypes();
+    }
+
+    registerBuiltinTypes() {
+        // Vehicle-specific types
+        this.register('Speed', { base: 'Float', unit: 'kmh', range: [0, 350] });
+        this.register('Distance', { base: 'Float', unit: 'meters', range: [0, Infinity] });
+        this.register('Battery', { base: 'Float', unit: 'percent', range: [0, 100] });
+        this.register('Temperature', { base: 'Float', unit: 'celsius', range: [-50, 150] });
+        this.register('Voltage', { base: 'Float', unit: 'volts', range: [0, 1000] });
+        this.register('Current', { base: 'Float', unit: 'amps', range: [0, 1000] });
+        this.register('Torque', { base: 'Float', unit: 'nm', range: [0, 2000] });
+        this.register('Power', { base: 'Float', unit: 'hp', range: [0, 2000] });
+        this.register('Angle', { base: 'Float', unit: 'degrees', range: [0, 360] });
+        this.register('GPS', { base: 'Object', fields: ['lat', 'lng'] });
+        this.register('Route', { base: 'Object', fields: ['points', 'distance', 'eta'] });
+    }
+
+    register(name, info) {
+        this.types.set(name, info);
+    }
+
+    check(expr, expected) {
+        // Type checking with unit validation
+        if (expr.unit && expected.unit && expr.unit !== expected.unit) {
+            return { valid: false, error: `Unit mismatch: ${expr.unit} vs ${expected.unit}` };
+        }
+        return { valid: true };
+    }
+
+    infer(expr) {
+        // Type inference
+        if (typeof expr === 'number') return 'Float';
+        if (typeof expr === 'string') return 'String';
+        if (typeof expr === 'boolean') return 'Bool';
+        return 'Unknown';
+    }
+}
+
+// ============================================================
+// 🔍 DIAGNOSTIC ENGINE
+// ============================================================
+class DiagnosticEngine {
+    constructor() {
+        this.errors = [];
+        this.warnings = [];
+        this.suggestions = [];
+    }
+
+    error(line, column, message, code) {
+        this.errors.push({
+            type: 'ERROR',
+            line,
+            column,
+            message,
+            code,
+            suggestion: this.getSuggestion(code)
+        });
+    }
+
+    warning(line, column, message, code) {
+        this.warnings.push({ type: 'WARNING', line, column, message, code });
+    }
+
+    suggest(line, column, message, fix) {
+        this.suggestions.push({ type: 'SUGGESTION', line, column, message, fix });
+    }
+
+    hasErrors() { return this.errors.length > 0; }
+    getErrors() { return this.errors; }
+
+    getSuggestion(code) {
+        const suggestions = {
+            'E001': 'Did you mean "battery" instead of "batary"?',
+            'E002': 'Missing semicolon at end of statement',
+            'E003': 'Type mismatch: cannot assign String to Number',
+            'E004': 'Unknown identifier. Check spelling or import.',
+            'E005': 'Unit mismatch. Cannot add kmh and meters.'
+        };
+        return suggestions[code] || 'Check syntax and try again.';
+    }
+}
+
+// ============================================================
+// 🔄 ERROR RECOVERY
+// ============================================================
+class ErrorRecovery {
+    constructor() {
+        this.strategies = {
+            SKIP_TO_SEMICOLON: 'skip_to_semicolon',
+            SKIP_TO_RBRACE: 'skip_to_rbrace',
+            INSERT_MISSING: 'insert_missing_token',
+            DELETE_EXTRA: 'delete_extra_token'
+        };
+    }
+
+    recover(tokens, error, strategy = 'SKIP_TO_SEMICOLON') {
+        switch (strategy) {
+            case 'SKIP_TO_SEMICOLON':
+                while (tokens.pos < tokens.length && tokens[tokens.pos].type !== 'SEMICOLON') {
+                    tokens.pos++;
+                }
+                tokens.pos++; // Skip semicolon
+                break;
+            case 'SKIP_TO_RBRACE':
+                while (tokens.pos < tokens.length && tokens[tokens.pos].type !== 'RBRACE') {
+                    tokens.pos++;
+                }
+                break;
+        }
+        return tokens;
+    }
+}

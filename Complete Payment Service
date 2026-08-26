@@ -1,0 +1,260 @@
+// services/payment.service.js
+const GatewayFactory = require('../gateways/GatewayFactory');
+const CardValidator = require('../utils/cardValidator');
+const FraudService = require('./fraud.service');
+const Transaction = require('../models/Transaction');
+const Invoice = require('../models/Invoice');
+const crypto = require('crypto');
+
+class PaymentService {
+    constructor() {
+        this.gatewayFactory = GatewayFactory;
+        this.processingPayments = new Map();
+    }
+
+    /**
+     * Process a complete payment
+     */
+    async processPayment(paymentRequest) {
+        const startTime = Date.now();
+        
+        try {
+            // 1. Validate card if card payment
+            if (paymentRequest.card) {
+                const cardValidation = CardValidator.validateCard(paymentRequest.card);
+                if (!cardValidation.valid) {
+                    return {
+                        success: false,
+                        error: 'CARD_VALIDATION_FAILED',
+                        details: cardValidation.errors,
+                        code: 'INVALID_CARD'
+                    };
+                }
+            }
+
+            // 2. Check for duplicate transaction
+            const idempotencyKey = paymentRequest.idempotencyKey || 
+                this.generateIdempotencyKey(paymentRequest);
+            
+            const existingTransaction = await Transaction.findOne({ 
+                idempotencyKey,
+                status: 'SUCCESS'
+            });
+            
+            if (existingTransaction) {
+                return {
+                    success: true,
+                    duplicate: true,
+                    transaction: existingTransaction
+                };
+            }
+
+            // 3. Fraud check
+            const fraudScore = await FraudService.assessRisk(paymentRequest);
+            
+            if (fraudScore.risk === 'HIGH') {
+                return {
+                    success: false,
+                    error: 'Transaction blocked by fraud detection',
+                    code: 'FRAUD_BLOCKED',
+                    fraudScore
+                };
+            }
+
+            // 4. Select gateway
+            const gateway = this.gatewayFactory.getGatewayForPayment({
+                country: paymentRequest.country || 'PK',
+                currency: paymentRequest.currency || 'PKR',
+                amount: paymentRequest.amount,
+                paymentMethod: paymentRequest.paymentMethod
+            });
+
+            if (!gateway) {
+                return {
+                    success: false,
+                    error: 'No payment gateway available',
+                    code: 'NO_GATEWAY'
+                };
+            }
+
+            // 5. Process payment
+            const gatewayResponse = await gateway.processPayment({
+                amount: paymentRequest.amount,
+                currency: paymentRequest.currency,
+                customerName: paymentRequest.customerName,
+                customerEmail: paymentRequest.customerEmail,
+                customerPhone: paymentRequest.customerPhone,
+                description: paymentRequest.description,
+                returnUrl: paymentRequest.returnUrl,
+                cancelUrl: paymentRequest.cancelUrl,
+                metadata: paymentRequest.metadata
+            });
+
+            // 6. Save transaction
+            const transaction = await Transaction.create({
+                transactionId: gatewayResponse.transactionId,
+                idempotencyKey,
+                gateway: gateway.gatewayId,
+                gatewayTransactionId: gatewayResponse.gatewayTransactionId,
+                amount: paymentRequest.amount,
+                currency: paymentRequest.currency,
+                status: gatewayResponse.success ? 'PENDING' : 'FAILED',
+                customer: {
+                    name: paymentRequest.customerName,
+                    email: paymentRequest.customerEmail,
+                    phone: paymentRequest.customerPhone,
+                    country: paymentRequest.country
+                },
+                metadata: paymentRequest.metadata,
+                fraudScore: fraudScore.score,
+                processingTime: Date.now() - startTime,
+                redirectUrl: gatewayResponse.redirectUrl,
+                createdAt: new Date()
+            });
+
+            // 7. If requires redirect, return URL
+            if (gatewayResponse.redirectUrl) {
+                return {
+                    success: true,
+                    requiresRedirect: true,
+                    redirectUrl: gatewayResponse.redirectUrl,
+                    transactionId: transaction.transactionId,
+                    formData: gatewayResponse.formData || null,
+                    gateway: gateway.gatewayId
+                };
+            }
+
+            return {
+                success: gatewayResponse.success,
+                transaction,
+                gateway: gateway.gatewayId,
+                requiresRedirect: false
+            };
+
+        } catch (error) {
+            console.error('Payment processing error:', error);
+            
+            return {
+                success: false,
+                error: error.message,
+                code: 'PROCESSING_ERROR',
+                processingTime: Date.now() - startTime
+            };
+        }
+    }
+
+    /**
+     * Verify payment after redirect/callback
+     */
+    async verifyPayment(transactionId, gatewayId) {
+        try {
+            const gateway = this.gatewayFactory.getGateway(gatewayId);
+            const verification = await gateway.verifyPayment(transactionId);
+
+            // Update transaction
+            await Transaction.updateOne(
+                { transactionId },
+                {
+                    status: verification.status,
+                    gatewayTransactionId: verification.gatewayTransactionId,
+                    cardLast4: verification.cardLast4,
+                    cardBrand: verification.cardBrand,
+                    paidAt: verification.paidAt,
+                    verificationData: verification,
+                    updatedAt: new Date()
+                }
+            );
+
+            // If payment successful, generate invoice
+            if (verification.success) {
+                const transaction = await Transaction.findOne({ transactionId });
+                await Invoice.generateFromTransaction(transaction);
+            }
+
+            return {
+                success: verification.success,
+                status: verification.status,
+                transactionId,
+                receiptUrl: verification.receiptUrl
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Process refund
+     */
+    async processRefund(transactionId, amount = null, reason = '') {
+        try {
+            const transaction = await Transaction.findOne({ transactionId });
+            
+            if (!transaction) {
+                return { success: false, error: 'Transaction not found' };
+            }
+
+            if (transaction.status !== 'SUCCESS') {
+                return { success: false, error: 'Can only refund successful transactions' };
+            }
+
+            const gateway = this.gatewayFactory.getGateway(transaction.gateway);
+            const refund = await gateway.processRefund(
+                transaction.gatewayTransactionId,
+                amount
+            );
+
+            if (refund.success) {
+                // Create refund record
+                await Refund.create({
+                    originalTransactionId: transactionId,
+                    refundTransactionId: refund.refundTransactionId,
+                    amount: amount || transaction.amount,
+                    currency: transaction.currency,
+                    gateway: transaction.gateway,
+                    reason,
+                    status: 'COMPLETED',
+                    processedAt: new Date()
+                });
+
+                // Update original transaction
+                await Transaction.updateOne(
+                    { transactionId },
+                    { 
+                        status: amount && amount < transaction.amount ? 
+                            'PARTIALLY_REFUNDED' : 'REFUNDED',
+                        refundedAmount: amount || transaction.amount
+                    }
+                );
+            }
+
+            return refund;
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Get available payment methods for user
+     */
+    getPaymentMethods(country, amount) {
+        return this.gatewayFactory.getGatewaysForCountry(country);
+    }
+
+    /**
+     * Generate idempotency key
+     */
+    generateIdempotencyKey(data) {
+        const key = `${data.customerEmail}_${data.amount}_${Date.now()}`;
+        return crypto.createHash('sha256').update(key).digest('hex');
+    }
+}
+
+module.exports = new PaymentService();

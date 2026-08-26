@@ -1,0 +1,296 @@
+// ============================================================
+// ⚡ agents/AgentScheduler.js
+// SUPREME Agent Scheduler — Orchestrates 2M Agents
+// Priority-Based | Resource-Aware | Self-Balancing
+// ============================================================
+const EventEmitter = require('events');
+
+class AgentScheduler extends EventEmitter {
+    constructor(registry) {
+        super();
+        this.registry = registry;
+        
+        // Priority queues
+        this.queues = {
+            CRITICAL: [],   // Immediate execution
+            HIGH: [],       // Within 100ms
+            MEDIUM: [],     // Within 1 second
+            LOW: [],        // Within 10 seconds
+            BACKGROUND: []  // When resources available
+        };
+        
+        // Resource pools
+        this.resources = {
+            total: {
+                cpu: 1000,    // CPU cores
+                memory: 4096,  // GB RAM
+                gpu: 100,      // GPU units
+                storage: 10000 // TB
+            },
+            available: {
+                cpu: 1000,
+                memory: 4096,
+                gpu: 100,
+                storage: 10000
+            },
+            reserved: {
+                cpu: 0,
+                memory: 0,
+                gpu: 0,
+                storage: 0
+            }
+        };
+        
+        // Scheduling config
+        this.config = {
+            maxConcurrentAgents: 10000,
+            maxAgentsPerUser: 100,
+            defaultTimeout: 30000,
+            preemptionEnabled: true,
+            loadBalancingStrategy: 'LEAST_LOADED'
+        };
+        
+        // Running agents
+        this.runningAgents = new Map();
+        
+        // Start scheduler loop
+        this.schedulerLoop = setInterval(() => this.schedule(), 50);
+    }
+
+    /**
+     * Submit agent for execution
+     */
+    async submitAgent(agentId, params = {}, priority = 'MEDIUM') {
+        const agent = this.registry.getAgent(agentId);
+        
+        if (!agent) {
+            throw new Error(`Agent ${agentId} not found`);
+        }
+        
+        // Check resource availability
+        const canSchedule = this.checkResources(agent.requirements);
+        
+        if (!canSchedule && priority === 'CRITICAL') {
+            // Preempt lower priority agents for critical tasks
+            this.preemptLowerPriority();
+        }
+        
+        const task = {
+            taskId: `TASK_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            agentId,
+            agent,
+            params,
+            priority,
+            status: 'QUEUED',
+            queuedAt: new Date().toISOString(),
+            attempts: 0,
+            maxAttempts: 3
+        };
+        
+        // Add to appropriate queue
+        this.queues[priority].push(task);
+        
+        this.emit('task:queued', { taskId: task.taskId, priority });
+        
+        return task;
+    }
+
+    /**
+     * Main scheduling loop
+     */
+    schedule() {
+        // Process queues in priority order
+        const priorities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'BACKGROUND'];
+        
+        for (const priority of priorities) {
+            const queue = this.queues[priority];
+            
+            while (queue.length > 0 && this.canScheduleMore()) {
+                const task = queue.shift();
+                this.executeTask(task);
+            }
+        }
+    }
+
+    /**
+     * Execute a task
+     */
+    async executeTask(task) {
+        const { agent, params } = task;
+        
+        // Reserve resources
+        this.reserveResources(agent.requirements);
+        
+        // Update task status
+        task.status = 'RUNNING';
+        task.startedAt = new Date().toISOString();
+        
+        this.runningAgents.set(task.taskId, task);
+        
+        try {
+            // Execute agent
+            const result = await this.runAgent(agent, params);
+            
+            // Mark success
+            task.status = 'COMPLETED';
+            task.completedAt = new Date().toISOString();
+            task.result = result;
+            
+            this.emit('task:completed', { taskId: task.taskId, duration: Date.now() - new Date(task.startedAt).getTime() });
+            
+        } catch (error) {
+            // Handle failure
+            task.status = 'FAILED';
+            task.error = error.message;
+            task.attempts++;
+            
+            // Retry if attempts remaining
+            if (task.attempts < task.maxAttempts) {
+                this.queues[task.priority].unshift(task);
+                this.emit('task:retrying', { taskId: task.taskId, attempt: task.attempts });
+            } else {
+                this.emit('task:failed', { taskId: task.taskId, error: error.message });
+            }
+            
+        } finally {
+            // Release resources
+            this.releaseResources(agent.requirements);
+            this.runningAgents.delete(task.taskId);
+        }
+    }
+
+    /**
+     * Run agent in isolated environment
+     */
+    async runAgent(agent, params) {
+        // In production: Launch container/pod per agent
+        // For now, simulated execution
+        
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('Agent execution timeout'));
+            }, agent.requirements.timeout || 30000);
+            
+            // Simulate agent execution
+            setTimeout(() => {
+                clearTimeout(timeout);
+                resolve({
+                    success: true,
+                    agentId: agent.agentId,
+                    output: `Agent ${agent.name} executed successfully`,
+                    metrics: {
+                        cpuTime: Math.random() * 100,
+                        memoryUsed: Math.random() * 128,
+                        duration: Math.random() * 1000
+                    }
+                });
+            }, Math.random() * 100);
+        });
+    }
+
+    /**
+     * Check if more agents can be scheduled
+     */
+    canScheduleMore() {
+        return this.runningAgents.size < this.config.maxConcurrentAgents &&
+               this.resources.available.cpu > 10 &&
+               this.resources.available.memory > 64;
+    }
+
+    /**
+     * Check resource availability
+     */
+    checkResources(requirements) {
+        const { cpu, memory, gpu } = this.parseRequirements(requirements);
+        
+        return this.resources.available.cpu >= cpu &&
+               this.resources.available.memory >= memory &&
+               (!gpu || this.resources.available.gpu >= gpu);
+    }
+
+    /**
+     * Reserve resources
+     */
+    reserveResources(requirements) {
+        const { cpu, memory, gpu } = this.parseRequirements(requirements);
+        
+        this.resources.available.cpu -= cpu;
+        this.resources.available.memory -= memory;
+        if (gpu) this.resources.available.gpu -= gpu;
+        
+        this.resources.reserved.cpu += cpu;
+        this.resources.reserved.memory += memory;
+        if (gpu) this.resources.reserved.gpu += gpu;
+    }
+
+    /**
+     * Release resources
+     */
+    releaseResources(requirements) {
+        const { cpu, memory, gpu } = this.parseRequirements(requirements);
+        
+        this.resources.available.cpu += cpu;
+        this.resources.available.memory += memory;
+        if (gpu) this.resources.available.gpu += gpu;
+        
+        this.resources.reserved.cpu -= cpu;
+        this.resources.reserved.memory -= memory;
+        if (gpu) this.resources.reserved.gpu -= gpu;
+    }
+
+    /**
+     * Preempt lower priority agents
+     */
+    preemptLowerPriority() {
+        const lowerPriorities = ['LOW', 'BACKGROUND'];
+        
+        for (const priority of lowerPriorities) {
+            const tasks = Array.from(this.runningAgents.values())
+                .filter(t => t.priority === priority)
+                .sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt));
+            
+            for (const task of tasks) {
+                // Stop task
+                task.status = 'PREEMPTED';
+                this.runningAgents.delete(task.taskId);
+                this.releaseResources(task.agent.requirements);
+                
+                // Re-queue with same priority
+                this.queues[priority].unshift(task);
+                
+                this.emit('task:preempted', { taskId: task.taskId });
+                
+                // Only preempt enough for critical task
+                break;
+            }
+        }
+    }
+
+    /**
+     * Parse requirements string to numbers
+     */
+    parseRequirements(requirements) {
+        return {
+            cpu: parseInt(requirements.cpu) || 1,
+            memory: parseInt(requirements.memory) || 128,
+            gpu: requirements.gpu ? 1 : 0
+        };
+    }
+
+    /**
+     * Get scheduler stats
+     */
+    getStats() {
+        return {
+            runningAgents: this.runningAgents.size,
+            maxConcurrent: this.config.maxConcurrentAgents,
+            queueSizes: Object.fromEntries(
+                Object.entries(this.queues).map(([p, q]) => [p, q.length])
+            ),
+            resources: this.resources,
+            totalExecuted: this.registry.stats.totalExecutions
+        };
+    }
+}
+
+module.exports = AgentScheduler;

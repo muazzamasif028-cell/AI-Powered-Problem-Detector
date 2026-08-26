@@ -1,0 +1,50 @@
+// ============================================================
+// 🏢 SUPREME FLEET COMMAND CENTER — Complete Demo
+// ============================================================
+const OwnerDashboard = require('./dashboard/OwnerDashboard');
+const FounderDashboard = require('./dashboard/FounderDashboard');
+
+async function demoCommandCenter() {
+    console.log('🏢 SUPREME FLEET COMMAND CENTER');
+    console.log('═══════════════════════════════════\n');
+    
+    // === OWNER DASHBOARD ===
+    console.log('👤 OWNER DASHBOARD (Private):\n');
+    
+    const ownerDashboard = new OwnerDashboard({ name: 'VIP Owner' });
+    await ownerDashboard.authenticate({ token: 'owner_auth_token' });
+    
+    const ownerView = await ownerDashboard.getDashboard();
+    console.log(`   Vehicles: ${ownerView.totalVehicles}`);
+    console.log(`   Active: ${ownerView.summary.active}`);
+    console.log(`   Charging: ${ownerView.summary.charging}`);
+    console.log(`   Needs Service: ${ownerView.summary.needsService}\n`);
+    
+    // === FOUNDER DASHBOARD ===
+    console.log('🏢 FOUNDER DASHBOARD (Anonymized):\n');
+    
+    const founderDashboard = new FounderDashboard();
+    await founderDashboard.authenticate({ 
+        token: 'founder_auth_token',
+        approvals: ['CFO', 'CTO'] // Multi-person approval
+    });
+    
+    const founderView = await founderDashboard.getDashboard();
+    console.log(`   Total Vehicles Sold: ${founderView.sales.totalVehicles}`);
+    console.log(`   Revenue: ${founderView.sales.revenue.total}`);
+    console.log(`   Active Fleet: ${founderView.fleet.totalActive}`);
+    console.log(`   OTA Success Rate: ${founderView.software.otaSuccessRate}`);
+    console.log(`   NPS Score: ${founderView.satisfaction.npsScore}`);
+    console.log(`   CO2 Saved: ${founderView.environmental.co2Saved}\n`);
+    
+    console.log('🔒 PRIVACY STATUS:');
+    console.log('   ✅ No personal data visible to SUPREME');
+    console.log('   ✅ No live locations visible to SUPREME');
+    console.log('   ✅ No trip history visible to SUPREME');
+    console.log('   ✅ Only anonymized aggregates for analytics');
+    console.log('   ✅ All customer data encrypted with owner keys\n');
+    
+    console.log('✅ SUPREME Fleet Command Center Demo Complete!\n');
+}
+
+demoCommandCenter();

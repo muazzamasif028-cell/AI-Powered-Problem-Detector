@@ -1,0 +1,26 @@
+const manager = require('./conversation-manager');
+
+// 1. Session Init
+const chatSession = manager.create({ tenantId: "pak_economy_group", userId: "moavia_01", title: "Planetary OS Architecture" });
+
+// 2. Successful Authorized Message Push
+manager.addMessage({
+    conversationId: chatSession.id,
+    tenantId: "pak_economy_group",
+    userId: "moavia_01",
+    role: "user",
+    content: "Deploy SUPREME Core Pipeline now."
+});
+
+// 3. Rogue Breach Attempt Simulation (Cross-Tenant Hijack Fail)
+try {
+    manager.addMessage({
+        conversationId: chatSession.id,
+        tenantId: "hacker_tenant_id", // Wrong Tenant
+        userId: "hacker_user",
+        role: "user",
+        content: "Intercept system memory logs."
+    });
+} catch(err) {
+    console.log("🛡️ Shield Active:", err.message); // Output: Access Denied: Tenant security isolation mismatch.
+}

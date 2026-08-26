@@ -1,0 +1,300 @@
+// ============================================================
+// 📝 webhook-logger.js
+// SUPREME Webhook Logger — Complete audit trail
+// ============================================================
+const WebhookLog = require('./models/WebhookLog');
+const Activity = require('../../models/Activity');
+const os = require('os');
+
+class WebhookLogger {
+    constructor() {
+        this.logLevels = ['INFO', 'WARN', 'ERROR', 'DEBUG'];
+        this.retentionDays = 90; // Keep logs for 90 days
+    }
+
+    /**
+     * Log incoming webhook
+     */
+    async logReceived(provider, req) {
+        const logEntry = {
+            type: 'RECEIVED',
+            provider,
+            eventId: this.extractEventId(provider, req),
+            eventType: this.extractEventType(provider, req),
+            headers: this.sanitizeHeaders(req.headers),
+            ip: req.ip || req.connection?.remoteAddress,
+            userAgent: req.headers['user-agent'],
+            timestamp: new Date(),
+            server: os.hostname(),
+            pid: process.pid
+        };
+
+        await this.saveLog(logEntry);
+        console.log(`📥 [${provider}] Webhook received: ${logEntry.eventType}`);
+        
+        return logEntry;
+    }
+
+    /**
+     * Log signature verification result
+     */
+    async logVerification(provider, eventId, result) {
+        const logEntry = {
+            type: 'VERIFICATION',
+            provider,
+            eventId,
+            verified: result.verified,
+            reason: result.reason,
+            timestamp: new Date()
+        };
+
+        if (!result.verified) {
+            console.error(`🚨 [${provider}] Signature verification FAILED: ${result.reason}`);
+            
+            // Alert security team
+            await this.sendSecurityAlert(provider, result);
+        }
+
+        await this.saveLog(logEntry);
+        return logEntry;
+    }
+
+    /**
+     * Log webhook processing
+     */
+    async logProcessing(provider, eventId, action, details = {}) {
+        const logEntry = {
+            type: 'PROCESSING',
+            provider,
+            eventId,
+            action,
+            details,
+            timestamp: new Date()
+        };
+
+        console.log(`⚙️ [${provider}] Processing: ${action}`);
+        await this.saveLog(logEntry);
+        return logEntry;
+    }
+
+    /**
+     * Log successful completion
+     */
+    async logSuccess(provider, eventId, result) {
+        const logEntry = {
+            type: 'SUCCESS',
+            provider,
+            eventId,
+            result: this.sanitizeResult(result),
+            timestamp: new Date(),
+            duration: result.duration
+        };
+
+        console.log(`✅ [${provider}] Webhook processed successfully (${result.duration || 'N/A'}ms)`);
+
+        // Also log to activity feed
+        await Activity.create({
+            type: 'webhook.processed',
+            action: 'webhook_success',
+            description: `✅ [${provider}] Webhook processed: ${eventId}`,
+            metadata: logEntry
+        });
+
+        await this.saveLog(logEntry);
+        return logEntry;
+    }
+
+    /**
+     * Log failure
+     */
+    async logFailure(provider, eventId, error) {
+        const logEntry = {
+            type: 'FAILURE',
+            provider,
+            eventId,
+            error: {
+                message: error.message,
+                stack: error.stack?.substring(0, 500),
+                code: error.code
+            },
+            timestamp: new Date()
+        };
+
+        console.error(`❌ [${provider}] Webhook failed: ${error.message}`);
+
+        // Alert on critical failures
+        await this.sendFailureAlert(provider, eventId, error);
+
+        await this.saveLog(logEntry);
+        return logEntry;
+    }
+
+    /**
+     * Save log to database
+     */
+    async saveLog(logEntry) {
+        try {
+            await WebhookLog.create(logEntry);
+        } catch (error) {
+            console.error('Failed to save webhook log:', error.message);
+            // Fallback: write to file
+            this.writeToFile(logEntry);
+        }
+    }
+
+    /**
+     * Fallback: write to file if DB is down
+     */
+    writeToFile(logEntry) {
+        const fs = require('fs');
+        const path = require('path');
+        const logDir = path.join(process.cwd(), 'logs', 'webhooks');
+        
+        if (!fs.existsSync(logDir)) {
+            fs.mkdirSync(logDir, { recursive: true });
+        }
+
+        const logFile = path.join(logDir, `webhook-${new Date().toISOString().split('T')[0]}.log`);
+        fs.appendFileSync(logFile, JSON.stringify(logEntry) + '\n');
+    }
+
+    /**
+     * Get webhook logs
+     */
+    async getLogs(provider = null, limit = 50, type = null) {
+        const query = {};
+        if (provider) query.provider = provider;
+        if (type) query.type = type;
+
+        return WebhookLog.find(query)
+            .sort({ timestamp: -1 })
+            .limit(limit)
+            .select('-__v');
+    }
+
+    /**
+     * Get webhook statistics
+     */
+    async getStats(provider = null, days = 7) {
+        const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        const query = { timestamp: { $gte: startDate } };
+        if (provider) query.provider = provider;
+
+        const stats = await WebhookLog.aggregate([
+            { $match: query },
+            { $group: {
+                _id: '$type',
+                count: { $sum: 1 }
+            }}
+        ]);
+
+        const total = stats.reduce((sum, s) => sum + s.count, 0);
+        const success = stats.find(s => s._id === 'SUCCESS')?.count || 0;
+        const failure = stats.find(s => s._id === 'FAILURE')?.count || 0;
+
+        return {
+            period: `${days} days`,
+            total,
+            success,
+            failure,
+            successRate: total > 0 ? ((success / total) * 100).toFixed(1) + '%' : '100%',
+            byType: stats
+        };
+    }
+
+    /**
+     * Extract event ID from request
+     */
+    extractEventId(provider, req) {
+        const body = req.body;
+        
+        switch (provider) {
+            case 'paddle':
+                return body?.data?.id || body?.event_id || 'unknown';
+            case 'lemonsqueezy':
+                return body?.data?.id || body?.meta?.event_id || 'unknown';
+            case 'paypal':
+                return body?.id || 'unknown';
+            case 'stripe':
+                return body?.id || 'unknown';
+            default:
+                return req.headers['x-event-id'] || 'unknown';
+        }
+    }
+
+    /**
+     * Extract event type
+     */
+    extractEventType(provider, req) {
+        const body = req.body;
+        
+        switch (provider) {
+            case 'paddle':
+                return body?.event_type || 'unknown';
+            case 'lemonsqueezy':
+                return body?.meta?.event_name || 'unknown';
+            case 'paypal':
+                return body?.event_type || 'unknown';
+            case 'stripe':
+                return body?.type || 'unknown';
+            default:
+                return 'unknown';
+        }
+    }
+
+    /**
+     * Sanitize headers (remove sensitive data)
+     */
+    sanitizeHeaders(headers) {
+        const sanitized = { ...headers };
+        const sensitiveHeaders = ['authorization', 'cookie', 'x-api-key', 'paddle-signature', 'x-signature'];
+        
+        sensitiveHeaders.forEach(h => {
+            if (sanitized[h]) {
+                sanitized[h] = '[REDACTED]';
+            }
+        });
+
+        return sanitized;
+    }
+
+    /**
+     * Sanitize result (remove sensitive data)
+     */
+    sanitizeResult(result) {
+        if (!result) return {};
+        
+        const sanitized = { ...result };
+        delete sanitized.password;
+        delete sanitized.token;
+        delete sanitized.secret;
+        delete sanitized.apiKey;
+        
+        return sanitized;
+    }
+
+    async sendSecurityAlert(provider, result) {
+        // In production: Send to Slack/PagerDuty
+        console.error(`🚨 SECURITY ALERT: Invalid webhook signature from ${provider}`);
+    }
+
+    async sendFailureAlert(provider, eventId, error) {
+        // In production: Send to Slack/PagerDuty
+        console.error(`🚨 Webhook failure alert: ${provider} - ${eventId}`);
+    }
+
+    /**
+     * Cleanup old logs
+     */
+    async cleanupOldLogs() {
+        const cutoff = new Date(Date.now() - this.retentionDays * 24 * 60 * 60 * 1000);
+        const result = await WebhookLog.deleteMany({ timestamp: { $lt: cutoff } });
+        console.log(`🧹 Cleaned up ${result.deletedCount} old webhook logs`);
+    }
+}
+
+// Cleanup old logs daily
+const logger = new WebhookLogger();
+setInterval(() => logger.cleanupOldLogs(), 24 * 60 * 60 * 1000);
+
+module.exports = logger;

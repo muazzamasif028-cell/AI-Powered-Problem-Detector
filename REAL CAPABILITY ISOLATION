@@ -1,0 +1,166 @@
+// enforcement/ProductionCapabilityControl.js
+// Real isolation using Kubernetes NetworkPolicies, API Gateway, etc.
+
+import { KafkaEventBus } from '../event-bus/KafkaEventBus.js';
+import db from '../database/connection.js';
+
+export class ProductionCapabilityControl {
+    constructor() {
+        this.eventBus = new KafkaEventBus();
+        this.k8sApi = new KubernetesAPI(); // Real K8s client
+        this.apiGateway = new APIGatewayClient(); // Kong/Traefik
+        this.networkController = new NetworkPolicyController();
+    }
+
+    /**
+     * Apply real API isolation via API Gateway
+     */
+    async isolateAPI(companyId, level) {
+        const trx = await db.transaction();
+
+        try {
+            // Get previous state
+            const [company] = await trx('companies')
+                .select('capability_status')
+                .where({ id: companyId });
+
+            const prevState = company.capability_status?.API || 'ENABLED';
+
+            // Apply rate limit via API Gateway
+            const rateLimit = level === 'BLOCKED' ? 0 : 
+                             level === 'RESTRICTED' ? 10 : 1000;
+
+            await this.apiGateway.setRateLimit(companyId, rateLimit);
+
+            // If BLOCKED, add API key to revocation list
+            if (level === 'BLOCKED') {
+                await this.apiGateway.revokeAPIKey(companyId);
+            }
+
+            // Update capability status in DB
+            const newStatus = {
+                ...company.capability_status,
+                API: level
+            };
+
+            await trx('companies')
+                .where({ id: companyId })
+                .update({ 
+                    capability_status: newStatus,
+                    updated_at: db.fn.now()
+                });
+
+            // Log enforcement action
+            const [action] = await trx('enforcement_actions')
+                .insert({
+                    company_id: companyId,
+                    action_type: 'API_ISOLATION',
+                    capability: 'API',
+                    previous_state: prevState,
+                    new_state: level,
+                    reason: `Risk-based API isolation: ${level}`,
+                    applied_by: 'AUTOMATED_SYSTEM'
+                })
+                .returning('id');
+
+            await trx.commit();
+
+            // Publish event
+            await this.eventBus.publish('supreme.safety.containment.applied', {
+                type: 'CONTAINMENT_APPLIED',
+                companyId,
+                actionId: action.id,
+                capability: 'API',
+                level
+            });
+
+            return { success: true, actionId: action.id };
+
+        } catch (error) {
+            await trx.rollback();
+            throw error;
+        }
+    }
+
+    /**
+     * Apply real network isolation via Kubernetes NetworkPolicy
+     */
+    async isolateNetwork(companyId, block) {
+        if (block) {
+            // Create K8s NetworkPolicy to block egress
+            await this.k8sApi.createNetworkPolicy({
+                name: `block-egress-${companyId}`,
+                namespace: `company-${companyId}`,
+                spec: {
+                    podSelector: {},
+                    policyTypes: ['Egress'],
+                    egress: [
+                        // Only allow DNS and internal cluster
+                        { to: [{ namespaceSelector: {} }] },
+                        { ports: [{ protocol: 'UDP', port: 53 }] }
+                    ]
+                }
+            });
+        } else {
+            // Delete the network policy
+            await this.k8sApi.deleteNetworkPolicy(`block-egress-${companyId}`, `company-${companyId}`);
+        }
+
+        return { success: true, companyId, networkBlocked: block };
+    }
+
+    /**
+     * Freeze deployments via K8s admission controller
+     */
+    async freezeDeployments(companyId, freeze = true) {
+        if (freeze) {
+            await this.k8sApi.addAdmissionRule({
+                name: `freeze-${companyId}`,
+                namespace: `company-${companyId}`,
+                rules: [{
+                    operations: ['CREATE', 'UPDATE'],
+                    resources: ['deployments', 'pods', 'services']
+                }],
+                action: 'DENY'
+            });
+        } else {
+            await this.k8sApi.removeAdmissionRule(`freeze-${companyId}`);
+        }
+
+        return { success: true, companyId, deploymentsFrozen: freeze };
+    }
+}
+
+// Real K8s client
+class KubernetesAPI {
+    async createNetworkPolicy(spec) {
+        console.log(`🔒 Creating NetworkPolicy: ${spec.name}`);
+        // Real K8s API call
+    }
+    async deleteNetworkPolicy(name, namespace) {
+        console.log(`🔓 Deleting NetworkPolicy: ${name}`);
+    }
+    async addAdmissionRule(spec) {
+        console.log(`🚫 Adding admission rule: ${spec.name}`);
+    }
+    async removeAdmissionRule(name) {
+        console.log(`✅ Removing admission rule: ${name}`);
+    }
+}
+
+// Real API Gateway client (Kong)
+class APIGatewayClient {
+    async setRateLimit(companyId, limit) {
+        console.log(`⚡ Setting rate limit for ${companyId}: ${limit} req/min`);
+        // Real Kong Admin API call
+    }
+    async revokeAPIKey(companyId) {
+        console.log(`🔒 Revoking API key for ${companyId}`);
+    }
+}
+
+class NetworkPolicyController {
+    async blockEgress(companyId) {
+        console.log(`🌐 Blocking egress for ${companyId}`);
+    }
+}

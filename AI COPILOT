@@ -1,0 +1,77 @@
+// ============================================================
+// 🎤 titan/TitanCopilot.js
+// SUPREME Titan X — AI Voice Copilot
+// ============================================================
+
+class TitanCopilot {
+    constructor(titan) {
+        this.titan = titan;
+        this.conversationHistory = [];
+    }
+
+    async reportStatus() {
+        const status = this.titan.getStatus();
+        
+        const report = {
+            message: `Titan X status: Battery ${status.state.batteryLevel}%, Range ${status.state.range}km, ` +
+                     `Speed ${status.state.speed}km/h, Cargo ${status.cargo.utilizationPercent}% loaded. ` +
+                     `All ${status.safety.activePillars} safety pillars active.`,
+            details: status
+        };
+        
+        console.log(`🎤 Copilot: ${report.message}`);
+        return report;
+    }
+
+    async reportBattery() {
+        const energy = this.titan.energy.getStatus();
+        
+        return {
+            message: `Battery at ${energy.level}%. Range: ${energy.range}km. ` +
+                     `Estimated charging needed in ${energy.estimatedRemainingTime} hours.`
+        };
+    }
+
+    async reportCargo() {
+        const cargo = this.titan.cargo.getStatus();
+        
+        return {
+            message: `Cargo weight: ${cargo.weight}kg (${cargo.utilizationPercent}% capacity). ` +
+                     `Temperature: ${cargo.environment.temperature}°C. Security: ${cargo.security.locks}.`
+        };
+    }
+
+    async announce(recommendation) {
+        const announcement = {
+            timestamp: new Date().toISOString(),
+            type: recommendation.type,
+            priority: recommendation.priority,
+            message: recommendation.message
+        };
+        
+        switch (recommendation.priority) {
+            case 'CRITICAL':
+                announcement.audio = `⚠️ WARNING! ${recommendation.message}`;
+                break;
+            case 'HIGH':
+                announcement.audio = `Attention: ${recommendation.message}`;
+                break;
+            default:
+                announcement.audio = recommendation.message;
+        }
+        
+        console.log(`🎤 Copilot: ${announcement.audio}`);
+        this.conversationHistory.push(announcement);
+        
+        return announcement;
+    }
+
+    respond(message) {
+        console.log(`🎤 Copilot: ${message}`);
+        return { message };
+    }
+
+    async playMedia(command) { /* Music/podcast control */ }
+}
+
+module.exports = TitanCopilot;

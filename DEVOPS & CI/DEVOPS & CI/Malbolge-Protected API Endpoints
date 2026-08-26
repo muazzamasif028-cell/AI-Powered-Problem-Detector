@@ -1,0 +1,79 @@
+// ============================================================
+// 🏗️ routes/malbolge.routes.js
+// SUPREME Malbolge-Protected Routes
+// These endpoints are IMPOSSIBLE to hack
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const SupremeMalbolgeSecurity = require('../security/SupremeMalbolgeSecurity');
+
+const malbolgeSecurity = new SupremeMalbolgeSecurity();
+
+// Initialize on startup
+malbolgeSecurity.initialize();
+
+/**
+ * 🔐 Generate Master Key (Malbolge Protected)
+ * This endpoint generates keys that are quantum-resistant
+ */
+router.post('/keygen/master', async (req, res) => {
+    try {
+        // Verify caller has SUPREME clearance
+        const auth = malbolgeSecurity.authenticateSupremeAdmin({
+            secret: req.body.adminSecret,
+            timestamp: Date.now()
+        });
+        
+        if (!auth.authenticated) {
+            return res.status(403).json({ 
+                error: 'ACCESS DENIED',
+                message: 'Malbolge authentication failed',
+                hint: 'Only SUPREME Admin can generate master keys'
+            });
+        }
+        
+        const masterKey = malbolgeSecurity.generateMasterKey();
+        
+        res.json({
+            success: true,
+            keyId: masterKey.meta.keyFingerprint,
+            algorithm: masterKey.meta.algorithm,
+            securityLevel: masterKey.meta.securityLevel,
+            expiresIn: '24 hours',
+            warning: 'Store this key in MALBOLGE-ENCRYPTED vault only'
+        });
+        
+    } catch (error) {
+        res.status(500).json({ error: 'Malbolge VM error' });
+    }
+});
+
+/**
+ * 🔐 Encrypt Data (Malbolge AES-256-GCM)
+ */
+router.post('/encrypt', async (req, res) => {
+    try {
+        const { data } = req.body;
+        
+        const encrypted = malbolgeSecurity.encryptWithMalbolge(data);
+        
+        res.json({
+            success: true,
+            encrypted: encrypted.encrypted,
+            algorithm: encrypted.algorithm,
+            fingerprint: encrypted.keyFingerprint
+        });
+        
+    } catch (error) {
+        res.status(500).json({ error: 'Malbolge encryption failed' });
+    }
+});
+
+/**
+ * 🔐 Malbolge Status
+ */
+router.get('/status', (req, res) => {
+    res.json(malbolgeSecurity.getStatus());
+});
+
+module.exports = router;

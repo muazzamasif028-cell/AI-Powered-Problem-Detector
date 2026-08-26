@@ -1,0 +1,51 @@
+// server/routes/webhook.lemonsqueezy.js
+const express = require('express');
+const router = express.Router();
+const crypto = require('crypto');
+
+router.post('/webhook/lemonsqueezy',
+    express.json(),
+    async (req, res) => {
+        try {
+            const signature = req.headers['x-signature'];
+            const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
+            
+            // Verify signature
+            const payload = JSON.stringify(req.body);
+            const hmac = crypto.createHmac('sha256', secret);
+            hmac.update(payload);
+            const computedHash = hmac.digest('hex');
+            
+            if (signature !== computedHash) {
+                return res.status(401).json({ error: 'Invalid signature' });
+            }
+            
+            const event = req.body;
+            const eventName = event.meta?.event_name;
+            
+            switch (eventName) {
+                case 'order_created':
+                    await handleOrderCreated(event.data);
+                    break;
+                case 'subscription_created':
+                    await handleSubscriptionCreated(event.data);
+                    break;
+                case 'subscription_cancelled':
+                    await handleSubscriptionCancelled(event.data);
+                    break;
+            }
+            
+            res.json({ received: true });
+        } catch (error) {
+            console.error('Lemon Squeezy webhook error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    }
+);
+
+async function handleOrderCreated(data) {
+    console.log('✅ Lemon Squeezy order created:', data.id);
+    // Update database, unlock features, send email
+}
+
+module.exports = router;

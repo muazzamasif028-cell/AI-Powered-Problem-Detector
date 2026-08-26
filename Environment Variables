@@ -1,0 +1,45 @@
+# .env.production
+# ============================
+
+# SafePay Pakistan
+SAFEPAY_ENV=production
+SAFEPAY_PROD_KEY=your_safepay_production_key
+SAFEPAY_PROD_SECRET=your_safepay_production_secret
+SAFEPAY_PROD_WEBHOOK=your_safepay_webhook_secret
+
+# PayFast Pakistan
+PAYFAST_ENV=production
+PAYFAST_PROD_MERCHANT_ID=your_payfast_merchant_id
+PAYFAST_PROD_KEY=your_payfast_merchant_key
+
+# HBL Payment Gateway
+HBL_ENV=production
+HBL_PROD_MERCHANT_ID=your_hbl_merchant_id
+HBL_PROD_PASSWORD=your_hbl_password
+HBL_PROD_ACCESS_CODE=your_hbl_access_code
+
+# JazzCash Business
+JAZZCASH_ENV=production
+JAZZCASH_PROD_MERCHANT_ID=your_jazzcash_merchant_id
+JAZZCASH_PROD_PASSWORD=your_jazzcash_password
+JAZZCASH_PROD_SALT=your_jazzcash_integrity_salt
+
+# EasyPaisa Business
+EASYPAISA_ENV=production
+EASYPAISA_PROD_MERCHANT_ID=your_easypaisa_merchant_id
+EASYPAISA_PROD_SECRET=your_easypaisa_secret
+
+# Stripe International (If UAE/UK company)
+STRIPE_ENABLED=true
+STRIPE_ENV=production
+STRIPE_PROD_SECRET=sk_live_your_stripe_secret
+STRIPE_PROD_PUBLISHABLE=pk_live_your_stripe_publishable
+STRIPE_PROD_WEBHOOK=whsec_your_webhook_secret
+
+# Database
+MONGODB_URI=mongodb://localhost:27017/supreme_payments
+REDIS_URL=redis://localhost:6379
+
+# Security
+ENCRYPTION_KEY=your_256_bit_encryption_key
+HSM_ENDPOINT=https://your-hsm-endpoint

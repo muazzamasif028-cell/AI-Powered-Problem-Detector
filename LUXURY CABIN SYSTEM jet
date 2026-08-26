@@ -1,0 +1,154 @@
+// ============================================================
+// 💺 apex/LuxuryCabin.js
+// SUPREME APEX JET — Luxury Cabin System
+// Conference Room | Master Suite | Smart Glass | 8K Entertainment
+// ============================================================
+
+class LuxuryCabin {
+    constructor(jet) {
+        this.jet = jet;
+        
+        // Cabin Configuration
+        this.config = {
+            totalSeats: 16,
+            layout: 'EXECUTIVE',
+            zones: {
+                CONFERENCE: {
+                    seats: 6,
+                    table: 'EXECUTIVE',
+                    screen: '86_INCH_8K',
+                    lighting: 'ADAPTIVE',
+                    glass: 'TRANSPARENT'
+                },
+                MASTER_SUITE: {
+                    bed: 'KING_SIZE',
+                    bathroom: 'EN_SUITE',
+                    closet: 'WALK_IN',
+                    lighting: 'DIMMABLE',
+                    glass: 'OPAQUE'
+                },
+                LOUNGE: {
+                    sofas: 2,
+                    entertainment: '8K_OLED',
+                    bar: 'FULLY_STOCKED',
+                    lighting: 'AMBIENT',
+                    glass: 'TRANSPARENT'
+                },
+                OFFICE: {
+                    desk: 'EXECUTIVE',
+                    monitor: 'DUAL_32_INCH',
+                    printer: 'WIRELESS',
+                    lighting: 'BRIGHT',
+                    glass: 'SEMI_OPAQUE'
+                },
+                GALLEY: {
+                    oven: 'CONVECTION',
+                    refrigerator: 'DUAL_ZONE',
+                    coffee: 'ESPRESSO_MACHINE',
+                    wineCooler: '24_BOTTLES'
+                }
+            }
+        };
+        
+        // Cabin State
+        this.state = {
+            temperature: 22,
+            humidity: 45,
+            lighting: 'NORMAL',
+            entertainment: 'OFF',
+            doorsClosed: true,
+            seatBeltsOn: false,
+            preparedForLanding: false
+        };
+        
+        // Services
+        this.services = {
+            wifi: 'WIFI_7_ACTIVE',
+            satelliteInternet: 'CONNECTED',
+            entertainment: 'READY',
+            catering: 'PREMIUM_STOCKED',
+            attendant: 'ON_DUTY'
+        };
+    }
+
+    async initialize() {
+        console.log('  💺 Luxury Cabin Initialized');
+        console.log('     • Conference Room (6 seats, 86" 8K)');
+        console.log('     • Master Suite (King bed, En-suite)');
+        console.log('     • Lounge (8K OLED, Bar)');
+        console.log('     • Private Office (Dual monitors)');
+        console.log('     • Premium Galley');
+    }
+
+    async openDoor() {
+        this.state.doorsClosed = false;
+        return { success: true, message: 'Cabin door opened' };
+    }
+
+    async closeDoor() {
+        this.state.doorsClosed = true;
+        return { success: true, message: 'Cabin door closed and secured' };
+    }
+
+    async setTemperature(temp) {
+        this.state.temperature = Math.max(18, Math.min(28, temp));
+        return { 
+            success: true, 
+            temperature: this.state.temperature,
+            message: `Cabin temperature set to ${this.state.temperature}°C` 
+        };
+    }
+
+    async adjustWindows(command) {
+        const mode = command.includes('dark') ? 'OPAQUE' : 
+                     command.includes('clear') ? 'TRANSPARENT' : 'AUTO';
+        
+        Object.values(this.config.zones).forEach(z => {
+            z.glass = mode;
+        });
+        
+        return { success: true, glassMode: mode };
+    }
+
+    async adjustLighting(command) {
+        if (command.includes('dim')) this.state.lighting = 'DIM';
+        else if (command.includes('bright')) this.state.lighting = 'BRIGHT';
+        else if (command.includes('ambient')) this.state.lighting = 'AMBIENT';
+        
+        return { success: true, lighting: this.state.lighting };
+    }
+
+    async controlEntertainment(command) {
+        this.state.entertainment = 'ON';
+        return { success: true, message: '8K Entertainment system activated' };
+    }
+
+    async prepareForLanding() {
+        this.state.preparedForLanding = true;
+        this.state.seatBeltsOn = true;
+        this.state.lighting = 'BRIGHT';
+        
+        Object.values(this.config.zones).forEach(z => {
+            z.glass = 'TRANSPARENT';
+        });
+        
+        return { success: true, message: 'Cabin prepared for landing' };
+    }
+
+    async monitor() {
+        // Monitor cabin environment
+        // Temperature, humidity, air quality
+    }
+
+    getStatus() {
+        return {
+            temperature: this.state.temperature,
+            zones: Object.keys(this.config.zones).length,
+            wifi: this.services.wifi,
+            entertainment: this.state.entertainment,
+            attendant: this.services.attendant
+        };
+    }
+}
+
+module.exports = LuxuryCabin;

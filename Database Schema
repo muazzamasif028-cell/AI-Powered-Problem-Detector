@@ -1,0 +1,60 @@
+{
+  _id: ObjectId,
+  email: String (unique, indexed),
+  password: String (hashed, bcrypt),
+  name: String,
+  avatar: String (URL),
+  
+  // Auth
+  isEmailVerified: Boolean,
+  emailVerificationToken: String,
+  passwordResetToken: String,
+  passwordResetExpires: Date,
+  
+  // 2FA
+  twoFactorEnabled: Boolean,
+  twoFactorSecret: String (encrypted),
+  
+  // OAuth
+  oauthProviders: [{
+    provider: String, // google, github, microsoft
+    providerId: String,
+    email: String,
+    accessToken: String (encrypted)
+  }],
+  
+  // Plan
+  plan: String, // free, starter, pro, business, enterprise
+  subscriptionId: String,
+  subscriptionStatus: String,
+  
+  // Usage
+  usage: {
+    aiRequests: { type: Number, default: 0 },
+    aiRequestsResetAt: Date,
+    agentsCreated: { type: Number, default: 0 },
+    storageUsed: { type: Number, default: 0 } // bytes
+  },
+  
+  // API Keys
+  apiKeys: [{
+    key: String (hashed),
+    name: String,
+    lastUsed: Date,
+    createdAt: Date,
+    expiresAt: Date
+  }],
+  
+  // Security
+  failedLoginAttempts: Number,
+  lockedUntil: Date,
+  lastLoginAt: Date,
+  lastLoginIp: String,
+  
+  // Metadata
+  status: String, // active, suspended, deleted
+  role: String, // user, admin, superadmin
+  
+  createdAt: Date,
+  updatedAt: Date
+}

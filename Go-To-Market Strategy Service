@@ -1,0 +1,228 @@
+// ============================================================
+// 🎯 services/growth/gtm.service.js
+// SUPREME Go-To-Market Engine v1.0
+// ============================================================
+
+class GTMService {
+    constructor() {
+        this.channels = new Map();
+        this.campaigns = new Map();
+        this.initializeChannels();
+    }
+
+    initializeChannels() {
+        this.channels.set('product_hunt', {
+            name: 'Product Hunt',
+            type: 'launch',
+            cost: 0,
+            estimatedReach: 50000,
+            conversionRate: 0.02,
+            bestDay: 'Tuesday',
+            bestTime: '12:01 AM PST'
+        });
+
+        this.channels.set('hacker_news', {
+            name: 'Hacker News',
+            type: 'community',
+            cost: 0,
+            estimatedReach: 100000,
+            conversionRate: 0.015
+        });
+
+        this.channels.set('reddit', {
+            name: 'Reddit (r/webdev, r/startups, r/SaaS)',
+            type: 'community',
+            cost: 0,
+            estimatedReach: 500000,
+            conversionRate: 0.01
+        });
+
+        this.channels.set('twitter', {
+            name: 'Twitter/X Tech Community',
+            type: 'social',
+            cost: 0,
+            estimatedReach: 200000,
+            conversionRate: 0.02
+        });
+
+        this.channels.set('google_ads', {
+            name: 'Google Ads',
+            type: 'paid',
+            cost: 5000,
+            estimatedReach: 200000,
+            conversionRate: 0.03,
+            cpc: 2.50,
+            keywords: ['domain registration', 'buy domain', 'AI chatbot', 'website builder']
+        });
+
+        this.channels.set('facebook_ads', {
+            name: 'Facebook/Instagram Ads',
+            type: 'paid',
+            cost: 3000,
+            estimatedReach: 150000,
+            conversionRate: 0.025,
+            cpc: 1.50
+        });
+
+        this.channels.set('youtube', {
+            name: 'YouTube Tutorials',
+            type: 'content',
+            cost: 2000,
+            estimatedReach: 50000,
+            conversionRate: 0.04
+        });
+
+        this.channels.set('dev_to', {
+            name: 'Dev.to Articles',
+            type: 'content',
+            cost: 0,
+            estimatedReach: 30000,
+            conversionRate: 0.03
+        });
+
+        this.channels.set('newsletter', {
+            name: 'Tech Newsletter Sponsorships',
+            type: 'paid',
+            cost: 1000,
+            estimatedReach: 25000,
+            conversionRate: 0.05
+        });
+
+        this.channels.set('affiliate', {
+            name: 'Affiliate Program',
+            type: 'partnership',
+            cost: 0, // Revenue share
+            estimatedReach: 100000,
+            conversionRate: 0.04
+        });
+    }
+
+    /**
+     * Generate launch plan
+     */
+    generateLaunchPlan() {
+        return {
+            phase: 'MVP Launch (Month 1-3)',
+            strategy: 'Community-first, product-led growth',
+            channels: [
+                {
+                    name: 'Product Hunt Launch',
+                    date: 'First Tuesday of launch month',
+                    preparation: [
+                        'Create compelling product page',
+                        'Prepare demo video (90 seconds)',
+                        'Write first comment with story',
+                        'Engage maker community 2 weeks before',
+                        'Prepare social media blast for launch day'
+                    ],
+                    expectedResults: {
+                        upvotes: '500-1000',
+                        signups: '500-1000',
+                        domains: '100-200'
+                    }
+                },
+                {
+                    name: 'Hacker News Show HN',
+                    date: 'Day after Product Hunt',
+                    preparation: [
+                        'Write authentic Show HN post',
+                        'Focus on technical innovation',
+                        'Be transparent about pricing',
+                        'Respond to every comment'
+                    ],
+                    expectedResults: {
+                        traffic: '20,000+ visitors',
+                        signups: '300-500'
+                    }
+                },
+                {
+                    name: 'Reddit Community Engagement',
+                    date: 'Ongoing',
+                    preparation: [
+                        'Share in r/webdev, r/startups, r/SaaS',
+                        'Provide genuine value, not just promotion',
+                        'Share technical blog posts',
+                        'Offer free domains to community members'
+                    ]
+                },
+                {
+                    name: 'Developer Content',
+                    date: 'Weekly',
+                    preparation: [
+                        'Write 2 technical articles per week on Dev.to',
+                        'Create YouTube tutorials',
+                        'Share code examples on GitHub',
+                        'Build in public on Twitter'
+                    ]
+                }
+            ],
+            budget: {
+                total: 5000,
+                breakdown: {
+                    contentCreation: 2000,
+                    ads: 2000,
+                    tools: 500,
+                    giveaways: 500
+                }
+            },
+            kpis: {
+                month1: { users: 500, domains: 200, mrr: 2000 },
+                month2: { users: 1500, domains: 600, mrr: 5000 },
+                month3: { users: 3000, domains: 1200, mrr: 10000 }
+            }
+        };
+    }
+
+    /**
+     * Calculate customer acquisition cost (CAC)
+     */
+    calculateCAC(channel, spending, conversions) {
+        return conversions > 0 ? spending / conversions : Infinity;
+    }
+
+    /**
+     * Calculate lifetime value (LTV)
+     */
+    calculateLTV(averageRevenuePerUser, churnRate) {
+        return churnRate > 0 ? averageRevenuePerUser / churnRate : averageRevenuePerUser * 12;
+    }
+
+    /**
+     * Get best performing channels
+     */
+    getBestChannels(budget) {
+        const channels = Array.from(this.channels.values());
+        
+        return channels
+            .filter(ch => ch.cost <= budget)
+            .map(ch => ({
+                ...ch,
+                estimatedConversions: Math.floor(ch.estimatedReach * ch.conversionRate),
+                cac: this.calculateCAC(ch, ch.cost, Math.floor(ch.estimatedReach * ch.conversionRate)),
+                roi: ch.cost > 0 
+                    ? ((ch.estimatedReach * ch.conversionRate * 50) / ch.cost).toFixed(2) 
+                    : 'Infinite'
+            }))
+            .sort((a, b) => b.estimatedConversions - a.estimatedConversions);
+    }
+
+    /**
+     * Track viral coefficient
+     */
+    trackViralCoefficient(invitesSent, newUsersFromInvites) {
+        const k = invitesSent > 0 ? newUsersFromInvites / invitesSent : 0;
+        
+        return {
+            viralCoefficient: k,
+            status: k > 1 ? 'VIRAL 🚀' : k > 0.5 ? 'GROWING 📈' : 'STEADY 📊',
+            multiplier: k > 0 ? 1 / (1 - k) : 1,
+            recommendation: k > 1 
+                ? 'You have viral growth! Invest more in referral features.'
+                : k > 0.5
+                ? 'Close to viral. Optimize referral incentives.'
+                : 'Improve referral program to boost viral growth.'
+        };
+    }
+}
+
+module.exports = new GTMService();

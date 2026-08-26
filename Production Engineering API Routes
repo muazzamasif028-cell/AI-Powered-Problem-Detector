@@ -1,0 +1,62 @@
+// ============================================================
+// 🛣️ routes/engineering.routes.js
+// SUPREME Production Engineering API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const auth = require('../../middleware/auth');
+const GitHubIntegration = require('../../services/integrations/github-integration.service');
+const ASTParser = require('../../services/code-analysis/ast-parser.service');
+const HumanApprovalGate = require('../../services/evolution/gates/human-approval-gate');
+const FeatureDNA = require('../../models/FeatureDNA');
+
+router.use(auth);
+
+// Scan GitHub trending
+router.get('/github/trending', async (req, res) => {
+    const repos = await GitHubIntegration.scanTrendingRepos(req.query.language, req.query.since);
+    res.json({ success: true, repos });
+});
+
+// Scan ArXiv papers
+router.get('/arxiv/papers', async (req, res) => {
+    const papers = await GitHubIntegration.scanArXivPapers(req.query.category, req.query.max);
+    res.json({ success: true, papers });
+});
+
+// Analyze project with AST
+router.post('/analyze', async (req, res) => {
+    const analysis = await ASTParser.analyzeProject(req.body.projectPath);
+    res.json({ success: true, analysis });
+});
+
+// Find duplicate code
+router.post('/duplicates', async (req, res) => {
+    const duplicates = await ASTParser.findDuplicates(req.body.projectPath, req.body.minLines);
+    res.json({ success: true, duplicates });
+});
+
+// Submit for human approval
+router.post('/approval/submit', async (req, res) => {
+    const approval = await HumanApprovalGate.submitForApproval(req.body.change);
+    res.json({ success: true, approval });
+});
+
+// Review a change
+router.post('/approval/review', async (req, res) => {
+    const result = await HumanApprovalGate.review(
+        req.body.approvalId,
+        req.userId,
+        req.body.decision,
+        req.body.comments
+    );
+    res.json({ success: true, result });
+});
+
+// Get feature DNA
+router.get('/features/:name/dna', async (req, res) => {
+    const feature = await FeatureDNA.findOne({ name: req.params.name });
+    res.json({ success: true, feature });
+});
+
+module.exports = router;

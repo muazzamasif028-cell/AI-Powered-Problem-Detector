@@ -1,0 +1,119 @@
+// ============================================================
+// 🛣️ src/auth/oauth.routes.js
+// SUPREME OS OAuth Routes
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const googleOAuth = require('./google-oauth.service');
+const githubOAuth = require('./github-oauth.service');
+const microsoftOAuth = require('./microsoft-oauth.service');
+const rateLimiter = require('../middleware/rateLimiter');
+
+// =============================================
+// 🔵 GOOGLE OAUTH
+// =============================================
+
+// Initiate Google OAuth
+router.get('/google', rateLimiter.authLimiter, (req, res) => {
+    const authUrl = googleOAuth.getAuthUrl(req.query.state);
+    res.redirect(authUrl);
+});
+
+// Google OAuth callback
+router.get('/google/callback', rateLimiter.authLimiter, async (req, res) => {
+    try {
+        const { code } = req.query;
+        
+        if (!code) {
+            return res.redirect(`${process.env.FRONTEND_URL}/signin?error=no_code`);
+        }
+
+        const result = await googleOAuth.handleCallback(code);
+
+        // Redirect to frontend with tokens
+        const params = new URLSearchParams({
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+            isNewUser: result.isNewUser ? 'true' : 'false'
+        });
+
+        res.redirect(`${process.env.FRONTEND_URL}/auth/callback?${params.toString()}`);
+
+    } catch (error) {
+        console.error('Google OAuth callback error:', error);
+        res.redirect(`${process.env.FRONTEND_URL}/signin?error=oauth_failed`);
+    }
+});
+
+// Verify Google ID Token (client-side)
+router.post('/google/verify', rateLimiter.authLimiter, async (req, res) => {
+    try {
+        const { idToken } = req.body;
+        
+        if (!idToken) {
+            return res.status(400).json({ error: 'ID token is required' });
+        }
+
+        const result = await googleOAuth.verifyIdToken(idToken);
+        
+        res.json({
+            success: true,
+            ...result
+        });
+    } catch (error) {
+        console.error('Google ID token verification error:', error);
+        res.status(401).json({ error: 'Invalid ID token' });
+    }
+});
+
+// =============================================
+// ⬛ GITHUB OAUTH
+// =============================================
+router.get('/github', rateLimiter.authLimiter, (req, res) => {
+    const authUrl = githubOAuth.getAuthUrl();
+    res.redirect(authUrl);
+});
+
+router.get('/github/callback', rateLimiter.authLimiter, async (req, res) => {
+    try {
+        const { code } = req.query;
+        const result = await githubOAuth.handleCallback(code);
+        
+        const params = new URLSearchParams({
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+            isNewUser: result.isNewUser ? 'true' : 'false'
+        });
+
+        res.redirect(`${process.env.FRONTEND_URL}/auth/callback?${params.toString()}`);
+    } catch (error) {
+        res.redirect(`${process.env.FRONTEND_URL}/signin?error=github_oauth_failed`);
+    }
+});
+
+// =============================================
+// 🟦 MICROSOFT OAUTH
+// =============================================
+router.get('/microsoft', rateLimiter.authLimiter, (req, res) => {
+    const authUrl = microsoftOAuth.getAuthUrl();
+    res.redirect(authUrl);
+});
+
+router.get('/microsoft/callback', rateLimiter.authLimiter, async (req, res) => {
+    try {
+        const { code } = req.query;
+        const result = await microsoftOAuth.handleCallback(code);
+        
+        const params = new URLSearchParams({
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+            isNewUser: result.isNewUser ? 'true' : 'false'
+        });
+
+        res.redirect(`${process.env.FRONTEND_URL}/auth/callback?${params.toString()}`);
+    } catch (error) {
+        res.redirect(`${process.env.FRONTEND_URL}/signin?error=microsoft_oauth_failed`);
+    }
+});
+
+module.exports = router;

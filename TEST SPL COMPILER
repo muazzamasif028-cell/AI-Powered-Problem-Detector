@@ -1,0 +1,30 @@
+// test-spl-compiler.js
+const SupremeCompiler = require('./spl/compiler/SupremeCompiler');
+
+const splCode = `
+module supreme {
+    type Vehicle = {
+        vin :: String,
+        model :: String,
+        battery :: Int
+    };
+
+    fn calculate_range(battery :: Int, efficiency :: Float) -> Float {
+        let range = battery * efficiency;
+        return range;
+    }
+
+    fn main() {
+        let vehicle = { vin: "SUP001", model: "Elite", battery: 85 };
+        let efficiency = 6.5;
+        let range = calculate_range(vehicle.battery, efficiency);
+        return range;
+    }
+}
+`;
+
+const compiler = new SupremeCompiler();
+const result = compiler.compile(splCode);
+
+console.log('\n📄 GENERATED JAVASCRIPT:');
+console.log(result.javascript);

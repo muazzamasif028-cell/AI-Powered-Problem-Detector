@@ -1,0 +1,66 @@
+// SUPREME Heterogeneous SoC - Zero-Downtime Firmware Selector
+module ab_boot_controller (
+    input  logic        clk,
+    input  logic        rst_n,
+    
+    // Controls from OS / Security System
+    input  logic        patch_update_complete, // Asserted when Bank B is validated via SHA-256
+    input  logic        trigger_atomic_switch, // Execution switch command
+    
+    // Memory Interface Multiplexing Signals
+    output logic        active_bank_sel,       // 0 = Bank A (v1.0), 1 = Bank B (v2.0)
+    output logic [1:0]  system_status_led      // Hardware indicator for telemetry
+);
+
+    typedef enum logic [1:0] {
+        RUNNING_BANK_A = 2'b00,
+        WRITING_BANK_B = 2'b01,
+        ATOMIC_SWITCH  = 2'b10,
+        RUNNING_BANK_B = 2'b11
+    } state_t;
+
+    state_t current_state, next_state;
+
+    // State Transition Logic
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            current_state <= RUNNING_BANK_A;
+        else
+            current_state <= next_state;
+    end
+
+    // Next State Logic & Multiplexer Flag Control
+    always_comb begin
+        next_state = current_state;
+        active_bank_sel = 1'b0; // Default to Bank A
+        system_status_led = 2'b01;
+
+        case (current_state)
+            RUNNING_BANK_A: begin
+                active_bank_sel = 1'b0;
+                system_status_led = 2'b01; // Green LED for Bank A Stable
+                if (patch_update_complete) 
+                    next_state = WRITING_BANK_B;
+            end
+
+            WRITING_BANK_B: begin
+                active_bank_sel = 1'b0; // Still running on A
+                system_status_led = 2'b11; // Amber LED indicating update staged
+                if (trigger_atomic_switch)
+                    next_state = ATOMIC_SWITCH;
+            end
+
+            ATOMIC_SWITCH: begin
+                active_bank_sel = 1'b1; // Switch over instantly on this clock edge
+                system_status_led = 2'b10;
+                next_state = RUNNING_BANK_B;
+            end
+
+            RUNNING_BANK_B: begin
+                active_bank_sel = 1'b1; // Permanently routing to Bank B now
+                system_status_led = 2'b10; // Blue LED for upgraded core runtime
+            end
+        endcase
+    end
+
+endmodule

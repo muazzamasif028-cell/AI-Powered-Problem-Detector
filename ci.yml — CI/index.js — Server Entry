@@ -1,0 +1,37 @@
+// ============================================================
+// 🚀 src/index.js — SUPREME OS MVP Server
+// ============================================================
+require('dotenv').config();
+const app = require('./app');
+const mongoose = require('mongoose');
+
+const PORT = process.env.PORT || 3000;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/supreme';
+
+// Connect to MongoDB
+mongoose.connect(MONGODB_URI)
+    .then(() => {
+        console.log('🗄️  MongoDB connected');
+        
+        app.listen(PORT, () => {
+            console.log(`
+╔══════════════════════════════════════════╗
+║   ⚡ SUPREME OS MVP v1.0                 ║
+║   🚀 Server running on port ${PORT}        ║
+║   🌍 http://localhost:${PORT}              ║
+║   📚 http://localhost:${PORT}/api/health   ║
+╚══════════════════════════════════════════╝
+            `);
+        });
+    })
+    .catch(err => {
+        console.error('MongoDB connection failed:', err.message);
+        process.exit(1);
+    });
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+    console.log('Shutting down...');
+    await mongoose.connection.close();
+    process.exit(0);
+});

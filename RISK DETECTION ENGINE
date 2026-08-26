@@ -1,0 +1,166 @@
+// supreme-safety/RiskDetectionEngine.js
+// AI-Powered Risk Detection for Enterprise Safety
+
+export class RiskDetectionEngine {
+    constructor() {
+        this.rules = this.loadSafetyRules();
+        this.mlModel = new RiskMLModel();
+        this.threatFeeds = new ThreatIntelligence();
+        this.history = [];
+    }
+
+    /**
+     * Analyze company activity for risks
+     */
+    async analyze(companyId) {
+        const signals = await this.collectSignals(companyId);
+        const risks = [];
+
+        // 1. Check policy violations
+        const policyViolations = this.checkPolicies(signals);
+        risks.push(...policyViolations);
+
+        // 2. AI anomaly detection
+        const anomalies = await this.mlModel.detectAnomalies(signals);
+        risks.push(...anomalies);
+
+        // 3. Threat intelligence matching
+        const threats = await this.threatFeeds.matchPatterns(signals);
+        risks.push(...threats);
+
+        // 4. Calculate risk score
+        const score = this.calculateRiskScore(risks);
+
+        return {
+            companyId,
+            score,
+            level: this.getRiskLevel(score),
+            risks,
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    /**
+     * Collect all signals from company
+     */
+    async collectSignals(companyId) {
+        return {
+            api: await this.getAPISignals(companyId),
+            network: await this.getNetworkSignals(companyId),
+            users: await this.getUserSignals(companyId),
+            payments: await this.getPaymentSignals(companyId),
+            agents: await this.getAgentSignals(companyId),
+            data: await this.getDataAccessSignals(companyId)
+        };
+    }
+
+    /**
+     * Check against safety policies
+     */
+    checkPolicies(signals) {
+        const violations = [];
+
+        const rules = [
+            {
+                id: 'EXCESSIVE_API_CALLS',
+                check: (s) => s.api.rate > 10000,
+                severity: 'MEDIUM',
+                message: 'Excessive API calls detected'
+            },
+            {
+                id: 'DATA_EXFILTRATION',
+                check: (s) => s.data.outboundVolume > 1_000_000_000, // 1GB
+                severity: 'HIGH',
+                message: 'Large data exfiltration detected'
+            },
+            {
+                id: 'UNAUTHORIZED_ACCESS',
+                check: (s) => s.users.failedLogins > 100,
+                severity: 'HIGH',
+                message: 'Multiple unauthorized access attempts'
+            },
+            {
+                id: 'FRAUD_PAYMENTS',
+                check: (s) => s.payments.chargebackRate > 5, // 5%
+                severity: 'CRITICAL',
+                message: 'High chargeback rate — possible fraud'
+            },
+            {
+                id: 'MALICIOUS_AGENTS',
+                check: (s) => s.agents.maliciousActivity > 0,
+                severity: 'CRITICAL',
+                message: 'Malicious agent activity detected'
+            },
+            {
+                id: 'HARMFUL_CONTENT',
+                check: (s) => s.api.harmfulContentDetected,
+                severity: 'CRITICAL',
+                message: 'Harmful content generation detected'
+            }
+        ];
+
+        for (const rule of rules) {
+            if (rule.check(signals)) {
+                violations.push(rule);
+            }
+        }
+
+        return violations;
+    }
+
+    /**
+     * Calculate overall risk score (0-10)
+     */
+    calculateRiskScore(risks) {
+        if (risks.length === 0) return 0;
+
+        const severityWeights = {
+            LOW: 2,
+            MEDIUM: 4,
+            HIGH: 7,
+            CRITICAL: 10
+        };
+
+        const scores = risks.map(r => severityWeights[r.severity] || 0);
+        return Math.max(...scores); // Worst-case score
+    }
+
+    getRiskLevel(score) {
+        if (score >= 9) return { level: 'CRITICAL', color: '🔴', action: 'CONTAIN' };
+        if (score >= 7) return { level: 'HIGH', color: '🟠', action: 'ISOLATE' };
+        if (score >= 4) return { level: 'MEDIUM', color: '🟡', action: 'RESTRICT' };
+        return { level: 'LOW', color: '🟢', action: 'WARN' };
+    }
+
+    // Signal collectors (simulated)
+    async getAPISignals(id) {
+        return { rate: 500, harmfulContentDetected: false };
+    }
+    async getNetworkSignals(id) {
+        return { connections: 100, suspiciousIPs: 0 };
+    }
+    async getUserSignals(id) {
+        return { failedLogins: 2, newAccounts: 5 };
+    }
+    async getPaymentSignals(id) {
+        return { chargebackRate: 0.5, refundRate: 2 };
+    }
+    async getAgentSignals(id) {
+        return { maliciousActivity: 0, totalAgents: 25 };
+    }
+    async getDataAccessSignals(id) {
+        return { outboundVolume: 50000000, sensitiveAccess: 0 };
+    }
+
+    loadSafetyRules() {
+        return [
+            'No harmful content generation',
+            'No unauthorized data access',
+            'No fraudulent payments',
+            'No malicious agent deployment',
+            'No denial of service attacks',
+            'No API abuse',
+            'No user data exploitation'
+        ];
+    }
+}

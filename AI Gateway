@@ -1,0 +1,28 @@
+Feature ID: AI-001
+Priority: P0 (Critical)
+Effort: 3 weeks
+
+Providers (v1.0):
+  - OpenAI (GPT-4o, GPT-4-turbo, GPT-3.5-turbo)
+  - Anthropic (Claude 3 Opus, Sonnet, Haiku)
+  - Google (Gemini 1.5 Pro, Flash)
+  - DeepSeek (DeepSeek-V3, R1)
+  - xAI (Grok) — optional
+
+Capabilities:
+  - Unified chat completion API
+  - Streaming responses (SSE)
+  - Automatic provider failover
+  - Cost estimation before request
+  - Usage tracking per user
+  - Rate limiting per plan
+  - Response caching (Redis)
+  - Multi-model consensus (v1.1)
+
+API Endpoints:
+  POST   /api/ai/chat
+  POST   /api/ai/chat/stream
+  GET    /api/ai/models
+  POST   /api/ai/embed
+  POST   /api/ai/image/generate
+  GET    /api/ai/usage

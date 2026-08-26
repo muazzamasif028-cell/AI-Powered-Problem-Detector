@@ -1,0 +1,63 @@
+generateKey({
+
+    tenantId,
+
+    tier="prototype",
+
+    permissions=["chat"],
+
+    expiresInDays=365,
+
+    allowedIPs=[],
+
+    allowedDomains=[]
+
+}){
+
+    const random = crypto.randomBytes(32).toString("hex");
+
+    const rawKey = `spl_live_${random}`;
+
+    const hash = this._hashKey(rawKey);
+
+    const metadata={
+
+        tenantId,
+
+        tier,
+
+        permissions,
+
+        createdAt:new Date().toISOString(),
+
+        expiresAt:new Date(
+
+            Date.now()+expiresInDays*86400000
+
+        ).toISOString(),
+
+        allowedIPs,
+
+        allowedDomains,
+
+        rateLimit:this._getRateLimit(tier),
+
+        quota:this._getQuota(tier),
+
+        status:"active"
+
+    };
+
+    this.keyRegistry.set(hash,metadata);
+
+    this.audit("KEY_CREATED",tenantId);
+
+    return{
+
+        apiKey:rawKey,
+
+        ...metadata
+
+    };
+
+}

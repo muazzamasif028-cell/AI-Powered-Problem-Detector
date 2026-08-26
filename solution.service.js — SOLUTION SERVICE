@@ -1,0 +1,76 @@
+// ============================================================
+// 📁 services/solution.service.js — SOLUTION SERVICE
+// ============================================================
+class SolutionService {
+    constructor() {
+        this.solutions = new Map();
+        this.solutionHistory = [];
+        this.initializeSolutions();
+    }
+
+    // =============================================
+    // 🔧 INITIALIZE SOLUTION DATABASE
+    // =============================================
+    initializeSolutions() {
+        const defaultSolutions = {
+            CPU_HIGH: [
+                { id: 'CPU-SOL-1', action: 'SCALE_CPU', description: 'Increase CPU cores', risk: 'LOW', time: '2 min' },
+                { id: 'CPU-SOL-2', action: 'KILL_PROCESS', description: 'Terminate high CPU process', risk: 'MEDIUM', time: '30 sec' },
+                { id: 'CPU-SOL-3', action: 'COOLING_BOOST', description: 'Activate emergency cooling', risk: 'LOW', time: '1 min' }
+            ],
+            MEMORY_LEAK: [
+                { id: 'MEM-SOL-1', action: 'CLEAR_CACHE', description: 'Clear system cache', risk: 'LOW', time: '1 min' },
+                { id: 'MEM-SOL-2', action: 'RESTART_SERVICE', description: 'Restart affected service', risk: 'MEDIUM', time: '3 min' },
+                { id: 'MEM-SOL-3', action: 'INCREASE_RAM', description: 'Add more RAM', risk: 'LOW', time: '5 min' }
+            ],
+            DDOS_ATTACK: [
+                { id: 'DDOS-SOL-1', action: 'BLOCK_IPS', description: 'Block attack IPs', risk: 'LOW', time: '10 sec' },
+                { id: 'DDOS-SOL-2', action: 'ACTIVATE_CDN', description: 'Route through CDN', risk: 'LOW', time: '30 sec' },
+                { id: 'DDOS-SOL-3', action: 'SCALE_BANDWIDTH', description: 'Increase bandwidth', risk: 'MEDIUM', time: '2 min' }
+            ],
+            SERVICE_DOWN: [
+                { id: 'DOWN-SOL-1', action: 'RESTART_SERVICE', description: 'Restart service', risk: 'LOW', time: '1 min' },
+                { id: 'DOWN-SOL-2', action: 'FAILOVER', description: 'Switch to backup', risk: 'MEDIUM', time: '30 sec' },
+                { id: 'DOWN-SOL-3', action: 'ROLLBACK', description: 'Rollback deployment', risk: 'HIGH', time: '5 min' }
+            ]
+        };
+
+        for (let [problemType, solutions] of Object.entries(defaultSolutions)) {
+            this.solutions.set(problemType, solutions);
+        }
+    }
+
+    // =============================================
+    // 🔧 GET SOLUTIONS
+    // =============================================
+    async getSolutions(problemType) {
+        return this.solutions.get(problemType) || [
+            { id: 'GEN-SOL-1', action: 'ANALYZE', description: 'Deep analysis required', risk: 'LOW', time: '5 min' }
+        ];
+    }
+
+    // =============================================
+    // 🔧 APPLY SOLUTION
+    // =============================================
+    async applySolution(problemId, solutionId) {
+        const solution = {
+            problemId,
+            solutionId,
+            appliedAt: new Date().toISOString(),
+            status: 'APPLIED',
+            result: 'SUCCESS'
+        };
+
+        this.solutionHistory.push(solution);
+        return solution;
+    }
+
+    // =============================================
+    // 🔧 GET HISTORY
+    // =============================================
+    getHistory(limit = 20) {
+        return this.solutionHistory.slice(-limit);
+    }
+}
+
+module.exports = new SolutionService();

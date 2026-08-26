@@ -1,0 +1,145 @@
+// supreme-safety/AppealsSystem.js
+// Fair appeals process for contained companies
+
+export class AppealsSystem {
+    constructor() {
+        this.appeals = [];
+        this.remediationSteps = this.loadRemediationSteps();
+    }
+
+    /**
+     * Submit appeal against containment
+     */
+    async submitAppeal(companyId, appeal) {
+        const case_ = {
+            id: `APPEAL-${Date.now()}`,
+            companyId,
+            containmentAction: appeal.action,
+            reason: appeal.reason,
+            evidence: appeal.evidence,
+            correctiveActions: appeal.correctiveActions,
+            status: 'PENDING',
+            submittedAt: new Date().toISOString(),
+            reviewedBy: null,
+            decision: null
+        };
+
+        this.appeals.push(case_);
+
+        // Notify review panel
+        await this.notifyReviewPanel(case_);
+
+        return {
+            caseId: case_.id,
+            message: 'Appeal submitted. Review within 48 hours.',
+            expectedResolution: new Date(Date.now() + 48 * 60 * 60 * 1000)
+        };
+    }
+
+    /**
+     * Review appeal
+     */
+    async reviewAppeal(caseId, reviewer, decision, conditions = []) {
+        const case_ = this.appeals.find(a => a.id === caseId);
+        
+        case_.reviewedBy = reviewer;
+        case_.decision = decision;
+        case_.conditions = conditions;
+        case_.reviewedAt = new Date().toISOString();
+
+        if (decision === 'APPROVED') {
+            case_.status = 'RESTORING';
+            await this.restoreCompany(case_.companyId, conditions);
+        } else if (decision === 'APPROVED_WITH_CONDITIONS') {
+            case_.status = 'RESTORING_WITH_MONITORING';
+            await this.restoreWithMonitoring(case_.companyId, conditions);
+        } else {
+            case_.status = 'DENIED';
+            await this.notifyDenial(case_);
+        }
+
+        return case_;
+    }
+
+    /**
+     * Restore company access
+     */
+    async restoreCompany(companyId, conditions = []) {
+        console.log(`✅ RESTORING: Company ${companyId}`);
+        
+        // Gradual restoration
+        await this.restoreReadAccess(companyId);
+        await this.wait(3600000); // 1 hour monitoring
+        
+        await this.restoreWriteAccess(companyId);
+        await this.wait(86400000); // 24 hours monitoring
+        
+        await this.restoreFullAccess(companyId);
+        
+        return { status: 'FULLY_RESTORED', companyId };
+    }
+
+    /**
+     * Restore with monitoring
+     */
+    async restoreWithMonitoring(companyId, conditions) {
+        console.log(`🔍 RESTORING WITH MONITORING: Company ${companyId}`);
+        
+        // Restore with enhanced monitoring for 30 days
+        await this.enableEnhancedMonitoring(companyId, 30);
+        
+        // Restore basic access
+        await this.restoreBasicAccess(companyId);
+        
+        // Regular check-ins
+        for (let day = 1; day <= 30; day++) {
+            await this.wait(86400000);
+            await this.checkCompliance(companyId, conditions);
+        }
+        
+        return { status: 'RESTORED_WITH_MONITORING', companyId };
+    }
+
+    /**
+     * Remediation steps
+     */
+    loadRemediationSteps() {
+        return {
+            API_ABUSE: [
+                'Implement rate limiting',
+                'Add API key rotation',
+                'Enable usage monitoring',
+                'Complete API security training'
+            ],
+            DATA_EXFILTRATION: [
+                'Enable DLP policies',
+                'Implement data classification',
+                'Add egress monitoring',
+                'Complete data handling training'
+            ],
+            FRAUD_PAYMENTS: [
+                'Enable 3D Secure',
+                'Add fraud detection rules',
+                'Implement manual review for large transactions',
+                'Complete payment security audit'
+            ],
+            MALICIOUS_AGENTS: [
+                'Implement agent review process',
+                'Add agent sandboxing',
+                'Enable agent monitoring',
+                'Complete AI safety training'
+            ]
+        };
+    }
+
+    // Helpers
+    async notifyReviewPanel(case_) {}
+    async notifyDenial(case_) {}
+    async restoreReadAccess(id) {}
+    async restoreWriteAccess(id) {}
+    async restoreFullAccess(id) {}
+    async restoreBasicAccess(id) {}
+    async enableEnhancedMonitoring(id, days) {}
+    async checkCompliance(id, conditions) { return true; }
+    wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+}

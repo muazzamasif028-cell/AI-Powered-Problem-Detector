@@ -1,0 +1,89 @@
+// ============================================================
+// 🏭 spl-v/adapters/manufacturers/TeslaAdapter.js
+// SPL-V → Tesla Vehicle Adapter
+// ============================================================
+
+export default class TeslaAdapter {
+    constructor(model) {
+        this.name = 'Tesla Adapter';
+        this.manufacturer = 'Tesla';
+        this.model = model || 'Model S';
+        this.apiBase = 'https://owner-api.tesla.com/api/1';
+        this.protocols = ['CAN', 'Ethernet', 'Tesla API'];
+        this.token = null;
+    }
+
+    getProtocol() {
+        return this.protocols;
+    }
+
+    // ============================================
+    // UNIVERSAL COMMANDS → TESLA API
+    // ============================================
+    
+    async start() {
+        return await this.teslaCommand('command/start');
+    }
+
+    async stop() {
+        return await this.teslaCommand('command/stop');
+    }
+
+    async lock() {
+        return await this.teslaCommand('command/door_lock');
+    }
+
+    async unlock() {
+        return await this.teslaCommand('command/door_unlock');
+    }
+
+    async readSensor(sensor) {
+        const state = await this.teslaCommand('data_request/vehicle_state');
+        
+        const mappings = {
+            speed: () => state.speed,
+            battery: () => state.battery_level,
+            temperature: () => state.inside_temp,
+            odometer: () => state.odometer
+        };
+        
+        return mappings[sensor] ? mappings[sensor]() : null;
+    }
+
+    async setDestination(destination) {
+        return await this.teslaCommand('command/navigation_request', {
+            destination
+        });
+    }
+
+    async emergencyStop() {
+        return await this.teslaCommand('command/emergency_brake');
+    }
+
+    async setTemperature(temp) {
+        return await this.teslaCommand('command/set_climate_temp', {
+            driver_temp: temp,
+            passenger_temp: temp
+        });
+    }
+
+    // ============================================
+    // TESLA API COMMUNICATION
+    // ============================================
+    async teslaCommand(endpoint, data = {}) {
+        try {
+            const response = await fetch(`${this.apiBase}/${endpoint}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error(`Tesla API Error: ${error.message}`);
+            return { error: error.message };
+        }
+    }
+}

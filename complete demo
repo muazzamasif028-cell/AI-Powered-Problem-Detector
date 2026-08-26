@@ -1,0 +1,65 @@
+// ============================================================
+// 🧠 SUPREME SIWO — Complete Demo
+// ============================================================
+const SupremeWorkloadOrchestrator = require('./siwo/SupremeWorkloadOrchestrator');
+
+async function demoSIWO() {
+    console.log('🧠 SUPREME Intelligent Workload Orchestrator Demo\n');
+    
+    const siwo = new SupremeWorkloadOrchestrator();
+    await siwo.initialize();
+    
+    console.log('\n📊 Workload Distribution Demo:\n');
+    
+    // AI Inference workload
+    const aiWorkload = {
+        type: 'AI',
+        tags: ['neural_network', 'inference', 'real_time'],
+        requirements: { latency: '<10ms' },
+        optimizationGoal: 'minimizeLatency'
+    };
+    
+    const aiResult = await siwo.scheduleWorkload(aiWorkload);
+    console.log(`🤖 AI Inference → ${aiResult.processor.toUpperCase()} (${aiResult.latency}ms)`);
+    console.log(`   Savings: ${JSON.stringify(aiResult.estimatedSavings)}\n`);
+    
+    // 3D Rendering workload
+    const renderWorkload = {
+        type: 'GRAPHICS',
+        tags: ['rendering', 'ray_tracing'],
+        optimizationGoal: 'minimizeLatency'
+    };
+    
+    const renderResult = await siwo.scheduleWorkload(renderWorkload);
+    console.log(`🎮 3D Rendering → ${renderResult.processor.toUpperCase()} (${renderResult.latency}ms)\n`);
+    
+    // IoT Sensor workload
+    const iotWorkload = {
+        type: 'SENSOR',
+        tags: ['edge', 'low_power'],
+        requirements: { powerConstraint: 'ULTRA_LOW' },
+        optimizationGoal: 'minimizeEnergy'
+    };
+    
+    const iotResult = await siwo.scheduleWorkload(iotWorkload);
+    console.log(`🌡️ IoT Sensor → ${iotResult.processor.toUpperCase()} (${iotResult.latency}ms, ${iotResult.energyUsed}W)\n`);
+    
+    // Deep Learning Training
+    const trainingWorkload = {
+        type: 'ML',
+        tags: ['training', 'transformer', 'large_batch'],
+        requirements: { batchSize: 4096 },
+        optimizationGoal: 'balanced'
+    };
+    
+    const trainingResult = await siwo.scheduleWorkload(trainingWorkload);
+    console.log(`🧠 Deep Learning Training → ${trainingResult.processor.toUpperCase()}\n`);
+    
+    // Status
+    console.log('📊 Final Status:');
+    console.log(JSON.stringify(siwo.getStatus(), null, 2));
+    
+    console.log('\n✅ SUPREME SIWO Demo Complete!\n');
+}
+
+demoSIWO();

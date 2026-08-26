@@ -1,0 +1,108 @@
+// database/migrations/001_initial_safety_schema.js
+export async function up(knex) {
+    // Companies
+    await knex.schema.createTable('companies', table => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+        table.string('name', 255).notNullable();
+        table.string('status', 50).defaultTo('active');
+        table.string('risk_level', 20).defaultTo('low');
+        table.jsonb('capability_status').defaultTo({});
+        table.timestamps(true, true);
+    });
+
+    // Risk Assessments
+    await knex.schema.createTable('risk_assessments', table => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+        table.uuid('company_id').references('id').inTable('companies').onDelete('CASCADE');
+        table.decimal('risk_score', 3, 1);
+        table.string('risk_level', 20);
+        table.integer('confidence');
+        table.jsonb('policy_violations');
+        table.jsonb('anomaly_data');
+        table.jsonb('signals');
+        table.timestamp('assessed_at').defaultTo(knex.fn.now());
+        table.index(['company_id', 'assessed_at']);
+    });
+
+    // Enforcement Actions
+    await knex.schema.createTable('enforcement_actions', table => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+        table.uuid('company_id').references('id').inTable('companies');
+        table.string('action_type', 50).notNullable();
+        table.string('capability', 50);
+        table.string('previous_state', 50);
+        table.string('new_state', 50);
+        table.text('reason');
+        table.string('applied_by', 100);
+        table.timestamp('applied_at').defaultTo(knex.fn.now());
+        table.index(['company_id', 'applied_at']);
+    });
+
+    // Approval Requests
+    await knex.schema.createTable('approval_requests', table => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+        table.uuid('company_id').references('id').inTable('companies');
+        table.string('action_type', 50);
+        table.string('severity', 20);
+        table.text('reason');
+        table.jsonb('evidence');
+        table.string('status', 20).defaultTo('pending');
+        table.timestamp('requested_at').defaultTo(knex.fn.now());
+        table.timestamp('resolved_at');
+    });
+
+    // Approval Decisions
+    await knex.schema.createTable('approval_decisions', table => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+        table.uuid('request_id').references('id').inTable('approval_requests');
+        table.string('reviewer_role', 50);
+        table.string('reviewer_id', 100);
+        table.string('decision', 20); // APPROVE | REJECT
+        table.text('reason');
+        table.timestamp('decided_at').defaultTo(knex.fn.now());
+        table.unique(['request_id', 'reviewer_role']);
+    });
+
+    // Audit Events
+    await knex.schema.createTable('audit_events', table => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+        table.string('event_type', 100).notNullable();
+        table.string('actor', 100);
+        table.string('target', 255);
+        table.string('action', 100);
+        table.text('reason');
+        table.jsonb('evidence');
+        table.string('previous_hash', 64);
+        table.string('current_hash', 64);
+        table.timestamp('occurred_at').defaultTo(knex.fn.now());
+        table.index(['target', 'occurred_at']);
+        table.index(['current_hash']);
+    });
+
+    // Appeal Cases
+    await knex.schema.createTable('appeal_cases', table => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+        table.uuid('company_id').references('id').inTable('companies');
+        table.uuid('enforcement_id').references('id').inTable('enforcement_actions');
+        table.text('reason');
+        table.jsonb('evidence');
+        table.jsonb('corrective_actions');
+        table.string('status', 20).defaultTo('pending');
+        table.timestamp('submitted_at').defaultTo(knex.fn.now());
+        table.string('reviewed_by', 100);
+        table.string('decision', 30);
+        table.timestamp('decided_at');
+    });
+
+    console.log('✅ Safety schema created');
+}
+
+export async function down(knex) {
+    await knex.schema.dropTableIfExists('appeal_cases');
+    await knex.schema.dropTableIfExists('audit_events');
+    await knex.schema.dropTableIfExists('approval_decisions');
+    await knex.schema.dropTableIfExists('approval_requests');
+    await knex.schema.dropTableIfExists('enforcement_actions');
+    await knex.schema.dropTableIfExists('risk_assessments');
+    await knex.schema.dropTableIfExists('companies');
+}

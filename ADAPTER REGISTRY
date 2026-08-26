@@ -1,0 +1,276 @@
+// spl-v/hal/adapters/AdapterRegistry.js
+
+// ============================================
+// BASE ADAPTER (All adapters extend this)
+// ============================================
+export class BaseVehicleAdapter {
+    constructor(type) {
+        this.type = type;
+        this.connected = false;
+        this.protocol = null;
+    }
+
+    async probe() {
+        throw new Error('Must implement probe()');
+    }
+
+    async execute(command) {
+        throw new Error('Must implement execute()');
+    }
+}
+
+// ============================================
+// EV ADAPTER (Tesla, SUPREME Elite, etc.)
+// ============================================
+export class EVAdapter extends BaseVehicleAdapter {
+    constructor() {
+        super('EV');
+        this.supportedCommands = [
+            'start', 'stop', 'lock', 'unlock',
+            'set_speed', 'set_mode',
+            'read_battery', 'read_range', 'read_temperature',
+            'set_climate', 'navigate', 'emergency_stop',
+            'start_charging', 'stop_charging'
+        ];
+    }
+
+    async probe() {
+        // Try to detect EV via OBD-II PIDs
+        try {
+            const response = await this.sendOBDPID(0x01, 0x00); // PIDs supported
+            if (response) {
+                return {
+                    detected: true,
+                    protocol: 'CAN 11-bit 500kbps',
+                    commands: this.supportedCommands,
+                    capabilities: [
+                        { name: 'set_speed', range: [0, 350], unit: 'kmh' },
+                        { name: 'read_battery', range: [0, 100], unit: '%' },
+                        { name: 'set_mode', options: ['eco', 'comfort', 'sport'] },
+                        { name: 'set_climate', range: [16, 30], unit: 'celsius' }
+                    ]
+                };
+            }
+        } catch (e) {
+            // Not detected
+        }
+        return { detected: false };
+    }
+
+    async execute(command) {
+        console.log(`   ⚡ EV Adapter: ${command.action}`);
+        // Map to CAN messages
+        return { success: true, adapter: 'EV' };
+    }
+
+    async sendOBDPID(mode, pid) {
+        return null; // Placeholder
+    }
+}
+
+// ============================================
+// ICE ADAPTER (Petrol/Diesel vehicles)
+// ============================================
+export class ICEAdapter extends BaseVehicleAdapter {
+    constructor() {
+        super('ICE');
+        this.supportedCommands = [
+            'start', 'stop', 'lock', 'unlock',
+            'read_speed', 'read_rpm', 'read_fuel', 'read_temperature',
+            'read_odometer'
+        ];
+    }
+
+    async probe() {
+        // Standard OBD-II PIDs for ICE vehicles
+        try {
+            const rpm = await this.sendOBDPID(0x01, 0x0C);
+            if (rpm !== null) {
+                return {
+                    detected: true,
+                    protocol: 'CAN 11-bit 500kbps',
+                    commands: this.supportedCommands,
+                    capabilities: [
+                        { name: 'read_speed', range: [0, 350], unit: 'kmh' },
+                        { name: 'read_rpm', range: [0, 10000], unit: 'rpm' },
+                        { name: 'read_fuel', range: [0, 100], unit: '%' }
+                    ]
+                };
+            }
+        } catch (e) {
+            // Not detected
+        }
+        return { detected: false };
+    }
+
+    async execute(command) {
+        console.log(`   ⛽ ICE Adapter: ${command.action}`);
+        return { success: true, adapter: 'ICE' };
+    }
+
+    async sendOBDPID(mode, pid) {
+        return null;
+    }
+}
+
+// ============================================
+// HYBRID ADAPTER
+// ============================================
+export class HybridAdapter extends BaseVehicleAdapter {
+    constructor() {
+        super('HYBRID');
+        this.supportedCommands = [
+            'start', 'stop', 'switch_to_ev', 'switch_to_ice',
+            'read_battery', 'read_fuel', 'read_range'
+        ];
+    }
+
+    async probe() {
+        return { detected: false };
+    }
+
+    async execute(command) {
+        console.log(`   🔋 Hybrid Adapter: ${command.action}`);
+        return { success: true, adapter: 'HYBRID' };
+    }
+}
+
+// ============================================
+// TRUCK ADAPTER (Heavy-duty, J1939)
+// ============================================
+export class TruckAdapter extends BaseVehicleAdapter {
+    constructor() {
+        super('TRUCK');
+        this.supportedCommands = [
+            'start', 'stop', 'read_speed', 'read_weight',
+            'read_engine_hours', 'read_fuel_rate', 'fleet_report'
+        ];
+        this.protocol = 'J1939';
+    }
+
+    async probe() {
+        try {
+            const vin = await this.sendJ1939Request(0xFECA, 0x00);
+            if (vin) {
+                return {
+                    detected: true,
+                    protocol: 'J1939 250kbps',
+                    commands: this.supportedCommands,
+                    capabilities: [
+                        { name: 'read_weight', range: [0, 60000], unit: 'kg' },
+                        { name: 'read_engine_hours', range: [0, 100000], unit: 'hours' }
+                    ]
+                };
+            }
+        } catch (e) {
+            // Not detected
+        }
+        return { detected: false };
+    }
+
+    async execute(command) {
+        console.log(`   🚛 Truck Adapter: ${command.action}`);
+        return { success: true, adapter: 'TRUCK' };
+    }
+
+    async sendJ1939Request(pgn, data) {
+        return null;
+    }
+}
+
+// ============================================
+// BUS ADAPTER
+// ============================================
+export class BusAdapter extends BaseVehicleAdapter {
+    constructor() {
+        super('BUS');
+        this.supportedCommands = [
+            'start', 'stop', 'open_doors', 'close_doors',
+            'kneel', 'read_passenger_count', 'announce_stop'
+        ];
+    }
+
+    async probe() {
+        return { detected: false };
+    }
+
+    async execute(command) {
+        console.log(`   🚌 Bus Adapter: ${command.action}`);
+        return { success: true, adapter: 'BUS' };
+    }
+}
+
+// ============================================
+// MOTORCYCLE ADAPTER
+// ============================================
+export class MotorcycleAdapter extends BaseVehicleAdapter {
+    constructor() {
+        super('MOTORCYCLE');
+        this.supportedCommands = [
+            'start', 'stop', 'read_speed', 'read_lean_angle'
+        ];
+    }
+
+    async probe() {
+        return { detected: false };
+    }
+
+    async execute(command) {
+        console.log(`   🏍️ Motorcycle Adapter: ${command.action}`);
+        return { success: true, adapter: 'MOTORCYCLE' };
+    }
+}
+
+// ============================================
+// ROBOT ADAPTER
+// ============================================
+export class RobotAdapter extends BaseVehicleAdapter {
+    constructor() {
+        super('ROBOT');
+        this.supportedCommands = [
+            'move_forward', 'move_backward', 'turn_left', 'turn_right',
+            'stop', 'read_position', 'read_battery'
+        ];
+        this.protocol = 'ROS 2';
+    }
+
+    async probe() {
+        return { detected: false };
+    }
+
+    async execute(command) {
+        console.log(`   🤖 Robot Adapter: ${command.action}`);
+        return { success: true, adapter: 'ROBOT' };
+    }
+}
+
+// ============================================
+// SIMULATOR ADAPTER (Fallback)
+// ============================================
+export class SimulatorAdapter extends BaseVehicleAdapter {
+    constructor() {
+        super('SIMULATOR');
+        this.supportedCommands = [
+            'start', 'stop', 'lock', 'unlock', 'set_speed', 'set_mode',
+            'read_speed', 'read_battery', 'read_temperature', 'read_range',
+            'set_climate', 'navigate', 'emergency_stop'
+        ];
+    }
+
+    async probe() {
+        return {
+            detected: true,
+            protocol: 'SIMULATOR',
+            commands: this.supportedCommands,
+            capabilities: [
+                { name: 'set_speed', range: [0, 350], unit: 'kmh' },
+                { name: 'read_battery', range: [0, 100], unit: '%' }
+            ]
+        };
+    }
+
+    async execute(command) {
+        console.log(`   🖥️ Simulator: ${command.action} = ${command.value}`);
+        return { success: true, adapter: 'SIMULATOR', simulated: true };
+    }
+}

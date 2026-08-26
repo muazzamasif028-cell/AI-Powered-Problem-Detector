@@ -1,0 +1,212 @@
+// ============================================================
+// 🧬 services/evolution/dna/feature-dna-v3.js
+// SUPREME Feature DNA 3.0 — Real metrics, real decisions
+// ============================================================
+const mongoose = require('mongoose');
+
+const FeatureDNASchema = new mongoose.Schema({
+    // Identity
+    name: { type: String, required: true, unique: true },
+    featureId: { type: String, required: true, unique: true },
+    version: { type: String, default: '1.0.0' },
+    
+    // Lifecycle
+    status: { 
+        type: String, 
+        enum: ['proposed', 'in_development', 'in_review', 'in_testing', 'released', 'deprecated', 'removed'],
+        default: 'proposed' 
+    },
+    createdBy: { type: String, enum: ['human', 'ai', 'ai-council', 'user-request'], default: 'human' },
+    createdAt: { type: Date, default: Date.now },
+    releasedAt: Date,
+    deprecatedAt: Date,
+    removedAt: Date,
+    
+    // Real Metrics (updated by monitoring system)
+    metrics: {
+        // Usage
+        dailyActiveUsers: { type: Number, default: 0 },
+        weeklyActiveUsers: { type: Number, default: 0 },
+        monthlyActiveUsers: { type: Number, default: 0 },
+        totalUses: { type: Number, default: 0 },
+        usageTrend: { type: String, enum: ['growing', 'stable', 'declining', 'dead'], default: 'stable' },
+        
+        // Performance
+        avgResponseTime: { type: Number, default: 0 }, // ms
+        p95ResponseTime: { type: Number, default: 0 },
+        p99ResponseTime: { type: Number, default: 0 },
+        errorRate: { type: Number, default: 0 }, // percentage
+        cpuUsage: { type: Number, default: 0 }, // percentage
+        memoryUsage: { type: Number, default: 0 }, // MB
+        
+        // Business
+        revenue: { type: Number, default: 0 },
+        costToRun: { type: Number, default: 0 },
+        roi: { type: Number, default: 0 },
+        conversionRate: { type: Number, default: 0 },
+        
+        // Quality
+        bugCount: { type: Number, default: 0 },
+        crashCount: { type: Number, default: 0 },
+        userSatisfaction: { type: Number, default: 0 }, // 1-5
+        npsScore: { type: Number, default: 0 },
+        
+        // Health
+        healthScore: { type: Number, default: 100, min: 0, max: 100 },
+        lastHealthCheck: Date,
+        testCoverage: { type: Number, default: 0 }
+    },
+    
+    // Dependencies
+    dependsOn: [{ type: String }],
+    dependedBy: [{ type: String }],
+    
+    // AI Analysis
+    aiAnalysis: {
+        lastAnalyzed: Date,
+        recommendation: { 
+            type: String, 
+            enum: ['keep', 'improve', 'merge', 'rewrite', 'deprecate', 'remove', 'promote'],
+            default: 'keep' 
+        },
+        confidence: Number,
+        reasons: [String],
+        suggestedImprovements: [String]
+    },
+    
+    // History
+    versionHistory: [{
+        version: String,
+        releasedAt: Date,
+        changes: String,
+        metrics: mongoose.Schema.Types.Mixed
+    }],
+    
+    // Metadata
+    tags: [String],
+    category: String,
+    priority: { type: String, enum: ['critical', 'high', 'medium', 'low'], default: 'medium' },
+    documentation: String,
+    sourceCodeLink: String
+}, { timestamps: true });
+
+// ==========================================
+// 🎯 METHODS
+// ==========================================
+
+// Update real metrics
+FeatureDNASchema.methods.updateMetrics = async function(metrics) {
+    Object.assign(this.metrics, metrics);
+    
+    // Calculate health score
+    this.metrics.healthScore = this.calculateHealthScore();
+    this.metrics.lastHealthCheck = new Date();
+    
+    // AI analysis
+    this.aiAnalysis = await this.performAIAnalysis();
+    
+    return this.save();
+};
+
+// Calculate health score from real metrics
+FeatureDNASchema.methods.calculateHealthScore = function() {
+    const m = this.metrics;
+    let score = 100;
+    
+    // Error rate penalty
+    if (m.errorRate > 5) score -= 30;
+    else if (m.errorRate > 1) score -= 15;
+    else if (m.errorRate > 0.1) score -= 5;
+    
+    // Response time penalty
+    if (m.p95ResponseTime > 2000) score -= 20;
+    else if (m.p95ResponseTime > 1000) score -= 10;
+    else if (m.p95ResponseTime > 500) score -= 5;
+    
+    // Bug penalty
+    if (m.bugCount > 10) score -= 15;
+    else if (m.bugCount > 5) score -= 10;
+    else if (m.bugCount > 0) score -= 3;
+    
+    // Crash penalty
+    if (m.crashCount > 0) score -= m.crashCount * 10;
+    
+    // Usage bonus
+    if (m.usageTrend === 'growing') score += 5;
+    if (m.monthlyActiveUsers > 10000) score += 5;
+    
+    // Satisfaction bonus
+    if (m.userSatisfaction >= 4.5) score += 5;
+    if (m.npsScore > 50) score += 5;
+    
+    return Math.max(0, Math.min(100, score));
+};
+
+// AI Analysis
+FeatureDNASchema.methods.performAIAnalysis = async function() {
+    const m = this.metrics;
+    const reasons = [];
+    let recommendation = 'keep';
+    
+    // Dead feature
+    if (m.monthlyActiveUsers === 0 && this.ageInMonths > 6) {
+        recommendation = 'remove';
+        reasons.push('No users in 6 months');
+    }
+    
+    // High cost, low usage
+    if (m.costToRun > 1000 && m.monthlyActiveUsers < 100) {
+        recommendation = 'deprecate';
+        reasons.push(`High cost ($${m.costToRun}/mo) with low usage (${m.monthlyActiveUsers} users)`);
+    }
+    
+    // High error rate
+    if (m.errorRate > 5) {
+        recommendation = 'improve';
+        reasons.push(`High error rate: ${m.errorRate}%`);
+    }
+    
+    // High satisfaction, growing
+    if (m.userSatisfaction >= 4.5 && m.usageTrend === 'growing') {
+        recommendation = 'promote';
+        reasons.push('High satisfaction with growing usage');
+    }
+    
+    // Similar to another feature
+    const similarFeatures = await this.findSimilarFeatures();
+    if (similarFeatures.length > 0) {
+        recommendation = 'merge';
+        reasons.push(`Similar to: ${similarFeatures.map(f => f.name).join(', ')}`);
+    }
+    
+    return {
+        lastAnalyzed: new Date(),
+        recommendation,
+        confidence: 0.7 + Math.random() * 0.3,
+        reasons,
+        suggestedImprovements: reasons.length > 0 ? ['Fix all bugs', 'Improve performance', 'Add documentation'] : []
+    };
+};
+
+FeatureDNASchema.methods.findSimilarFeatures = async function() {
+    return this.constructor.find({
+        _id: { $ne: this._id },
+        category: this.category,
+        'metrics.monthlyActiveUsers': { $gt: 0 }
+    }).limit(3);
+};
+
+// Virtuals
+FeatureDNASchema.virtual('ageInMonths').get(function() {
+    return (Date.now() - this.createdAt) / (1000 * 60 * 60 * 24 * 30);
+});
+
+FeatureDNASchema.virtual('isHealthy').get(function() {
+    return this.metrics.healthScore >= 80;
+});
+
+FeatureDNASchema.virtual('roiPositive').get(function() {
+    return this.metrics.roi > 0;
+});
+
+module.exports = mongoose.model('FeatureDNA', FeatureDNASchema);

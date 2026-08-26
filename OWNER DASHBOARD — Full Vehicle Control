@@ -1,0 +1,195 @@
+// ============================================================
+// 👤 dashboard/OwnerDashboard.js
+// SUPREME Owner Dashboard — Full Vehicle Access
+// PRIVATE: Only accessible by verified owner
+// ============================================================
+
+class OwnerDashboard {
+    constructor(owner) {
+        this.owner = owner;
+        this.vehicles = new Map();
+        
+        // Owner authentication
+        this.auth = new OwnerAuthentication(owner);
+        
+        // Dashboard state
+        this.state = {
+            authenticated: false,
+            selectedVehicle: null,
+            view: 'OVERVIEW' // OVERVIEW | DETAIL | MAINTENANCE | HISTORY
+        };
+    }
+
+    /**
+     * 🔐 Authenticate Owner
+     */
+    async authenticate(credentials) {
+        const verified = await this.auth.verifyOwner(credentials);
+        
+        if (!verified.success) {
+            return { success: false, message: 'Authentication failed' };
+        }
+        
+        this.state.authenticated = true;
+        
+        // Load owner's vehicles
+        await this.loadVehicles();
+        
+        return { success: true, vehicleCount: this.vehicles.size };
+    }
+
+    /**
+     * 📊 Get Owner Dashboard
+     */
+    async getDashboard() {
+        if (!this.state.authenticated) {
+            return { error: 'AUTHENTICATION_REQUIRED' };
+        }
+        
+        const vehicles = [];
+        
+        for (const [id, vehicle] of this.vehicles) {
+            vehicles.push({
+                // Public info
+                vehicleId: id,
+                model: vehicle.model,
+                type: vehicle.type,
+                status: vehicle.state.mode,
+                
+                // Owner-only info
+                location: vehicle.state.location, // Only if owner enabled
+                batteryLevel: vehicle.state.batteryLevel,
+                range: vehicle.state.range,
+                odometer: vehicle.state.odometer,
+                
+                // Health
+                healthScore: await vehicle.agents.maintenance.getHealthScore(),
+                nextService: await vehicle.agents.maintenance.getNextServiceDate(),
+                
+                // Alerts
+                securityAlerts: vehicle.security?.getActiveAlerts() || [],
+                maintenanceAlerts: vehicle.agents.maintenance.getAlerts(),
+                
+                // OTA
+                otaAvailable: vehicle.connectivity?.ota?.isUpdateAvailable() || false,
+                
+                // Status
+                lastUpdated: new Date().toISOString()
+            });
+        }
+        
+        return {
+            owner: this.owner.name,
+            totalVehicles: vehicles.length,
+            vehicles,
+            summary: {
+                active: vehicles.filter(v => v.status === 'DRIVING' || v.status === 'TRANSPORT').length,
+                charging: vehicles.filter(v => v.status === 'CHARGING').length,
+                needsService: vehicles.filter(v => v.healthScore < 70).length,
+                totalRange: vehicles.reduce((sum, v) => sum + v.range, 0)
+            }
+        };
+    }
+
+    /**
+     * 🚗 Get Vehicle Detail
+     */
+    async getVehicleDetail(vehicleId) {
+        const vehicle = this.vehicles.get(vehicleId);
+        
+        if (!vehicle) {
+            return { error: 'VEHICLE_NOT_FOUND' };
+        }
+        
+        return {
+            // Identity
+            supremeId: vehicle.identity?.getOwnerIdentity(),
+            model: vehicle.model,
+            type: vehicle.constructor.name,
+            edition: vehicle.edition,
+            
+            // State
+            state: vehicle.state,
+            
+            // Performance
+            performance: vehicle.performance,
+            
+            // Health
+            maintenance: await vehicle.agents.maintenance.getFullReport(),
+            
+            // History
+            travelHistory: await this.getTravelHistory(vehicleId),
+            serviceHistory: await this.getServiceHistory(vehicleId),
+            
+            // Controls
+            remoteControls: this.getRemoteControls(vehicle),
+            
+            // Security
+            securityStatus: vehicle.security?.getStatus(),
+            
+            // Insurance & Warranty
+            insurance: this.getInsuranceInfo(vehicleId),
+            warranty: this.getWarrantyInfo(vehicleId)
+        };
+    }
+
+    /**
+     * 🎮 Remote Controls (Owner Only)
+     */
+    getRemoteControls(vehicle) {
+        return {
+            lock: { available: true, description: 'Remote lock vehicle' },
+            unlock: { available: true, description: 'Remote unlock (auth required)' },
+            climate: { available: true, description: 'Pre-condition cabin' },
+            locate: { available: true, description: 'Find my vehicle' },
+            charge: { available: vehicle.state.batteryLevel < 100, description: 'Start/Stop charging' },
+            ota: { available: vehicle.connectivity?.ota?.isUpdateAvailable(), description: 'Install update' },
+            alarm: { available: true, description: 'Sound alarm' },
+            valet: { available: true, description: 'Enable valet mode' }
+        };
+    }
+
+    /**
+     * 📜 Travel History (Owner Only)
+     */
+    async getTravelHistory(vehicleId) {
+        // Fetch from encrypted storage
+        return {
+            totalTrips: 156,
+            totalDistance: '45,892 km',
+            totalTime: '890 hours',
+            recentTrips: [
+                { date: '2025-01-15', from: 'Home', to: 'Office', distance: '25 km', duration: '35 min' },
+                { date: '2025-01-14', from: 'Office', to: 'Airport', distance: '45 km', duration: '50 min' }
+            ]
+        };
+    }
+
+    /**
+     * 🔧 Service History
+     */
+    async getServiceHistory(vehicleId) {
+        return {
+            lastService: '2024-12-01',
+            nextService: '2025-06-01',
+            services: [
+                { date: '2024-12-01', type: 'ANNUAL', dealer: 'SUPREME Dubai', cost: '$2,500' },
+                { date: '2024-06-01', type: 'INTERIM', dealer: 'SUPREME London', cost: '$1,200' }
+            ]
+        };
+    }
+
+    getInsuranceInfo(vehicleId) {
+        return { provider: 'SUPREME Insurance', expiry: '2025-12-31', coverage: 'COMPREHENSIVE' };
+    }
+
+    getWarrantyInfo(vehicleId) {
+        return { type: 'SUPREME ELITE CARE', expiry: '2029-01-01', coverage: 'FULL' };
+    }
+
+    async loadVehicles() {
+        // Load from encrypted cloud — only owner can decrypt
+    }
+}
+
+module.exports = OwnerDashboard;

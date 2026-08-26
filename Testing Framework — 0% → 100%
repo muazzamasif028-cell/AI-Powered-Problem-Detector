@@ -1,0 +1,59 @@
+// spl-tools/spl-test.js
+export class SPLTestFramework {
+    constructor() {
+        this.suites = [];
+        this.results = { passed: 0, failed: 0, total: 0 };
+    }
+
+    describe(name, fn) {
+        console.log(`\n📋 ${name}`);
+        this.currentSuite = { name, tests: [] };
+        fn();
+        this.suites.push(this.currentSuite);
+    }
+
+    test(name, fn) {
+        this.currentSuite.tests.push({ name, fn });
+    }
+
+    async run() {
+        for (const suite of this.suites) {
+            for (const test of suite.tests) {
+                try {
+                    await test.fn();
+                    console.log(`   ✅ ${test.name}`);
+                    this.results.passed++;
+                } catch (error) {
+                    console.log(`   ❌ ${test.name}: ${error.message}`);
+                    this.results.failed++;
+                }
+                this.results.total++;
+            }
+        }
+
+        console.log(`\n📊 RESULTS: ${this.results.passed}/${this.results.total} passed`);
+        return this.results;
+    }
+}
+
+// Assertions
+export function assert(condition, message = 'Assertion failed') {
+    if (!condition) throw new Error(message);
+}
+
+export function assertEquals(actual, expected) {
+    if (actual !== expected) {
+        throw new Error(`Expected ${expected}, got ${actual}`);
+    }
+}
+
+export function assertThrows(fn, expectedError) {
+    try {
+        fn();
+        throw new Error('Expected function to throw');
+    } catch (error) {
+        if (expectedError && error.message !== expectedError) {
+            throw new Error(`Expected error "${expectedError}", got "${error.message}"`);
+        }
+    }
+}

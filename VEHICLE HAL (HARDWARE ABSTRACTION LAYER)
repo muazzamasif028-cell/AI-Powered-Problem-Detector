@@ -1,0 +1,116 @@
+// spl-v/hal/VehicleHAL.js
+// Universal Hardware Abstraction Layer
+// One interface for ALL vehicle types
+
+export class VehicleHAL {
+    constructor() {
+        this.adapters = new Map();
+        this.activeAdapter = null;
+        this.capabilities = new Map();
+        this.safetyBoundary = new SafetyBoundary();
+        this.protocolLayer = new ProtocolLayer();
+    }
+
+    /**
+     * Initialize HAL with discovered vehicle
+     */
+    async initialize() {
+        console.log('🏗️ Vehicle HAL Initializing...\n');
+
+        // Register all available adapters
+        await this.registerAdapters();
+
+        // Discover vehicle capabilities
+        await this.discoverCapabilities();
+
+        // Set safety boundaries
+        await this.safetyBoundary.initialize(this.capabilities);
+
+        // Initialize protocol layer
+        await this.protocolLayer.initialize(this.activeAdapter);
+
+        console.log('✅ Vehicle HAL Ready\n');
+    }
+
+    /**
+     * Register all vehicle adapters
+     */
+    async registerAdapters() {
+        const adapterTypes = [
+            { type: 'EV', class: EVAdapter },
+            { type: 'ICE', class: ICEAdapter },
+            { type: 'HYBRID', class: HybridAdapter },
+            { type: 'TRUCK', class: TruckAdapter },
+            { type: 'BUS', class: BusAdapter },
+            { type: 'MOTORCYCLE', class: MotorcycleAdapter },
+            { type: 'ROBOT', class: RobotAdapter }
+        ];
+
+        for (const { type, class: AdapterClass } of adapterTypes) {
+            this.adapters.set(type, new AdapterClass());
+        }
+
+        console.log(`   📋 ${this.adapters.size} adapters registered`);
+    }
+
+    /**
+     * Discover vehicle capabilities
+     */
+    async discoverCapabilities() {
+        console.log('🔍 Discovering vehicle capabilities...\n');
+
+        // Try each adapter
+        for (const [type, adapter] of this.adapters) {
+            const result = await adapter.probe();
+            if (result.detected) {
+                this.activeAdapter = adapter;
+                console.log(`   ✅ Detected: ${type} vehicle`);
+                console.log(`      Protocol: ${result.protocol}`);
+                console.log(`      Supported commands: ${result.commands.length}\n`);
+
+                // Store capabilities
+                for (const cap of result.capabilities) {
+                    this.capabilities.set(cap.name, cap);
+                }
+                break;
+            }
+        }
+
+        if (!this.activeAdapter) {
+            console.log('   ⚠️ No vehicle detected — using simulator');
+            this.activeAdapter = new SimulatorAdapter();
+        }
+    }
+
+    /**
+     * Execute command through HAL
+     */
+    async executeCommand(command) {
+        // Check safety boundary
+        const safetyCheck = await this.safetyBoundary.validate(command);
+        if (!safetyCheck.allowed) {
+            throw new Error(`Safety violation: ${safetyCheck.reason}`);
+        }
+
+        // Check capability
+        if (!this.capabilities.has(command.action)) {
+            throw new Error(`Command '${command.action}' not supported by this vehicle`);
+        }
+
+        // Execute through adapter
+        return await this.activeAdapter.execute(command);
+    }
+
+    /**
+     * Get vehicle status
+     */
+    async getStatus() {
+        return {
+            vehicleType: this.activeAdapter?.type || 'unknown',
+            connected: !!this.activeAdapter,
+            capabilities: Array.from(this.capabilities.keys()),
+            safetyStatus: this.safetyBoundary.getStatus(),
+            protocolStatus: this.protocolLayer.getStatus()
+        };
+    }
+}

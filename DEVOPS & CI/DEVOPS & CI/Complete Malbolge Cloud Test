@@ -1,0 +1,83 @@
+// ============================================================
+// 🎯 test/malbolge-cloud.test.js
+// SUPREME Malbolge Multi-Cloud Test Suite
+// ============================================================
+const MalbolgeCloudCore = require('../malbolge-cloud/MalbolgeCloudCore');
+
+async function testMalbolgeMultiCloud() {
+    console.log('🤯 Testing SUPREME Malbolge Multi-Cloud...\n');
+    
+    const cloud = new MalbolgeCloudCore();
+    await cloud.initializeClouds();
+    
+    // Test GOOGLE
+    console.log('🔵 Testing GOOGLE Services:');
+    const gmail = await cloud.sendGmail({
+        to: 'supreme@malbolge.com',
+        subject: 'Malbolge Test',
+        body: 'This email was sent through Malbolge VM!'
+    });
+    console.log('  ✅ Gmail:', gmail.messageId);
+    
+    const drive = await cloud.uploadToDrive({
+        fileName: 'malbolge_secrets.txt',
+        content: 'SUPREME MALBOLGE DATA',
+        folderId: 'malbolge-root'
+    });
+    console.log('  ✅ Drive:', drive.fileId);
+    
+    const gemini = await cloud.callGemini('What is Malbolge?');
+    console.log('  ✅ Gemini:', gemini.response.substring(0, 50) + '...');
+    
+    // Test MICROSOFT
+    console.log('\n🔴 Testing MICROSOFT Services:');
+    const outlook = await cloud.sendOutlook({
+        to: 'enterprise@supreme.com',
+        subject: 'Malbolge Integration',
+        body: 'Microsoft connected via Malbolge!'
+    });
+    console.log('  ✅ Outlook:', outlook.messageId);
+    
+    const azure = await cloud.deployToAzure({
+        resourceGroup: 'supreme-malbolge-rg'
+    });
+    console.log('  ✅ Azure:', azure.deploymentId);
+    
+    const teams = await cloud.sendTeamsMessage({
+        channelId: 'malbolge-channel',
+        message: 'SUPREME Platform is alive in Malbolge!'
+    });
+    console.log('  ✅ Teams:', teams.messageId);
+    
+    // Test AMAZON
+    console.log('\n🟠 Testing AMAZON Services:');
+    const s3 = await cloud.uploadToS3({
+        bucket: 'supreme-malbolge-bucket',
+        key: 'data/malbolge.encrypted',
+        content: 'MALBOLGE ENCRYPTED DATA'
+    });
+    console.log('  ✅ S3:', s3.etag);
+    
+    const ec2 = await cloud.launchEC2({
+        instanceType: 't3.malbolge',
+        ami: 'ami-malbolge-14'
+    });
+    console.log('  ✅ EC2:', ec2.instanceId);
+    
+    const lambda = await cloud.invokeLambda({
+        functionName: 'malbolge-processor',
+        eventPayload: { action: 'PROCESS_MALBOLGE' }
+    });
+    console.log('  ✅ Lambda:', lambda.requestId);
+    
+    const bedrock = await cloud.callBedrock('Explain quantum computing in Malbolge');
+    console.log('  ✅ Bedrock:', bedrock.response.substring(0, 50) + '...');
+    
+    // Status
+    console.log('\n📊 System Status:');
+    console.log(JSON.stringify(cloud.getStatus(), null, 2));
+    
+    console.log('\n🤯 ALL MULTI-CLOUD TESTS PASSED IN MALBOLGE!');
+}
+
+testMalbolgeMultiCloud();

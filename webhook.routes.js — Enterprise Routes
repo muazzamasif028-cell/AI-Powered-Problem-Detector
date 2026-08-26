@@ -1,0 +1,228 @@
+// ============================================================
+// 🛣️ webhook.routes.js
+// SUPREME Enterprise Webhook Routes — Production Ready
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const webhookSecurity = require('../services/webhooks/webhook-security');
+const webhookDedup = require('../services/webhooks/webhook-dedup');
+const webhookLogger = require('../services/webhooks/webhook-logger');
+const webhookHandler = require('../services/webhooks/webhook-handler');
+const webhookRetry = require('../services/webhooks/webhook-retry');
+
+// ==========================================
+// 🏓 PADDLE WEBHOOK
+// ==========================================
+router.post('/paddle', 
+    express.raw({ type: 'application/json' }), 
+    async (req, res) => {
+        const provider = 'paddle';
+        let eventId = 'unknown';
+
+        try {
+            // 1. Parse body
+            const body = JSON.parse(req.body.toString());
+            req.body = body;
+            eventId = webhookLogger.extractEventId(provider, req);
+
+            // 2. Log receipt
+            await webhookLogger.logReceived(provider, req);
+
+            // 3. Verify signature
+            const verification = await webhookSecurity.verify(provider, req);
+            await webhookLogger.logVerification(provider, eventId, verification);
+
+            if (!verification.verified) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Invalid signature',
+                    reason: verification.reason
+                });
+            }
+
+            // 4. Check duplicate
+            const dedupCheck = await webhookDedup.isDuplicate(provider, eventId);
+            
+            if (dedupCheck.duplicate) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'Already processed',
+                    duplicate: true
+                });
+            }
+
+            // 5. Process event
+            const result = await webhookHandler.processEvent(provider, body);
+
+            // 6. Mark as processed
+            await webhookDedup.markAsProcessed(provider, eventId, result);
+
+            // 7. Respond
+            return res.status(200).json({
+                success: true,
+                message: 'Webhook processed successfully',
+                eventId,
+                result
+            });
+
+        } catch (error) {
+            console.error(`❌ Paddle webhook error:`, error.message);
+            
+            // Mark as failed (can retry)
+            await webhookDedup.markAsFailed(provider, eventId, error);
+            
+            // Add to retry queue
+            await webhookRetry.addToRetry(provider, req.body, error);
+
+            return res.status(500).json({
+                success: false,
+                error: 'Webhook processing failed',
+                message: error.message
+            });
+        }
+    }
+);
+
+// ==========================================
+// 🍋 LEMON SQUEEZY WEBHOOK
+// ==========================================
+router.post('/lemonsqueezy',
+    express.json(),
+    async (req, res) => {
+        const provider = 'lemonsqueezy';
+        let eventId = 'unknown';
+
+        try {
+            eventId = webhookLogger.extractEventId(provider, req);
+
+            // 1. Log receipt
+            await webhookLogger.logReceived(provider, req);
+
+            // 2. Verify signature
+            const verification = await webhookSecurity.verify(provider, req);
+            await webhookLogger.logVerification(provider, eventId, verification);
+
+            if (!verification.verified) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Invalid signature',
+                    reason: verification.reason
+                });
+            }
+
+            // 3. Check duplicate
+            const dedupCheck = await webhookDedup.isDuplicate(provider, eventId);
+            
+            if (dedupCheck.duplicate) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'Already processed',
+                    duplicate: true
+                });
+            }
+
+            // 4. Process event
+            const result = await webhookHandler.processEvent(provider, req.body);
+
+            // 5. Mark as processed
+            await webhookDedup.markAsProcessed(provider, eventId, result);
+
+            return res.status(200).json({
+                success: true,
+                message: 'Webhook processed successfully',
+                eventId,
+                result
+            });
+
+        } catch (error) {
+            console.error(`❌ Lemon Squeezy webhook error:`, error.message);
+            await webhookDedup.markAsFailed(provider, eventId, error);
+            await webhookRetry.addToRetry(provider, req.body, error);
+
+            return res.status(500).json({
+                success: false,
+                error: 'Webhook processing failed',
+                message: error.message
+            });
+        }
+    }
+);
+
+// ==========================================
+// 🅿️ PAYPAL WEBHOOK
+// ==========================================
+router.post('/paypal',
+    express.json(),
+    async (req, res) => {
+        const provider = 'paypal';
+        let eventId = 'unknown';
+
+        try {
+            eventId = webhookLogger.extractEventId(provider, req);
+            await webhookLogger.logReceived(provider, req);
+
+            const verification = await webhookSecurity.verify(provider, req);
+            await webhookLogger.logVerification(provider, eventId, verification);
+
+            if (!verification.verified) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Invalid signature',
+                    reason: verification.reason
+                });
+            }
+
+            const dedupCheck = await webhookDedup.isDuplicate(provider, eventId);
+            if (dedupCheck.duplicate) {
+                return res.status(200).json({ success: true, duplicate: true });
+            }
+
+            const result = await webhookHandler.processEvent(provider, req.body);
+            await webhookDedup.markAsProcessed(provider, eventId, result);
+
+            return res.status(200).json({
+                success: true,
+                eventId,
+                result
+            });
+
+        } catch (error) {
+            console.error(`❌ PayPal webhook error:`, error.message);
+            await webhookDedup.markAsFailed(provider, eventId, error);
+            await webhookRetry.addToRetry(provider, req.body, error);
+
+            return res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    }
+);
+
+// ==========================================
+// 📊 WEBHOOK STATS (Admin)
+// ==========================================
+router.get('/stats', async (req, res) => {
+    const { provider, days = 7 } = req.query;
+    const stats = await webhookLogger.getStats(provider, parseInt(days));
+    const dedupStats = webhookDedup.getStats();
+    const retryStats = webhookRetry.getStats();
+
+    res.json({
+        success: true,
+        stats,
+        dedup: dedupStats,
+        retry: retryStats
+    });
+});
+
+// ==========================================
+// 📋 WEBHOOK LOGS (Admin)
+// ==========================================
+router.get('/logs', async (req, res) => {
+    const { provider, limit = 50, type } = req.query;
+    const logs = await webhookLogger.getLogs(provider, parseInt(limit), type);
+    res.json({ success: true, logs });
+});
+
+module.exports = router;

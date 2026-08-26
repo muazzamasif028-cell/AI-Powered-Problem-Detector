@@ -1,0 +1,73 @@
+# ============================================================
+# 🗄️ MongoDB ReplicaSet — High Availability
+# ============================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: supreme-production
+spec:
+  serviceName: mongodb
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:7.0
+        command:
+        - mongod
+        - "--replSet"
+        - "rs0"
+        - "--bind_ip"
+        - "0.0.0.0"
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: supreme-secrets
+              key: MONGO_USER
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: supreme-secrets
+              key: MONGO_PASS
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "4Gi"
+          limits:
+            cpu: "4000m"
+            memory: "16Gi"
+  volumeClaimTemplates:
+  - metadata:
+      name: mongodb-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: ssd-premium
+      resources:
+        requests:
+          storage: 500Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: supreme-production
+spec:
+  clusterIP: None
+  selector:
+    app: mongodb
+  ports:
+  - port: 27017

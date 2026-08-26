@@ -1,0 +1,273 @@
+// ============================================================
+// 💳 packages/billing/src/services/billing.service.js
+// SUPREME Billing Service
+// ============================================================
+const Stripe = require('stripe');
+const Invoice = require('../models/Invoice');
+const Subscription = require('../models/Subscription');
+const Transaction = require('../models/Transaction');
+const User = require('../../auth/src/models/User');
+
+class BillingService {
+    constructor() {
+        this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+        this.plans = {
+            free: { price: 0, aiRequests: 100, agents: 1, storage: '100MB' },
+            starter: { price: 19, aiRequests: 1000, agents: 5, storage: '1GB' },
+            pro: { price: 49, aiRequests: 10000, agents: 25, storage: '10GB' },
+            business: { price: 199, aiRequests: 100000, agents: 100, storage: '100GB' },
+            enterprise: { price: null, aiRequests: Infinity, agents: Infinity, storage: 'Unlimited' }
+        };
+    }
+
+    /**
+     * Get all available plans
+     */
+    getPlans() {
+        return Object.entries(this.plans).map(([id, plan]) => ({
+            id,
+            ...plan,
+            features: this.getPlanFeatures(id)
+        }));
+    }
+
+    /**
+     * Create checkout session
+     */
+    async createCheckout(userId, planId, successUrl, cancelUrl) {
+        const user = await User.findById(userId);
+        if (!user) throw new Error('User not found');
+
+        const plan = this.plans[planId];
+        if (!plan) throw new Error('Invalid plan');
+        if (plan.price === null) throw new Error('Contact sales for enterprise plan');
+
+        // Get or create Stripe customer
+        let customerId = user.stripeCustomerId;
+        if (!customerId) {
+            const customer = await this.stripe.customers.create({
+                email: user.email,
+                name: user.name,
+                metadata: { userId: user._id.toString() }
+            });
+            customerId = customer.id;
+            user.stripeCustomerId = customerId;
+            await user.save();
+        }
+
+        // Create checkout session
+        const session = await this.stripe.checkout.sessions.create({
+            customer: customerId,
+            mode: 'subscription',
+            payment_method_types: ['card'],
+            line_items: [{
+                price_data: {
+                    currency: 'usd',
+                    product_data: {
+                        name: `SUPREME ${planId.toUpperCase()} Plan`,
+                        description: `${plan.aiRequests.toLocaleString()} AI requests/month, ${plan.agents} agents`,
+                    },
+                    unit_amount: plan.price * 100, // Convert to cents
+                    recurring: { interval: 'month' }
+                },
+                quantity: 1
+            }],
+            metadata: { userId: user._id.toString(), plan: planId },
+            success_url: successUrl,
+            cancel_url: cancelUrl,
+            allow_promotion_codes: true,
+            billing_address_collection: 'required',
+            tax_id_collection: { enabled: true }
+        });
+
+        return {
+            sessionId: session.id,
+            url: session.url,
+            plan: planId,
+            amount: plan.price
+        };
+    }
+
+    /**
+     * Handle Stripe webhook
+     */
+    async handleWebhook(signature, rawBody) {
+        const event = this.stripe.webhooks.constructEvent(
+            rawBody,
+            signature,
+            process.env.STRIPE_WEBHOOK_SECRET
+        );
+
+        switch (event.type) {
+            case 'checkout.session.completed':
+                await this.handleCheckoutCompleted(event.data.object);
+                break;
+
+            case 'invoice.paid':
+                await this.handleInvoicePaid(event.data.object);
+                break;
+
+            case 'invoice.payment_failed':
+                await this.handlePaymentFailed(event.data.object);
+                break;
+
+            case 'customer.subscription.deleted':
+                await this.handleSubscriptionCancelled(event.data.object);
+                break;
+        }
+
+        return { received: true, type: event.type };
+    }
+
+    /**
+     * Handle successful checkout
+     */
+    async handleCheckoutCompleted(session) {
+        const { userId, plan } = session.metadata;
+
+        // Update user plan
+        await User.findByIdAndUpdate(userId, {
+            plan,
+            subscriptionStatus: 'active',
+            stripeSubscriptionId: session.subscription
+        });
+
+        // Create subscription record
+        await Subscription.create({
+            userId,
+            provider: 'stripe',
+            providerSubscriptionId: session.subscription,
+            plan,
+            status: 'active',
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        });
+
+        // Create transaction record
+        await Transaction.create({
+            userId,
+            type: 'subscription',
+            provider: 'stripe',
+            providerTransactionId: session.id,
+            amount: session.amount_total / 100,
+            currency: session.currency,
+            status: 'completed',
+            plan
+        });
+
+        console.log(`✅ Subscription activated: User ${userId}, Plan ${plan}`);
+    }
+
+    /**
+     * Handle invoice paid
+     */
+    async handleInvoicePaid(invoice) {
+        const customer = await this.stripe.customers.retrieve(invoice.customer);
+        const userId = customer.metadata.userId;
+
+        if (userId) {
+            await Invoice.create({
+                userId,
+                provider: 'stripe',
+                providerInvoiceId: invoice.id,
+                amount: invoice.amount_paid / 100,
+                currency: invoice.currency,
+                status: 'paid',
+                paidAt: new Date(),
+                invoiceUrl: invoice.hosted_invoice_url,
+                invoicePdf: invoice.invoice_pdf
+            });
+
+            console.log(`📄 Invoice paid: User ${userId}, Amount $${invoice.amount_paid / 100}`);
+        }
+    }
+
+    /**
+     * Handle payment failed
+     */
+    async handlePaymentFailed(invoice) {
+        const customer = await this.stripe.customers.retrieve(invoice.customer);
+        const userId = customer.metadata.userId;
+
+        if (userId) {
+            console.error(`❌ Payment failed: User ${userId}`);
+
+            // Send payment failed notification
+            const emailService = require('../../auth/src/services/email.service');
+            const user = await User.findById(userId);
+            if (user) {
+                await emailService.sendPaymentFailedEmail(user.email, user.name, {
+                    amount: invoice.amount_due / 100,
+                    invoiceUrl: invoice.hosted_invoice_url
+                });
+            }
+        }
+    }
+
+    /**
+     * Handle subscription cancelled
+     */
+    async handleSubscriptionCancelled(subscription) {
+        const customer = await this.stripe.customers.retrieve(subscription.customer);
+        const userId = customer.metadata.userId;
+
+        if (userId) {
+            await User.findByIdAndUpdate(userId, {
+                plan: 'free',
+                subscriptionStatus: 'cancelled'
+            });
+
+            await Subscription.findOneAndUpdate(
+                { providerSubscriptionId: subscription.id },
+                { status: 'cancelled', cancelledAt: new Date() }
+            );
+
+            console.log(`❌ Subscription cancelled: User ${userId}`);
+        }
+    }
+
+    /**
+     * Get user billing info
+     */
+    async getUserBilling(userId) {
+        const user = await User.findById(userId);
+        const invoices = await Invoice.find({ userId }).sort({ createdAt: -1 }).limit(10);
+        const subscription = await Subscription.findOne({ userId, status: 'active' });
+
+        return {
+            plan: user.plan,
+            subscriptionStatus: user.subscriptionStatus,
+            currentPlan: this.plans[user.plan],
+            invoices,
+            subscription,
+            usage: user.usage
+        };
+    }
+
+    /**
+     * Cancel subscription
+     */
+    async cancelSubscription(userId) {
+        const user = await User.findById(userId);
+        if (!user.stripeSubscriptionId) {
+            throw new Error('No active subscription');
+        }
+
+        await this.stripe.subscriptions.cancel(user.stripeSubscriptionId);
+
+        return { success: true, message: 'Subscription cancelled' };
+    }
+
+    getPlanFeatures(planId) {
+        const features = {
+            free: ['5 AI requests/day', '1 agent', 'Basic memory', 'Community support'],
+            starter: ['100 AI requests/day', '5 agents', 'Standard memory', 'Email support'],
+            pro: ['1,000 AI requests/day', '25 agents', 'Full memory', 'Priority support', 'API access'],
+            business: ['10,000 AI requests/day', '100 agents', 'Advanced memory', 'Dedicated support', 'SSO', 'Audit logs'],
+            enterprise: ['Unlimited AI requests', 'Unlimited agents', 'Custom memory', '24/7 support', 'SLA', 'Custom integrations']
+        };
+        return features[planId] || [];
+    }
+}
+
+module.exports = new BillingService();

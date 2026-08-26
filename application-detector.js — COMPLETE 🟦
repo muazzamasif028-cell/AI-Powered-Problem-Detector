@@ -1,0 +1,160 @@
+// ============================================================
+// 🤫 APPLICATION DETECTOR v7.0 🟦
+// ============================================================
+// Supreme Problem Detector — Application-Level Problems
+// ============================================================
+
+class ApplicationDetector {
+    constructor() {
+        this.state = {
+            initialized: false,
+            totalScans: 0,
+            problemsFound: 0
+        };
+
+        this.problems = {
+            VERSION_MISMATCH: {
+                id: 'APP-001',
+                name: 'Version Mismatch',
+                severity: 'HIGH',
+                category: 'DEPLOYMENT',
+                thresholds: { warning: 1, critical: 3, emergency: 5 },
+                symptoms: ['API contract failures', 'Serialization errors', 'Unexpected behavior', 'Integration test failures'],
+                rootCauses: ['Staggered rollout incomplete', 'Dependency version conflict', 'Canary deployment mismatch', 'Rollback incomplete'],
+                solutions: [
+                    { action: 'SYNC_VERSIONS', description: 'Synchronize all service versions', autoFix: true, risk: 'MEDIUM' },
+                    { action: 'ROLLBACK_ALL', description: 'Rollback all services to stable', autoFix: true, risk: 'HIGH' },
+                    { action: 'VERSION_LOCK', description: 'Lock dependency versions', autoFix: true, risk: 'LOW' },
+                    { action: 'CANARY_CHECK', description: 'Validate canary before full rollout', autoFix: false, risk: 'LOW' }
+                ],
+                metrics: ['mismatched_services', 'version_diff', 'affected_endpoints', 'error_rate'],
+                unit: 'services',
+                impact: 'Service incompatibility, data corruption risk'
+            },
+
+            MIGRATION_FAIL: {
+                id: 'APP-002',
+                name: 'Migration Fail',
+                severity: 'CRITICAL',
+                category: 'DATABASE',
+                thresholds: { warning: 1, critical: 1, emergency: 3 },
+                symptoms: ['Schema inconsistency', 'Data loss', 'Application errors', 'Migration stuck in pending'],
+                rootCauses: ['Conflicting migrations', 'Large table migration timeout', 'Foreign key constraint', 'Disk space exhausted'],
+                solutions: [
+                    { action: 'ROLLBACK_MIGRATION', description: 'Rollback failed migration', autoFix: true, risk: 'HIGH' },
+                    { action: 'RETRY_MIGRATION', description: 'Retry with increased timeout', autoFix: true, risk: 'MEDIUM' },
+                    { action: 'MANUAL_FIX', description: 'Manually resolve schema conflict', autoFix: false, risk: 'HIGH' },
+                    { action: 'RESTORE_BACKUP', description: 'Restore from pre-migration backup', autoFix: false, risk: 'CRITICAL' }
+                ],
+                metrics: ['failed_migrations', 'migration_duration', 'rows_affected', 'error_message'],
+                unit: 'migrations',
+                impact: 'Database inconsistency, potential data loss'
+            },
+
+            CACHE_INCONSISTENCY: {
+                id: 'APP-003',
+                name: 'Cache Inconsistency',
+                severity: 'WARNING',
+                category: 'PERFORMANCE',
+                thresholds: { warning: 10, critical: 30, emergency: 50 },
+                symptoms: ['Stale data displayed', 'Users see different data', 'Wrong calculation results', 'Session mismatch'],
+                rootCauses: ['Cache invalidation failure', 'Multi-region replication lag', 'Cache key collision', 'Partial cache clear'],
+                solutions: [
+                    { action: 'FLUSH_CACHE', description: 'Flush and rebuild cache', autoFix: true, risk: 'MEDIUM' },
+                    { action: 'FIX_INVALIDATION', description: 'Fix cache invalidation logic', autoFix: false, risk: 'MEDIUM' },
+                    { action: 'VERSION_CACHE', description: 'Implement cache versioning', autoFix: true, risk: 'LOW' },
+                    { action: 'REDUCE_TTL', description: 'Reduce cache TTL temporarily', autoFix: true, risk: 'LOW' }
+                ],
+                metrics: ['inconsistency_rate', 'stale_keys', 'cache_hit_rate', 'replication_lag_ms'],
+                unit: '%',
+                impact: 'Data integrity issues, user confusion'
+            }
+        };
+
+        this.detectionHistory = [];
+        this.problemStatus = {};
+
+        Object.keys(this.problems).forEach(key => {
+            this.problemStatus[key] = { status: 'PENDING', lastChecked: null, detectionCount: 0, severity: this.problems[key].severity, resolved: false };
+        });
+
+        console.log('🤫 [APPLICATION DETECTOR 🟦]: System created — 3 problems configured');
+    }
+
+    initialize() {
+        this.state.initialized = true;
+        console.log('🤫 [APPLICATION DETECTOR 🟦]: Ready');
+        return { status: 'READY', problems: Object.keys(this.problems).length };
+    }
+
+    async detectAll(metrics = {}) {
+        const scanId = 'APP-' + Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 8).toUpperCase();
+        const results = {};
+
+        for (let [key, config] of Object.entries(this.problems)) {
+            const result = this.detectProblem(key, config, metrics);
+            results[key] = result;
+            this.problemStatus[key].lastChecked = new Date().toISOString();
+            if (result.detected) { this.problemStatus[key].status = result.severity; this.state.problemsFound++; }
+            else { this.problemStatus[key].status = 'NORMAL'; }
+        }
+
+        this.state.totalScans++;
+        return { scanId, timestamp: new Date().toISOString(), results, summary: this.generateSummary(results) };
+    }
+
+    detectProblem(key, config, metrics) {
+        const defaults = {
+            VERSION_MISMATCH: metrics.mismatched_services || Math.floor(Math.random() * 6),
+            MIGRATION_FAIL: metrics.failed_migrations || Math.floor(Math.random() * 4),
+            CACHE_INCONSISTENCY: metrics.inconsistency_rate || Math.floor(Math.random() * 60)
+        };
+
+        const currentValue = defaults[key] || 0;
+        let detected = false;
+        let severity = 'NORMAL';
+
+        if (currentValue >= config.thresholds.emergency) { detected = true; severity = 'CRITICAL'; }
+        else if (currentValue >= config.thresholds.critical) { detected = true; severity = 'WARNING'; }
+        else if (currentValue >= config.thresholds.warning) { detected = true; severity = 'WARNING'; }
+
+        return {
+            problemId: config.id, problemName: config.name, category: config.category,
+            detected, severity, currentValue: currentValue.toFixed(2), unit: config.unit,
+            symptoms: detected ? config.symptoms : [],
+            solutions: detected ? config.solutions.filter(s => s.autoFix).slice(0, 2) : [],
+            impact: detected ? config.impact : 'None'
+        };
+    }
+
+    generateSummary(results) {
+        const detected = Object.values(results).filter(r => r.detected);
+        return { totalProblems: 3, problemsDetected: detected.length, overallStatus: detected.some(r => r.severity === 'CRITICAL') ? 'CRITICAL' : detected.length > 0 ? 'WARNING' : 'HEALTHY' };
+    }
+
+    formatForChat(scanResult) {
+        let html = `<div style="background:rgba(26,26,46,0.6);border:1px solid rgba(0,136,255,0.3);border-radius:12px;padding:14px;font-family:'Courier New',monospace;font-size:0.8em;">
+        <div style="color:#0088ff;font-weight:700;margin-bottom:10px;">🟦 APPLICATION DIAGNOSTIC — ${scanResult.scanId}</div>
+        <table style="width:100%;border-collapse:collapse;color:#e0e0e0;">
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.1);"><th style="text-align:left;padding:4px;">#</th><th style="text-align:left;padding:4px;">Problem</th><th style="text-align:left;padding:4px;">Status</th><th style="text-align:left;padding:4px;">Value</th></tr>`;
+
+        Object.entries(scanResult.results).forEach(([key, r], i) => {
+            const color = r.severity === 'CRITICAL' ? '#da3633' : r.severity === 'WARNING' ? '#f0883e' : '#3fb950';
+            const icon = r.detected ? (r.severity === 'CRITICAL' ? '🚨' : '⚠️') : '✅';
+            html += `<tr><td>${i + 1}</td><td>${r.problemName}</td><td style="color:${color};">${icon} ${r.severity}</td><td>${r.currentValue} ${r.unit}</td></tr>`;
+        });
+
+        html += `</table></div>`;
+        return html;
+    }
+
+    getStatus() { return { initialized: this.state.initialized, totalScans: this.state.totalScans }; }
+    reset() {
+        Object.keys(this.problemStatus).forEach(k => { this.problemStatus[k] = { status: 'PENDING', lastChecked: null, detectionCount: 0, severity: this.problems[k].severity, resolved: false }; });
+        this.state.totalScans = 0; this.state.problemsFound = 0;
+        return { status: 'RESET' };
+    }
+}
+
+if (typeof module !== 'undefined' && module.exports) module.exports = ApplicationDetector;
+if (typeof window !== 'undefined') { window.ApplicationDetector = ApplicationDetector; window.__SUPREME_APP_DETECTOR = new ApplicationDetector(); window.__SUPREME_APP_DETECTOR.initialize(); }

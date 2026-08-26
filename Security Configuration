@@ -1,0 +1,48 @@
+// config/SecurityConfig.java
+package com.supreme.billing.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+    
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http
+            .csrf().disable()
+            .authorizeRequests()
+                .antMatchers("/webhooks/**").permitAll()
+                .antMatchers("/api/v1/public/**").permitAll()
+                .antMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                .anyRequest().authenticated()
+            .and()
+            .oauth2ResourceServer()
+                .jwt()
+            .and()
+            .sessionManagement()
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+    }
+}
+
+// config/PaymentSecurityConfig.java
+@Configuration
+public class PaymentSecurityConfig {
+    
+    @Bean
+    public EncryptionService encryptionService() {
+        return new AESEncryptionService();
+    }
+    
+    @Bean
+    public FraudDetectionService fraudDetectionService() {
+        return new FraudDetectionService();
+    }
+    
+    @Bean
+    public RateLimiter rateLimiter() {
+        return RateLimiter.create(100.0); // 100 requests per second
+    }
+}

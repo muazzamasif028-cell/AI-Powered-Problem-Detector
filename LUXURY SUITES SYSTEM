@@ -1,0 +1,72 @@
+// ============================================================
+// 👑 yacht/YachtSuites.js
+// SUPREME ROYAL YACHT — 17 Luxury Suites
+// Presidential Suite | VIP Suites | Guest Cabins
+// ============================================================
+
+class YachtSuites {
+    constructor(yacht) {
+        this.yacht = yacht;
+        
+        this.suites = {
+            PRESIDENTIAL: {
+                name: 'Royal Suite',
+                deck: 'OWNER_DECK',
+                size: '300 sqm',
+                bed: 'KING_SIZE',
+                bathroom: 'MARBLE_EN_SUITE',
+                jacuzzi: 'PRIVATE_TERRACE',
+                view: '270°_PANORAMIC',
+                smartGlass: true,
+                butler: 'DEDICATED',
+                occupied: false
+            },
+            VIP_1: { name: 'Sapphire Suite', deck: 'UPPER', size: '120 sqm', occupied: false },
+            VIP_2: { name: 'Emerald Suite', deck: 'UPPER', size: '120 sqm', occupied: false },
+            VIP_3: { name: 'Diamond Suite', deck: 'UPPER', size: '110 sqm', occupied: false },
+            VIP_4: { name: 'Ruby Suite', deck: 'UPPER', size: '110 sqm', occupied: false },
+            GUEST_1: { name: 'Coral Room', deck: 'MAIN', size: '60 sqm', occupied: false },
+            GUEST_2: { name: 'Pearl Room', deck: 'MAIN', size: '60 sqm', occupied: false },
+            GUEST_3: { name: 'Opal Room', deck: 'MAIN', size: '55 sqm', occupied: false },
+            GUEST_4: { name: 'Topaz Room', deck: 'MAIN', size: '55 sqm', occupied: false },
+            GUEST_5: { name: 'Jade Room', deck: 'MAIN', size: '50 sqm', occupied: false },
+            GUEST_6: { name: 'Amber Room', deck: 'LOWER', size: '50 sqm', occupied: false },
+            GUEST_7: { name: 'Onyx Room', deck: 'LOWER', size: '50 sqm', occupied: false },
+            GUEST_8: { name: 'Quartz Room', deck: 'LOWER', size: '50 sqm', occupied: false },
+            GUEST_9: { name: 'Crystal Room', deck: 'LOWER', size: '45 sqm', occupied: false },
+            GUEST_10: { name: 'Aqua Room', deck: 'LOWER', size: '45 sqm', occupied: false },
+            GUEST_11: { name: 'Luna Room', deck: 'LOWER', size: '45 sqm', occupied: false },
+            GUEST_12: { name: 'Stella Room', deck: 'LOWER', size: '45 sqm', occupied: false }
+        };
+        
+        this.totalSuites = Object.keys(this.suites).length;
+    }
+
+    async initialize() {
+        console.log(`  👑 ${this.totalSuites} Luxury Suites Ready`);
+        console.log('     • 1 Presidential Royal Suite (300 sqm)');
+        console.log('     • 4 VIP Suites');
+        console.log('     • 12 Guest Cabins');
+        console.log('     • All with Smart Glass & En-suite');
+    }
+
+    async partyLighting() {
+        for (const [key, suite] of Object.entries(this.suites)) {
+            // Activate party lighting in all suites
+        }
+        return { success: true };
+    }
+
+    getStatus() {
+        const occupied = Object.values(this.suites).filter(s => s.occupied).length;
+        
+        return {
+            total: this.totalSuites,
+            occupied,
+            available: this.totalSuites - occupied,
+            presidentialReady: !this.suites.PRESIDENTIAL.occupied
+        };
+    }
+}
+
+module.exports = YachtSuites;

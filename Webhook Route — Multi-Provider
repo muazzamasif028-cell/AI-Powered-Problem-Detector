@@ -1,0 +1,21 @@
+// src/routes/webhooks.js
+const express = require('express');
+const router = express.Router();
+const paymentService = require('../services/payment');
+
+// Paddle webhook
+router.post('/paddle', async (req, res) => {
+    await paymentService.payment.handleWebhook(req, res);
+});
+
+// Lemon Squeezy webhook
+router.post('/lemonsqueezy', async (req, res) => {
+    await paymentService.payment.handleWebhook(req, res);
+});
+
+// PayPal IPN
+router.post('/paypal', async (req, res) => {
+    await paymentService.payment.handleWebhook(req, res);
+});
+
+module.exports = router;

@@ -1,0 +1,144 @@
+// ============================================================
+// 🔌 spl-v/protocols/VehicleProtocols.js
+// SPL-V v4.0 — Automotive Communication Protocols
+// ============================================================
+
+class VehicleProtocols {
+    constructor() {
+        this.protocols = {
+            CAN: new CANProtocol(),
+            CAN_FD: new CANFDProtocol(),
+            LIN: new LINProtocol(),
+            FlexRay: new FlexRayProtocol(),
+            AutomotiveEthernet: new AutomotiveEthernetProtocol(),
+            SOME_IP: new SOMEIPProtocol(),
+            DDS: new DDSProtocol()
+        };
+    }
+
+    initialize() {
+        for (const [name, protocol] of Object.entries(this.protocols)) {
+            protocol.initialize();
+        }
+        console.log(`🔌 ${Object.keys(this.protocols).length} protocols initialized`);
+    }
+}
+
+// CAN (Controller Area Network)
+class CANProtocol {
+    constructor() {
+        this.baudRate = 500000; // 500 kbps
+        this.frameFormat = 'STANDARD'; // or EXTENDED
+        this.messages = [];
+    }
+
+    initialize() {
+        console.log('🔌 CAN Bus initialized (500 kbps)');
+    }
+
+    send(id, data) {
+        const frame = {
+            id,
+            data,
+            timestamp: Date.now(),
+            priority: this.getPriority(id)
+        };
+        this.messages.push(frame);
+        return frame;
+    }
+
+    getPriority(id) {
+        // Lower ID = Higher priority
+        return id < 0x100 ? 'HIGH' : id < 0x500 ? 'MEDIUM' : 'LOW';
+    }
+}
+
+// CAN FD (CAN with Flexible Data-rate)
+class CANFDProtocol extends CANProtocol {
+    constructor() {
+        super();
+        this.baudRate = 5000000; // 5 Mbps
+        this.maxDataLength = 64; // bytes
+    }
+
+    initialize() {
+        console.log('🔌 CAN FD initialized (5 Mbps, 64-byte payload)');
+    }
+}
+
+// LIN (Local Interconnect Network)
+class LINProtocol {
+    constructor() {
+        this.baudRate = 19200; // 19.2 kbps
+        this.masterNode = true;
+        this.schedule = [];
+    }
+
+    initialize() {
+        console.log('🔌 LIN Bus initialized (19.2 kbps)');
+    }
+}
+
+// FlexRay
+class FlexRayProtocol {
+    constructor() {
+        this.baudRate = 10000000; // 10 Mbps
+        this.cycleTime = 5; // ms
+        this.staticSlots = 64;
+        this.dynamicSlots = 32;
+    }
+
+    initialize() {
+        console.log('🔌 FlexRay initialized (10 Mbps, dual-channel)');
+    }
+}
+
+// Automotive Ethernet
+class AutomotiveEthernetProtocol {
+    constructor() {
+        this.speed = '1000BASE-T1'; // 1 Gbps
+        this.avb = true; // Audio Video Bridging
+        this.tsn = true; // Time-Sensitive Networking
+    }
+
+    initialize() {
+        console.log('🔌 Automotive Ethernet initialized (1 Gbps, TSN enabled)');
+    }
+}
+
+// SOME/IP (Scalable service-Oriented MiddlewarE over IP)
+class SOMEIPProtocol {
+    constructor() {
+        this.services = [];
+        this.methods = [];
+        this.events = [];
+    }
+
+    initialize() {
+        console.log('🔌 SOME/IP initialized');
+    }
+
+    registerService(name, id) {
+        this.services.push({ name, id });
+    }
+}
+
+// DDS (Data Distribution Service)
+class DDSProtocol {
+    constructor() {
+        this.topics = [];
+        this.qos = {
+            reliability: 'RELIABLE',
+            durability: 'TRANSIENT_LOCAL',
+            deadline: '10ms'
+        };
+    }
+
+    initialize() {
+        console.log('🔌 DDS initialized (Real-Time Publish/Subscribe)');
+    }
+
+    createTopic(name, type) {
+        this.topics.push({ name, type });
+    }
+}

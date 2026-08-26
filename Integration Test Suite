@@ -1,0 +1,74 @@
+// ============================================================
+// 🧪 tests/integration.test.js
+// SUPREME Integration Test Suite
+// ============================================================
+const supremeIntegration = require('../services/supreme-integration.service');
+
+describe('SUPREME Enterprise Integration', () => {
+    
+    beforeAll(async () => {
+        await supremeIntegration.initialize();
+    });
+
+    test('Complete domain purchase flow', async () => {
+        const result = await supremeIntegration.purchaseDomain({
+            domain: 'testcompany',
+            tld: 'com',
+            plan: 'business',
+            quantumTier: 'enterprise',
+            years: 2,
+            paymentMethod: 'stripe',
+            user: {
+                id: 'user123',
+                email: 'test@company.com',
+                country: 'US',
+                segment: 'enterprise'
+            },
+            promoCode: 'WELCOME10'
+        });
+        
+        expect(result.success).toBe(true);
+        expect(result.domain.name).toBe('testcompany.com');
+        expect(result.quantum.tier).toBe('enterprise');
+        expect(result.payment.transactionId).toBeDefined();
+        expect(result.invoice.id).toBeDefined();
+        expect(result.aiInsights).toBeDefined();
+    });
+
+    test('AI health check with learning', async () => {
+        const report = await supremeIntegration.performHealthCheck('domain123');
+        
+        expect(report.health.score).toBeGreaterThan(0);
+        expect(report.quantum.activeLayers).toBeGreaterThan(0);
+        expect(report.pricing.recommendedTier).toBeDefined();
+        expect(report.anomalies).toBeDefined();
+    });
+
+    test('Enterprise quote generation', async () => {
+        const quote = await supremeIntegration.generateEnterpriseQuote({
+            domains: [
+                { name: 'enterprise1', tld: 'com', quantity: 50 },
+                { name: 'enterprise2', tld: 'ai', quantity: 25 }
+            ],
+            requirements: {
+                plan: 'enterprise',
+                quantumTier: 'quantum',
+                years: 3,
+                industry: 'finance'
+            },
+            user: { id: 'enterprise123', segment: 'fortune500' }
+        });
+        
+        expect(quote.aiEnhanced).toBe(true);
+        expect(quote.recommendations).toBeDefined();
+        expect(quote.quote.pricing.finalPrice).toBeDefined();
+    });
+
+    test('Platform analytics', async () => {
+        const analytics = await supremeIntegration.getPlatformAnalytics();
+        
+        expect(analytics.domains).toBeDefined();
+        expect(analytics.revenue.mrr).toBeDefined();
+        expect(analytics.learning.cyclesCompleted).toBeGreaterThan(0);
+    });
+});

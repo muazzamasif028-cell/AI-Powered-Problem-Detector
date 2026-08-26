@@ -1,0 +1,47 @@
+// service/CurrencyService.java
+package com.supreme.billing.service;
+
+import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.Cacheable;
+import java.math.BigDecimal;
+import java.util.Map;
+import java.util.HashMap;
+
+@Service
+public class CurrencyService {
+    
+    private final Map<String, BigDecimal> exchangeRates;
+    
+    public CurrencyService() {
+        exchangeRates = new HashMap<>();
+        // Base: USD
+        exchangeRates.put("USD", BigDecimal.ONE);
+        exchangeRates.put("EUR", new BigDecimal("0.85"));
+        exchangeRates.put("GBP", new BigDecimal("0.73"));
+        exchangeRates.put("PKR", new BigDecimal("280.50"));
+        exchangeRates.put("INR", new BigDecimal("83.25"));
+        exchangeRates.put("AED", new BigDecimal("3.67"));
+        exchangeRates.put("SAR", new BigDecimal("3.75"));
+    }
+    
+    @Cacheable(value = "exchangeRates", key = "#from + #to")
+    public BigDecimal getExchangeRate(String from, String to) {
+        if (from.equals(to)) {
+            return BigDecimal.ONE;
+        }
+        
+        BigDecimal fromRate = exchangeRates.get(from);
+        BigDecimal toRate = exchangeRates.get(to);
+        
+        if (fromRate == null || toRate == null) {
+            throw new CurrencyNotSupportedException("Currency not supported: " + from + " or " + to);
+        }
+        
+        return toRate.divide(fromRate, 6, BigDecimal.ROUND_HALF_UP);
+    }
+    
+    public BigDecimal convert(BigDecimal amount, String from, String to) {
+        BigDecimal rate = getExchangeRate(from, to);
+        return amount.multiply(rate);
+    }
+}

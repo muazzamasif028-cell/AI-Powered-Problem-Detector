@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Problem Solver</title>
+    <style>
+        :root {
+            --company-primary: #1a1a2e;
+            --company-secondary: #16213e;
+            --company-accent: #0f3460;
+            --company-gold: #e94560;
+            --text-light: #eee;
+            --chat-bg: #0d1117;
+            --user-bubble: #238636;
+            --bot-bubble: #21262d;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--company-primary);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .main-container {
+            width: 100%;
+            max-width: 900px;
+            height: 90vh;
+            background: var(--company-secondary);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .company-header {
+            background: linear-gradient(135deg, var(--company-accent), var(--company-gold));
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
+        
+        .company-logo {
+            width: 45px;
+            height: 45px;
+            background: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--company-accent);
+        }
+        
+        .company-info h2 {
+            color: white;
+            font-size: 1.2em;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        .company-info p {
+            color: rgba(255,255,255,0.8);
+            font-size: 0.8em;
+            margin-top: 2px;
+        }
+        
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 25px;
+            background: var(--chat-bg);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .message {
+            display: flex;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .user-msg {
+            justify-content: flex-end;
+        }
+        
+        .bot-msg {
+            justify-content: flex-start;
+        }
+        
+        .bubble {
+            max-width: 75%;
+            padding: 14px 18px;
+            border-radius: 18px;
+            line-height: 1.5;
+            font-size: 0.95em;
+        }
+        
+        .user-bubble {
+            background: var(--user-bubble);
+            color: white;
+            border-bottom-right-radius: 4px;
+            margin-left: 50px;
+        }
+        
+        .bot-bubble {
+            background: var(--bot-bubble);
+            color: var(--text-light);
+            border-bottom-left-radius: 4px;
+            margin-right: 50px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 14px 18px;
+            background: var(--bot-bubble);
+            border-radius: 18px;
+            border-bottom-left-radius: 4px;
+            width: fit-content;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--company-gold);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+            30% { opacity: 1; transform: scale(1); }
+        }
+        
+        .input-area {
+            padding: 20px 25px;
+            background: var(--company-secondary);
+            border-top: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            gap: 12px;
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 14px 20px;
+            background: var(--chat-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 25px;
+            color: white;
+            font-size: 0.95em;
+            outline: none;
+            transition: all 0.3s;
+        }
+        
+        .message-input:focus {
+            border-color: var(--company-gold);
+            box-shadow: 0 0 0 3px rgba(233,69,96,0.1);
+        }
+        
+        .send-btn {
+            width: 48px;
+            height: 48px;
+            background: var(--company-gold);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            color: white;
+        }
+        
+        .send-btn:hover {
+            background: #ff6b81;
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(233,69,96,0.4);
+        }
+        
+        .chat-area::-webkit-scrollbar {
+            width: 5px;
+        }
+        
+        .chat-area::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <!-- Company Branding Header -->
+        <div class="company-header">
+            <div class="company-logo">⚡</div>
+            <div class="company-info">
+                <h2>TechSolve Enterprise</h2>
+                <p>AI-Powered Problem Resolution</p>
+            </div>
+        </div>
+        
+        <!-- Chat Messages Area -->
+        <div class="chat-area" id="chatArea">
+            <div class="message bot-msg">
+                <div class="bubble bot-bubble">
+                    👋 Welcome to TechSolve!<br>
+                    Describe your technical problem, and I'll detect & resolve it instantly.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Input Area -->
+        <div class="input-area">
+            <input 
+                type="text" 
+                class="message-input" 
+                id="messageInput" 
+                placeholder="Describe your problem here..."
+                onkeypress="handleKeyPress(event)"
+            >
+            <button class="send-btn" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 🤫 HIDDEN LAYER - SAB KUCH CANVAS KE PEECHE -->
+    <!-- ============================================ -->
+    <script>
+        
+        // ========================================
+        // 🔐 V1 - COMPANY TRUST SCANNER (HIDDEN)
+        // ========================================
+        class CompanyTrustScanner {
+            constructor() {
+                this.trustDatabase = {
+                    verifiedCompanies: [
+                        'techcorp', 'innova', 'softserve', 'dataflow', 
+                        'cloudnine', 'appex', 'netsecure', 'cyberdyne',
+                        'quantum', 'nexus', 'apex', 'fusiontech'
+                    ],
+                    blacklistedPatterns: [
+                        'hack', 'exploit', 'injection', 'ddos', 'phishing',
+                        'scam', 'fake', 'spam', 'malware', 'ransomware'
+                    ],
+                    suspiciousDomains: [
+                        '.xyz', '.tk', '.ml', '.ga', '.cf'
+                    ]
+                };
+                
+                this.trustScores = {};
+                this.scanLogs = [];
+            }
+            
+            // Hidden scan method
+            scan(input, companyContext = {}) {
+                const scanId = 'TRUST-' + Date.now().toString(36) + '-' + 
+                               Math.random().toString(36).substr(2, 6);
+                
+                const results = {
+                    scanId: scanId,
+                    timestamp: new Date().toISOString(),
+                    input: input,
+                    checks: {},
+                    trustScore: 0,
+                    flags: [],
+                    approved: false
+                };
+                
+                // Check 1: Blacklisted patterns
+                const blacklistCheck = this.checkBlacklistedPatterns(input);
+                results.checks.blacklist = blacklistCheck;
+                
+                // Check 2: Suspicious domains
+                const domainCheck = this.checkSuspiciousDomains(input);
+                results.checks.domains = domainCheck;
+                
+                // Check 3: Input integrity
+                const integrityCheck = this.checkInputIntegrity(input);
+                results.checks.integrity = integrityCheck;
+                
+                // Check 4: Company verification
+                if (companyContext.name) {
+                    const companyCheck = this.verifyCompany(companyContext.name);
+                    results.checks.company = companyCheck;
+                }
+                
+                // Check 5: Risk assessment
+                const riskCheck = this.assessRisk(input);
+                results.checks.risk = riskCheck;
+                
+                // Calculate trust score
+                results.trustScore = this.calculateTrustScore(results.checks);
+                results.approved = results.trustScore >= 70;
+                results.flags = this.generateFlags(results.checks);
+                
+                // Store in hidden logs
+                this.scanLogs.push(results);
+                this.trustScores[scanId] = results.trustScore;
+                
+                return results;
+            }
+            
+            checkBlacklistedPatterns(input) {
+                const lowerInput = input.toLowerCase();
+                const foundPatterns = [];
+                
+                for (let pattern of this.blacklistedPatterns) {
+                    if (lowerInput.includes(pattern)) {
+                        foundPatterns.push(pattern);
+                    }
+                }
+                
+                return {
+                    passed: foundPatterns.length === 0,
+                    foundPatterns: foundPatterns,
+                    severity: foundPatterns.length > 2 ? 'HIGH' : 
+                              foundPatterns.length > 0 ? 'MEDIUM' : 'LOW'
+                };
+            }
+            
+            checkSuspiciousDomains(input) {
+                const foundDomains = [];
+                
+                for (let domain of this.suspiciousDomains) {
+                    if (input.includes(domain)) {
+                        foundDomains.push(domain);
+                    }
+                }
+                
+                return {
+                    passed: foundDomains.length === 0,
+                    foundDomains: foundDomains,
+                    suspicious: foundDomains.length > 0
+                };
+            }
+            
+            checkInputIntegrity(input) {
+                const checks = {
+                    length: input.length >= 10 && input.length <= 500,
+                    noRepeatedChars: !/(.)\1{4,}/.test(input),
+                    noExcessiveSymbols: (input.match(/[^a-zA-Z0-9\s]/g) || []).length < 10,
+                    hasMeaning: input.split(' ').length >= 2
+                };
+                
+                const allPassed = Object.values(checks).every(v => v === true);
+                
+                return {
+                    passed: allPassed,
+                    details: checks,
+                    failedChecks: Object.keys(checks).filter(k => !checks[k])
+                };
+            }
+            
+            verifyCompany(companyName) {
+                const lowerName = companyName.toLowerCase();
+                const isVerified = this.verifiedCompanies.some(
+                    name => lowerName.includes(name)
+                );
+                
+                return {
+                    passed: isVerified,
+                    companyName: companyName,
+                    verified: isVerified,
+                    tier: isVerified ? 'TRUSTED' : 'UNKNOWN'
+                };
+            }
+            
+            assessRisk(input) {
+                let riskScore = 0;
+                const lowerInput = input.toLowerCase();
+                
+                // Risk factors
+                const highRiskWords = ['urgent', 'immediately', 'asap', 'critical', 'emergency'];
+                const foundHighRisk = highRiskWords.filter(word => lowerInput.includes(word));
+                riskScore += foundHighRisk.length * 10;
+                
+                // URL detection
+                if (input.includes('http') || input.includes('www')) {
+                    riskScore += 15;
+                }
+                
+                // Script detection
+                if (input.includes('<script>') || input.includes('javascript:')) {
+                    riskScore += 50;
+                }
+                
+                return {
+                    passed: riskScore < 30,
+                    riskScore: riskScore,
+                    level: riskScore >= 50 ? 'CRITICAL' : 
+                           riskScore >= 30 ? 'HIGH' : 
+                           riskScore >= 15 ? 'MEDIUM' : 'LOW',
+                    riskFactors: foundHighRisk
+                };
+            }
+            
+            calculateTrustScore(checks) {
+                let score = 100;
+                
+                if (checks.blacklist && !checks.blacklist.passed) {
+                    score -= checks.blacklist.foundPatterns.length * 20;
+                }
+                
+                if (checks.domains && checks.domains.suspicious) {
+                    score -= 25;
+                }
+                
+                if (checks.integrity && !checks.integrity.passed) {
+                    score -= checks.integrity.failedChecks.length * 15;
+                }
+                
+                if (checks.risk && checks.risk.riskScore > 0) {
+                    score -= checks.risk.riskScore;
+                }
+                
+                return Math.max(0, Math.min(100, score));
+            }
+            
+            generateFlags(checks) {
+                const flags = [];
+                
+                if (!checks.blacklist.passed) {
+                    flags.push('BLACKLISTED_CONTENT');
+                }
+                if (checks.domains.suspicious) {
+                    flags.push('SUSPICIOUS_DOMAIN');
+                }
+                if (!checks.integrity.passed) {
+                    flags.push('INTEGRITY_FAILURE');
+                }
+                if (checks.risk && checks.risk.level === 'CRITICAL') {
+                    flags.push('CRITICAL_RISK');
+                }
+                
+                return flags;
+            }
+            
+            getHiddenLogs() {
+                return {
+                    totalScans: this.scanLogs.length,
+                    recentScans: this.scanLogs.slice(-5),
+                    averageTrustScore: this.scanLogs.length > 0 
+                        ? this.scanLogs.reduce((sum, log) => sum + log.trustScore, 0) / this.scanLogs.length 
+                        : 0
+                };
+            }
+        }
+        
+        // ========================================
+        // 🤫 SUPREME DETECTION ENGINE (HIDDEN)
+        // ========================================
+        class HiddenDetectionEngine {
+            constructor() {
+                this.problemPatterns = {
+                    server: ['down', 'crash', '503', '500', 'server', 'not responding', 'timeout'],
+                    database: ['database', 'sql', 'query', 'slow', 'connection', 'data loss'],
+                    frontend: ['ui', 'display', 'render', 'broken', 'layout', 'css', 'responsive'],
+                    api: ['api', 'endpoint', 'request', 'response', 'fetch', 'cors', '401'],
+                    performance: ['slow', 'lag', 'loading', 'speed', 'performance', 'optimize'],
+                    security: ['hack', 'breach', 'security', 'vulnerability', 'attack', 'ssl']
+                };
+                
+                this.solutionDB = {
+                    server: {
+                        detect: "Server connectivity issue identified",
+                        fix: "🔄 Restarting affected services...\n✅ Server health restored\n📊 Load balancer reconfigured",
+                        timeEstimate: "2-5 minutes"
+                    },
+                    database: {
+                        detect: "Database performance degradation detected",
+                        fix: "🔍 Optimizing queries...\n📈 Index rebuild initiated\n✅ Connection pool adjusted",
+                        timeEstimate: "5-10 minutes"
+                    },
+                    frontend: {
+                        detect: "Frontend rendering anomaly found",
+                        fix: "🎨 Rebuilding component cache...\n✅ Layout recalibrated\n🔄 CDN cache purged",
+                        timeEstimate: "1-3 minutes"
+                    },
+                    api: {
+                        detect: "API endpoint malfunction detected",
+                        fix: "🔧 Restarting API gateway...\n✅ Rate limiting adjusted\n📡 Endpoint health restored",
+                        timeEstimate: "2-4 minutes"
+                    },
+                    performance: {
+                        detect: "System performance bottleneck found",
+                        fix: "⚡ Clearing system cache...\n📈 Resource allocation optimized\n✅ Performance metrics normalized",
+                        timeEstimate: "3-7 minutes"
+                    },
+                    security: {
+                        detect: "Potential security vulnerability detected",
+                        fix: "🛡️ Applying security patches...\n🔒 Firewall rules updated\n✅ Threat neutralized",
+                        timeEstimate: "5-15 minutes"
+                    }
+                };
+            }
+            
+            analyzeProblem(userMessage) {
+                const msg = userMessage.toLowerCase();
+                let detectedType = null;
+                let confidence = 0;
+                
+                for (let [type, keywords] of Object.entries(this.problemPatterns)) {
+                    const matches = keywords.filter(kw => msg.includes(kw)).length;
+                    const score = matches / keywords.length;
+                    
+                    if (score > confidence) {
+                        confidence = score;
+                        detectedType = type;
+                    }
+                }
+                
+                return {
+                    type: detectedType || 'server',
+                    confidence: Math.min(confidence * 2, 0.95),
+                    timestamp: new Date().toISOString()
+                };
+            }
+            
+            getSolution(problemType) {
+                const solution = this.solutionDB[problemType] || this.solutionDB.server;
+                
+                return {
+                    detection: solution.detect,
+                    fix: solution.fix,
+                    time: solution.timeEstimate,
+                    referenceId: 'TKT-' + Math.random().toString(36).substr(2, 8).toUpperCase()
+                };
+            }
+        }
+        
+        // ========================================
+        // 🚀 INITIALIZE HIDDEN ENGINES
+        // ========================================
+        const trustScanner = new CompanyTrustScanner();
+        const detectionEngine = new HiddenDetectionEngine();
+        
+        console.log('🤫 [HIDDEN]: V1 Trust Scanner loaded');
+        console.log('🤫 [HIDDEN]: Supreme Detection Engine loaded');
+        console.log('🤫 [HIDDEN]: All systems operational');
+        
+        // ========================================
+        // 💬 CHAT FUNCTIONALITY
+        // ========================================
+        function addMessage(text, isUser = false) {
+            const chatArea = document.getElementById('chatArea');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-msg' : 'bot-msg'}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `bubble ${isUser ? 'user-bubble' : 'bot-bubble'}`;
+            bubble.textContent = text;
+            
+            messageDiv.appendChild(bubble);
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+        
+        function addTypingIndicator() {
+            const chatArea = document.getElementById('chatArea');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message bot-msg';
+            typingDiv.id = 'typingIndicator';
+            
+            typingDiv.innerHTML = `
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            `;
+            
+            chatArea.appendChild(typingDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+        
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Show user message
+            addMessage(message, true);
+            input.value = '';
+            
+            // Show typing
+            addTypingIndicator();
+            
+            // ============================================
+            // 🤫 HIDDEN PROCESSING LAYER
+            // ============================================
+            setTimeout(() => {
+                
+                // STEP 1: V1 Trust Scanner (HIDDEN)
+                const trustResult = trustScanner.scan(message, {
+                    name: 'techcorp',
+                    sessionId: 'session_' + Date.now()
+                });
+                
+                console.log('🤫 [TRUST SCAN]:', {
+                    score: trustResult.trustScore,
+                    approved: trustResult.approved,
+                    flags: trustResult.flags,
+                    scanId: trustResult.scanId
+                });
+                
+                // If trust score too low, block
+                if (!trustResult.approved) {
+                    removeTypingIndicator();
+                    addMessage('🚫 Security check failed. Input flagged for review.');
+                    console.log('🤫 [BLOCKED]: Low trust score', trustResult.trustScore);
+                    return;
+                }
+                
+                // STEP 2: Problem Detection (HIDDEN)
+                const problem = detectionEngine.analyzeProblem(message);
+                const solution = detectionEngine.getSolution(problem.type);
+                
+                console.log('🤫 [DETECTION]:', {
+                    type: problem.type,
+                    confidence: problem.confidence,
+                    trustScore: trustResult.trustScore
+                });
+                
+                removeTypingIndicator();
+                
+                // STEP 3: Show results to user (clean, no backend details)
+                addMessage(`🔍 **${solution.detection}**`);
+                
+                setTimeout(() => {
+                    addMessage(`⚙️ Applying fix...\n\n${solution.fix}`);
+                }, 1000);
+                
+                setTimeout(() => {
+                    addMessage(`✅ **Problem Resolved!**\n⏱ Time: ${solution.time}\n📋 Reference: ${solution.referenceId}`);
+                }, 2500);
+                
+            }, 1500);
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        // 🤫 Hidden system monitoring
+        setInterval(() => {
+            const logs = trustScanner.getHiddenLogs();
+            console.log('🤫 [SYSTEM HEALTH]:', {
+                trustScans: logs.totalScans,
+                avgTrustScore: logs.averageTrustScore.toFixed(2),
+                status: 'OPERATIONAL'
+            });
+        }, 60000);
+        
+    </script>
+</body>
+</html>

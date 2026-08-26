@@ -1,0 +1,79 @@
+{
+  "version": "14.0.0",
+  "currency": "USD",
+  "basePricing": {
+    "generic": {
+      "com": { "register": 12.99, "renew": 14.99, "transfer": 11.99 },
+      "net": { "register": 14.99, "renew": 16.99, "transfer": 13.99 },
+      "org": { "register": 15.99, "renew": 17.99, "transfer": 14.99 },
+      "xyz": { "register": 1.99, "renew": 12.99, "transfer": 1.99 },
+      "online": { "register": 4.99, "renew": 29.99, "transfer": 4.99 },
+      "site": { "register": 3.99, "renew": 24.99, "transfer": 3.99 },
+      "ai": { "register": 69.99, "renew": 79.99, "transfer": 69.99 },
+      "io": { "register": 39.99, "renew": 44.99, "transfer": 39.99 },
+      "cloud": { "register": 19.99, "renew": 24.99, "transfer": 19.99 },
+      "dev": { "register": 14.99, "renew": 17.99, "transfer": 14.99 },
+      "app": { "register": 17.99, "renew": 19.99, "transfer": 17.99 },
+      "tech": { "register": 9.99, "renew": 49.99, "transfer": 9.99 },
+      "shop": { "register": 9.99, "renew": 34.99, "transfer": 9.99 },
+      "store": { "register": 9.99, "renew": 39.99, "transfer": 9.99 }
+    },
+    "country": {
+      "us": { "register": 9.99, "renew": 12.99, "transfer": 9.99 },
+      "uk": { "register": 8.99, "renew": 10.99, "transfer": 8.99 },
+      "pk": { "register": 19.99, "renew": 24.99, "transfer": 19.99 },
+      "ae": { "register": 39.99, "renew": 44.99, "transfer": 39.99 },
+      "sa": { "register": 34.99, "renew": 39.99, "transfer": 34.99 }
+    }
+  },
+  "quantumLayers": {
+    "standard": {
+      "name": "Standard",
+      "layers": 0,
+      "price": 0,
+      "features": ["Basic DNS", "Standard SSL", "Email Forwarding"]
+    },
+    "business": {
+      "name": "Business",
+      "layers": 8,
+      "price": 50,
+      "features": ["Advanced DNS", "Wildcard SSL", "Business Email", "DDoS Protection", "CDN Basic"]
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "layers": 32,
+      "price": 250,
+      "features": ["Global DNS", "Premium SSL", "Advanced Security", "AI Threat Detection", "99.9% SLA"]
+    },
+    "enterprise_plus": {
+      "name": "Enterprise Plus",
+      "layers": 64,
+      "price": 1000,
+      "features": ["Multi-Region DNS", "Quantum SSL", "Full Security Suite", "AI Optimization", "99.99% SLA", "Dedicated Support"]
+    },
+    "quantum": {
+      "name": "Quantum Enterprise",
+      "layers": 128,
+      "price": 5000,
+      "features": ["Quantum DNS Mesh", "Post-Quantum SSL", "Sovereign Security", "AI Autopilot", "99.999% SLA", "Dedicated Infrastructure", "Compliance Suite"]
+    },
+    "sovereign": {
+      "name": "Sovereign Enterprise",
+      "layers": 256,
+      "price": 15000,
+      "features": ["Sovereign DNS", "Military-Grade Encryption", "Full Sovereignty", "AI Command Center", "100% Uptime SLA", "Dedicated Cluster", "Full Compliance", "24/7 Concierge"]
+    },
+    "planetary": {
+      "name": "Planetary Enterprise",
+      "layers": 512,
+      "price": 50000,
+      "features": ["Planetary DNS Grid", "Quantum-Proof Security", "Planetary Sovereignty", "AI Oracle", "100% Uptime Guarantee", "Dedicated Data Center", "Global Compliance", "Executive Support"]
+    },
+    "galactic": {
+      "name": "Galactic Enterprise",
+      "layers": 1024,
+      "price": 250000,
+      "features": ["Galactic DNS Constellation", "Absolute Security", "Full Autonomy", "AI Supreme", "Infinite Scale", "Dedicated Infrastructure Fleet", "Universal Compliance", "Board-Level Support"]
+    }
+  }
+}

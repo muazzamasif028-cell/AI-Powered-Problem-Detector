@@ -1,0 +1,148 @@
+# ============================================================
+# 🚀 infrastructure/argocd/supreme-app.yaml
+# ArgoCD Application — GitOps Deployment
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: supreme-os
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/supreme-os/infrastructure.git
+    targetRevision: main
+    path: kubernetes/overlays/production
+    
+    # Helm values
+    helm:
+      valueFiles:
+        - values-production.yaml
+      parameters:
+        - name: image.tag
+          value: "v18.0.0"
+        - name: replicaCount
+          value: "20"
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: supreme-platform
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: true
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  revisionHistoryLimit: 10
+  
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /spec/metrics/0/resource/target/averageUtilization
+
+---
+# =============================================
+# 🔄 ROLLOUT STRATEGY
+# =============================================
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: supreme-api
+  namespace: supreme-platform
+spec:
+  replicas: 10
+  strategy:
+    canary:
+      steps:
+        - setWeight: 10
+        - pause: { duration: 5m }
+        - setWeight: 25
+        - pause: { duration: 5m }
+        - setWeight: 50
+        - pause: { duration: 5m }
+        - setWeight: 100
+      analysis:
+        templates:
+          - templateName: success-rate
+        startingStep: 1
+        args:
+          - name: service-name
+            value: supreme-api
+  
+  selector:
+    matchLabels:
+      app: supreme-api
+  
+  template:
+    metadata:
+      labels:
+        app: supreme-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/supreme-os/api:v18.0.0
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: supreme-secrets
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+---
+# =============================================
+# 📊 ANALYSIS TEMPLATE
+# =============================================
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+  namespace: supreme-platform
+spec:
+  metrics:
+    - name: success-rate
+      interval: 1m
+      count: 5
+      successCondition: result[0] >= 0.95
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://prometheus.supreme-monitoring:9090
+          query: |
+            sum(rate(supreme_http_requests_total{
+              service="{{args.service-name}}",
+              status=~"2..|3.."
+            }[1m])) 
+            / 
+            sum(rate(supreme_http_requests_total{
+              service="{{args.service-name}}"
+            }[1m]))

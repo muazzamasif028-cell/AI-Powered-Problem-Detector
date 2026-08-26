@@ -1,0 +1,88 @@
+// event-bus/KafkaEventBus.js
+import { Kafka } from 'kafkajs';
+
+export class KafkaEventBus {
+    constructor() {
+        this.kafka = new Kafka({
+            clientId: 'supreme-safety',
+            brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(',')
+        });
+        
+        this.producer = this.kafka.producer();
+        this.consumer = this.kafka.consumer({ 
+            groupId: 'supreme-safety-group' 
+        });
+        
+        this.connected = false;
+    }
+
+    /**
+     * Connect to Kafka
+     */
+    async connect() {
+        if (!this.connected) {
+            await this.producer.connect();
+            await this.consumer.connect();
+            this.connected = true;
+            console.log('📡 Kafka Event Bus Connected');
+        }
+    }
+
+    /**
+     * Publish event to Kafka topic
+     */
+    async publish(topic, event) {
+        await this.connect();
+        
+        const message = {
+            key: event.companyId || event.id,
+            value: JSON.stringify({
+                ...event,
+                timestamp: new Date().toISOString(),
+                source: process.env.SERVICE_NAME || 'supreme-safety',
+                version: '1.0.0'
+            }),
+            headers: {
+                'event-type': event.type,
+                'source': process.env.SERVICE_NAME || 'supreme-safety'
+            }
+        };
+
+        await this.producer.send({
+            topic,
+            messages: [message]
+        });
+
+        console.log(`📡 [KAFKA] ${topic}: ${event.type}`);
+    }
+
+    /**
+     * Subscribe to Kafka topic
+     */
+    async subscribe(topic, handler) {
+        await this.connect();
+        
+        await this.consumer.subscribe({ topic, fromBeginning: false });
+        
+        await this.consumer.run({
+            eachMessage: async ({ topic, partition, message }) => {
+                const event = JSON.parse(message.value.toString());
+                await handler(event);
+            }
+        });
+
+        console.log(`📡 [SUBSCRIBE] ${topic}`);
+    }
+
+    /**
+     * Graceful shutdown
+     */
+    async disconnect() {
+        if (this.connected) {
+            await this.producer.disconnect();
+            await this.consumer.disconnect();
+            this.connected = false;
+            console.log('📡 Kafka disconnected');
+        }
+    }
+}

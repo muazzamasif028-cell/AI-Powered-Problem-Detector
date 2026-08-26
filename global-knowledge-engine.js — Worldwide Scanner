@@ -1,0 +1,174 @@
+// ============================================================
+// 🌍 global-knowledge-engine.js
+// SUPREME Global Knowledge Engine — Scans the world for improvements
+// ============================================================
+
+class GlobalKnowledgeEngine {
+    constructor() {
+        this.sources = [
+            { name: 'GitHub Trending', url: 'https://api.github.com/trending', weight: 0.8, frequency: 'daily' },
+            { name: 'ArXiv Papers', url: 'https://arxiv.org/list/cs.AI/recent', weight: 0.9, frequency: 'daily' },
+            { name: 'Hacker News', url: 'https://hacker-news.firebaseio.com/v0/topstories', weight: 0.6, frequency: 'hourly' },
+            { name: 'Stack Overflow', url: 'https://api.stackexchange.com/questions', weight: 0.5, frequency: 'daily' },
+            { name: 'NPM Registry', url: 'https://registry.npmjs.org/-/rss', weight: 0.7, frequency: 'daily' },
+            { name: 'PyPI Updates', url: 'https://pypi.org/rss/updates.xml', weight: 0.7, frequency: 'daily' },
+            { name: 'Rust Crates', url: 'https://crates.io/api/v1/summary', weight: 0.6, frequency: 'daily' },
+            { name: 'Security CVEs', url: 'https://cve.circl.lu/api/last', weight: 1.0, frequency: 'hourly' },
+            { name: 'Reddit r/programming', url: 'https://www.reddit.com/r/programming/hot.json', weight: 0.4, frequency: 'daily' },
+            { name: 'Dev.to', url: 'https://dev.to/api/articles', weight: 0.5, frequency: 'daily' }
+        ];
+
+        this.lastScan = null;
+        this.totalIdeasScanned = 0;
+    }
+
+    /**
+     * Scan all global sources for new ideas
+     */
+    async scan() {
+        console.log('🌍 Scanning global knowledge sources...');
+        const startTime = Date.now();
+
+        const results = await Promise.allSettled(
+            this.sources.map(source => this.scanSource(source))
+        );
+
+        const allIdeas = results
+            .filter(r => r.status === 'fulfilled')
+            .flatMap(r => r.value);
+
+        this.totalIdeasScanned += allIdeas.length;
+        this.lastScan = new Date();
+
+        // Categorize and score ideas
+        const categorized = this.categorizeIdeas(allIdeas);
+        const actionable = this.extractActionable(categorized);
+
+        console.log(`   Scanned: ${allIdeas.length} ideas from ${results.filter(r => r.status === 'fulfilled').length} sources`);
+        console.log(`   Actionable: ${actionable.length}`);
+
+        return {
+            totalScanned: allIdeas.length,
+            totalEver: this.totalIdeasScanned,
+            categorized,
+            actionable: actionable.slice(0, 50),
+            scanDuration: Date.now() - startTime
+        };
+    }
+
+    /**
+     * Scan a single source
+     */
+    async scanSource(source) {
+        // In production: Actually fetch and parse each source
+        // Simulate finding ideas
+        const ideaCount = Math.floor(Math.random() * 500) + 50;
+        
+        return Array.from({ length: ideaCount }, (_, i) => ({
+            source: source.name,
+            title: `${source.name} finding #${i}`,
+            description: `Auto-detected from ${source.name}`,
+            url: `${source.url}/item/${i}`,
+            relevance: Math.random(),
+            category: this.categorize(source.name),
+            publishedAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000)
+        }));
+    }
+
+    /**
+     * Categorize ideas
+     */
+    categorizeIdeas(ideas) {
+        const categories = {
+            security: [],
+            performance: [],
+            new_technology: [],
+            bug_fix: [],
+            optimization: [],
+            architecture: [],
+            ai_ml: [],
+            developer_tools: []
+        };
+
+        for (const idea of ideas) {
+            const cat = this.categorize(idea.source);
+            if (categories[cat]) {
+                categories[cat].push(idea);
+            }
+        }
+
+        return categories;
+    }
+
+    categorize(source) {
+        const map = {
+            'Security CVEs': 'security',
+            'GitHub Trending': 'new_technology',
+            'ArXiv Papers': 'ai_ml',
+            'NPM Registry': 'developer_tools',
+            'Stack Overflow': 'bug_fix',
+            'Hacker News': 'new_technology'
+        };
+        return map[source] || 'optimization';
+    }
+
+    /**
+     * Extract actionable ideas
+     */
+    extractActionable(categorized) {
+        const actionable = [];
+
+        // Security vulnerabilities → immediate action
+        for (const idea of categorized.security || []) {
+            actionable.push({
+                ...idea,
+                priority: 'critical',
+                actionType: 'fix_immediately',
+                recommendation: `Security vulnerability found: ${idea.title}. Apply patch immediately.`
+            });
+        }
+
+        // Performance improvements → high priority
+        for (const idea of categorized.performance || []) {
+            if (idea.relevance > 0.8) {
+                actionable.push({
+                    ...idea,
+                    priority: 'high',
+                    actionType: 'optimize',
+                    recommendation: `Performance improvement: ${idea.title}`
+                });
+            }
+        }
+
+        // New technologies → evaluate
+        for (const idea of categorized.new_technology || []) {
+            if (idea.relevance > 0.9) {
+                actionable.push({
+                    ...idea,
+                    priority: 'medium',
+                    actionType: 'evaluate',
+                    recommendation: `New technology to evaluate: ${idea.title}`
+                });
+            }
+        }
+
+        // AI/ML advances → research
+        for (const idea of categorized.ai_ml || []) {
+            if (idea.relevance > 0.85) {
+                actionable.push({
+                    ...idea,
+                    priority: 'high',
+                    actionType: 'research',
+                    recommendation: `AI advancement: ${idea.title} — Could improve our models`
+                });
+            }
+        }
+
+        return actionable.sort((a, b) => {
+            const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+            return (priorityOrder[a.priority] || 99) - (priorityOrder[b.priority] || 99);
+        });
+    }
+}
+
+module.exports = new GlobalKnowledgeEngine();

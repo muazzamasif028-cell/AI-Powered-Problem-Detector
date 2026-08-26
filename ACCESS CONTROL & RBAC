@@ -1,0 +1,45 @@
+// ============================================================
+// 🔐 saas/AccessControl.js
+// SUPREME SaaS — Access Control & RBAC
+// ============================================================
+
+class AccessControl {
+    constructor() {
+        this.roles = {
+            OWNER: {
+                permissions: ['ALL'],
+                description: 'Full control over workspace'
+            },
+            ADMIN: {
+                permissions: ['MANAGE_USERS', 'MANAGE_BILLING', 'MANAGE_PROJECTS', 'VIEW_ANALYTICS'],
+                description: 'Administrative access'
+            },
+            ENGINEER: {
+                permissions: ['CREATE_PROJECTS', 'EDIT_PROJECTS', 'RUN_SIMULATIONS', 'EXPORT'],
+                description: 'Engineering design access'
+            },
+            VIEWER: {
+                permissions: ['VIEW_PROJECTS', 'COMMENT'],
+                description: 'Read-only access'
+            }
+        };
+    }
+
+    async authorize(tenantId, userId, action) {
+        const userRole = this.getUserRole(tenantId, userId);
+        const role = this.roles[userRole];
+        
+        if (!role) return { authorized: false };
+        
+        if (role.permissions.includes('ALL')) return { authorized: true };
+        if (role.permissions.includes(action)) return { authorized: true };
+        
+        return { authorized: false, message: `Role ${userRole} cannot perform ${action}` };
+    }
+
+    getUserRole(tenantId, userId) {
+        return 'OWNER'; // Simplified
+    }
+}
+
+module.exports = AccessControl;

@@ -1,0 +1,268 @@
+// ============================================================
+// 🔄 services/state-restore.service.js
+// SUPREME State Restore — < 1 second full restoration
+// ============================================================
+const Workspace = require('../models/Workspace');
+const WorkspaceSnapshot = require('../models/WorkspaceSnapshot');
+const autoSaveService = require('./auto-save.service');
+const zlib = require('zlib');
+const util = require('util');
+
+const brotliDecompress = util.promisify(zlib.brotliDecompress);
+const gunzip = util.promisify(zlib.gunzip);
+
+class StateRestoreService {
+    constructor() {
+        this.targetRestoreTime = 1000; // 1 second
+        this.restoreHistory = new Map();
+    }
+
+    /**
+     * Restore workspace on user login
+     */
+    async restoreOnLogin(userId) {
+        const startTime = Date.now();
+        console.log(`🔄 Restoring workspace for user ${userId}...`);
+
+        try {
+            // 1. Find latest snapshot
+            const snapshot = await WorkspaceSnapshot.findOne({ userId })
+                .sort({ 'metadata.savedAt': -1 })
+                .limit(1);
+
+            let workspace;
+
+            if (snapshot) {
+                // 2. Decrypt
+                const decrypted = autoSaveService.decrypt(snapshot.state);
+
+                // 3. Decompress
+                let decompressed;
+                if (snapshot.metadata.algorithm === 'brotli') {
+                    decompressed = await brotliDecompress(decrypted);
+                } else {
+                    decompressed = await gunzip(decrypted);
+                }
+
+                // 4. Parse state
+                const state = JSON.parse(decompressed.toString());
+
+                // 5. Restore to workspace
+                workspace = await Workspace.findOneAndUpdate(
+                    { userId },
+                    {
+                        $set: {
+                            openTabs: state.openTabs || [],
+                            aiContext: state.aiContext || {},
+                            codeEditor: state.codeEditor || {},
+                            terminal: state.terminal || {},
+                            fileSystem: state.fileSystem || {},
+                            browser: state.browser || {},
+                            layout: state.layout || {},
+                            cloudResources: state.cloudResources || {},
+                            notifications: state.notifications || [],
+                            preferences: state.preferences || {},
+                            status: 'active',
+                            'metadata.lastActivityAt': new Date(),
+                            'metadata.version': (await Workspace.findOne({ userId }))?.metadata?.version + 1 || 1
+                        }
+                    },
+                    { new: true, upsert: true }
+                );
+            } else {
+                // No snapshot — create fresh workspace
+                workspace = await Workspace.findOneAndUpdate(
+                    { userId },
+                    {
+                        $setOnInsert: {
+                            userId,
+                            name: 'My Workspace',
+                            status: 'active',
+                            openTabs: [{
+                                tabId: 'welcome',
+                                type: 'ai-chat',
+                                title: 'Welcome to SUPREME OS',
+                                isActive: true,
+                                createdAt: new Date(),
+                                lastAccessed: new Date()
+                            }],
+                            layout: {
+                                type: 'default',
+                                sidebarOpen: true,
+                                terminalOpen: false
+                            },
+                            preferences: { theme: 'dark', language: 'en' }
+                        }
+                    },
+                    { new: true, upsert: true }
+                );
+            }
+
+            // 6. Start auto-save
+            autoSaveService.startAutoSave(userId);
+
+            const restoreTime = Date.now() - startTime;
+            
+            // Track history
+            this.restoreHistory.set(userId, {
+                lastRestore: new Date(),
+                restoreTime,
+                snapshotId: snapshot?._id
+            });
+
+            console.log(`✅ Workspace restored in ${restoreTime}ms (target: ${this.targetRestoreTime}ms)`);
+
+            return {
+                workspace: this.formatForClient(workspace),
+                restoreMetadata: {
+                    restoredFrom: snapshot ? snapshot.metadata.savedAt : 'fresh',
+                    restoreTime: `${restoreTime}ms`,
+                    status: restoreTime <= this.targetRestoreTime ? '⚡ Instant' : '🔄 Fast',
+                    snapshotVersion: snapshot?.metadata?.version,
+                    stateBreakdown: this.getStateBreakdown(workspace)
+                }
+            };
+
+        } catch (error) {
+            console.error(`Restore failed for ${userId}:`, error.message);
+            
+            // Emergency: create minimal workspace
+            const workspace = await Workspace.findOneAndUpdate(
+                { userId },
+                {
+                    $setOnInsert: { userId, name: 'Recovery Workspace', status: 'active' },
+                    $set: { status: 'active', 'metadata.lastActivityAt': new Date() }
+                },
+                { new: true, upsert: true }
+            );
+
+            autoSaveService.startAutoSave(userId);
+
+            return {
+                workspace: this.formatForClient(workspace),
+                restoreMetadata: {
+                    restoredFrom: 'emergency_recovery',
+                    restoreTime: `${Date.now() - startTime}ms`,
+                    status: '⚠️ Recovery Mode',
+                    error: error.message
+                }
+            };
+        }
+    }
+
+    /**
+     * Restore from specific point in time
+     */
+    async restoreFromTime(userId, timestamp) {
+        console.log(`⏰ Time travel: Restoring ${userId} to ${new Date(timestamp).toISOString()}`);
+
+        const snapshot = await WorkspaceSnapshot.findOne({
+            userId,
+            'metadata.savedAt': { $lte: new Date(timestamp) }
+        }).sort({ 'metadata.savedAt': -1 });
+
+        if (!snapshot) {
+            throw new Error('No snapshot found for the specified time');
+        }
+
+        // Save current state first
+        await autoSaveService.forceSave(userId);
+
+        // Decrypt and decompress
+        const decrypted = autoSaveService.decrypt(snapshot.state);
+        const decompressed = snapshot.metadata.algorithm === 'brotli'
+            ? await brotliDecompress(decrypted)
+            : await gunzip(decrypted);
+        const state = JSON.parse(decompressed.toString());
+
+        // Restore
+        const workspace = await Workspace.findOneAndUpdate(
+            { userId },
+            { $set: { ...state, status: 'active', 'metadata.version': (await Workspace.findOne({ userId }))?.metadata?.version + 1 || 1 } },
+            { new: true }
+        );
+
+        return {
+            workspace: this.formatForClient(workspace),
+            timeTravel: {
+                from: snapshot.metadata.savedAt,
+                to: new Date(),
+                message: `⏰ Restored to ${new Date(timestamp).toLocaleString()}`
+            }
+        };
+    }
+
+    /**
+     * Get state breakdown for display
+     */
+    getStateBreakdown(workspace) {
+        return {
+            tabs: workspace.openTabs?.length || 0,
+            aiConversations: workspace.aiContext?.conversations?.length || 0,
+            activeAgents: workspace.aiContext?.agents?.filter(a => a.status === 'executing')?.length || 0,
+            openFiles: workspace.codeEditor?.openFiles?.length || 0,
+            terminalSessions: workspace.terminal?.sessions?.length || 0,
+            browserTabs: workspace.browser?.tabs?.length || 0,
+            notifications: workspace.notifications?.filter(n => !n.isRead)?.length || 0
+        };
+    }
+
+    /**
+     * Format workspace for client
+     */
+    formatForClient(workspace) {
+        if (!workspace) return null;
+
+        return {
+            id: workspace._id,
+            name: workspace.name,
+            status: workspace.status,
+            openTabs: workspace.openTabs,
+            aiContext: {
+                activeConversation: workspace.aiContext?.conversations?.find(c => c.isActive),
+                conversationCount: workspace.aiContext?.conversations?.length || 0,
+                activeAgents: workspace.aiContext?.agents?.filter(a => a.status === 'executing') || [],
+                activeProvider: workspace.aiContext?.providerState?.activeProvider,
+                activeModel: workspace.aiContext?.providerState?.activeModel
+            },
+            codeEditor: {
+                activeFile: workspace.codeEditor?.activeFile,
+                openFilesCount: workspace.codeEditor?.openFiles?.length || 0,
+                isDirty: workspace.codeEditor?.openFiles?.some(f => f.isDirty) || false
+            },
+            terminal: {
+                activeSessions: workspace.terminal?.sessions?.filter(s => s.isActive)?.length || 0
+            },
+            layout: workspace.layout,
+            notifications: workspace.notifications?.filter(n => !n.isRead)?.length || 0,
+            preferences: workspace.preferences,
+            metadata: {
+                lastSaved: workspace.metadata?.lastSnapshotAt,
+                version: workspace.metadata?.version,
+                totalUptime: workspace.metadata?.totalUptime
+            }
+        };
+    }
+
+    /**
+     * Get restore stats
+     */
+    getStats() {
+        const history = Array.from(this.restoreHistory.entries()).map(([userId, data]) => ({
+            userId,
+            ...data,
+            restoreTime: `${data.restoreTime}ms`
+        }));
+
+        const averageTime = history.reduce((sum, h) => sum + h.restoreTime, 0) / Math.max(history.length, 1);
+
+        return {
+            totalRestores: history.length,
+            averageRestoreTime: `${Math.round(averageTime)}ms`,
+            targetRestoreTime: `${this.targetRestoreTime}ms`,
+            recentRestores: history.slice(-10)
+        };
+    }
+}
+
+module.exports = new StateRestoreService();

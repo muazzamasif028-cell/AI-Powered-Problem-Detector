@@ -1,0 +1,23 @@
+Feature ID: BILL-001
+Priority: P0 (Critical)
+Effort: 2 weeks
+
+Payment Providers:
+  - Stripe (primary)
+  - Paddle (backup — handles global tax)
+  - PayPal (optional)
+
+Plans:
+  Free:     $0/mo   — 5 AI requests/day, 1 agent
+  Starter:  $19/mo  — 100 AI requests/day, 5 agents
+  Pro:      $49/mo  — 1,000 AI requests/day, 25 agents, Trust
+  Business: $199/mo — 10,000 AI requests/day, 100 agents, SSO
+  Enterprise: Custom — Unlimited, dedicated, SLA
+
+API Endpoints:
+  GET    /api/billing/plans
+  POST   /api/billing/checkout
+  GET    /api/billing/subscription
+  DELETE /api/billing/subscription
+  GET    /api/billing/invoices
+  POST   /api/billing/webhook

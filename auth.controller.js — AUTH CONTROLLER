@@ -1,0 +1,96 @@
+// ============================================================
+// 📁 controllers/auth.controller.js — AUTH CONTROLLER
+// ============================================================
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+
+class AuthController {
+    constructor() {
+        this.JWT_SECRET = process.env.JWT_SECRET || 'supreme-jwt-secret';
+        this.users = new Map(); // In production: MongoDB
+        this.seedDemoUsers();
+    }
+
+    seedDemoUsers() {
+        const users = [
+            { email: 'admin@supreme.com', password: 'Admin@123', name: 'Super Admin', role: 'SUPER_ADMIN' },
+            { email: 'ceo@techcorp.com', password: 'Ceo@123', name: 'TechCorp CEO', role: 'COMPANY_ADMIN' },
+            { email: 'dev@techcorp.com', password: 'Dev@123', name: 'TechCorp Dev', role: 'COMPANY_ENGINEER' }
+        ];
+        users.forEach(u => this.users.set(u.email, u));
+    }
+
+    // =============================================
+    // 🔐 SIGNIN
+    // =============================================
+    signin = async (req, res) => {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password required' });
+        }
+
+        const user = this.users.get(email);
+        if (!user || user.password !== password) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        const token = jwt.sign(
+            { userId: user.email, role: user.role, name: user.name },
+            this.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            success: true,
+            token,
+            user: { email: user.email, name: user.name, role: user.role }
+        });
+    };
+
+    // =============================================
+    // 🔐 SIGNUP
+    // =============================================
+    signup = async (req, res) => {
+        const { email, password, name, company } = req.body;
+
+        if (!email || !password || !name) {
+            return res.status(400).json({ error: 'Email, password, and name required' });
+        }
+
+        if (this.users.has(email)) {
+            return res.status(409).json({ error: 'Email already registered' });
+        }
+
+        const user = { email, password, name, role: 'COMPANY_ADMIN', company: company || 'Default' };
+        this.users.set(email, user);
+
+        const token = jwt.sign(
+            { userId: email, role: user.role, name: user.name },
+            this.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        res.status(201).json({
+            success: true,
+            token,
+            user: { email: user.email, name: user.name, role: user.role, company: user.company }
+        });
+    };
+
+    // =============================================
+    // 🔐 SIGNOUT
+    // =============================================
+    signout = async (req, res) => {
+        res.json({ success: true, message: 'Signed out successfully' });
+    };
+
+    // =============================================
+    // 🔐 VERIFY
+    // =============================================
+    verify = async (req, res) => {
+        res.json({ valid: true, user: req.user });
+    };
+}
+
+module.exports = new AuthController();

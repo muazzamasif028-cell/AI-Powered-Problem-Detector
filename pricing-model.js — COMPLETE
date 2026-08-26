@@ -1,0 +1,222 @@
+// =============================================================
+// SUPREME CLOUD
+// pricing-model.js
+// Enterprise Pricing Engine
+// =============================================================
+
+class PricingModel {
+
+    constructor() {
+
+        this.tiers = {
+
+            STARTER: {
+                name: "Starter",
+                customers: "Individual / Small Business",
+
+                diagnosis: {
+                    min: 49,
+                    max: 99
+                },
+
+                repair: {
+                    min: 149,
+                    max: 299
+                },
+
+                solution: {
+                    min: 299,
+                    max: 599
+                },
+
+                sla: "24 Hours"
+            },
+
+            PROFESSIONAL: {
+                name: "Professional",
+                customers: "SME / Startup",
+
+                diagnosis: {
+                    min: 199,
+                    max: 799
+                },
+
+                repair: {
+                    min: 800,
+                    max: 2500
+                },
+
+                solution: {
+                    min: 2500,
+                    max: 7500
+                },
+
+                sla: "8 Hours"
+            },
+
+            BUSINESS: {
+                name: "Business",
+                customers: "Production Company",
+
+                diagnosis: {
+                    min: 2000,
+                    max: 10000
+                },
+
+                repair: {
+                    min: 10000,
+                    max: 50000
+                },
+
+                solution: {
+                    min: 50000,
+                    max: 150000
+                },
+
+                sla: "4 Hours"
+            },
+
+            ENTERPRISE: {
+                name: "Enterprise",
+
+                quoteOnly: true,
+
+                sla: "1 Hour",
+
+                features: [
+
+                    "Dedicated Engineer",
+
+                    "24x7 Monitoring",
+
+                    "Priority Ghost Repair",
+
+                    "AI Swarm Support",
+
+                    "Security Response"
+
+                ]
+            },
+
+            GOVERNMENT: {
+                name: "Government / Smart City",
+
+                proposalOnly: true,
+
+                sla: "24x7 Dedicated",
+
+                features: [
+
+                    "National Infrastructure",
+
+                    "Defense Grade Security",
+
+                    "Dedicated AI Cluster",
+
+                    "Multi-Year Support",
+
+                    "Command Center"
+
+                ]
+            }
+
+        };
+
+    }
+
+    // ==========================================================
+    // Return Tier
+    // ==========================================================
+
+    getTier(name){
+
+        return this.tiers[name.toUpperCase()] || null;
+
+    }
+
+    // ==========================================================
+    // Auto Tier Detection
+    // ==========================================================
+
+    detectTier(system){
+
+        if(system.users < 1000)
+            return "STARTER";
+
+        if(system.users < 50000)
+            return "PROFESSIONAL";
+
+        if(system.users < 1000000)
+            return "BUSINESS";
+
+        if(system.users < 50000000)
+            return "ENTERPRISE";
+
+        return "GOVERNMENT";
+
+    }
+
+    // ==========================================================
+    // Estimate Price
+    // ==========================================================
+
+    estimate({
+
+        tier,
+
+        service
+
+    }){
+
+        const plan = this.getTier(tier);
+
+        if(!plan)
+            throw new Error("Invalid Tier");
+
+        if(plan.quoteOnly){
+
+            return{
+
+                tier,
+
+                pricing:"CUSTOM QUOTE REQUIRED",
+
+                sla:plan.sla
+
+            };
+
+        }
+
+        if(plan.proposalOnly){
+
+            return{
+
+                tier,
+
+                pricing:"CUSTOM GOVERNMENT PROPOSAL",
+
+                sla:plan.sla
+
+            };
+
+        }
+
+        return{
+
+            tier,
+
+            service,
+
+            minimum:plan[service].min,
+
+            maximum:plan[service].max,
+
+            sla:plan.sla
+
+        };
+
+    }
+
+}
+
+module.exports = new PricingModel();

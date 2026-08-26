@@ -1,0 +1,191 @@
+// ============================================================
+// 💾 src/services/storage/multipart-upload.service.js
+// SUPREME S3 Multipart Upload Service
+// ============================================================
+const AWS = require('aws-sdk');
+
+class MultipartUploadService {
+    constructor() {
+        this.s3 = new AWS.S3({
+            endpoint: process.env.S3_ENDPOINT,
+            accessKeyId: process.env.S3_ACCESS_KEY,
+            secretAccessKey: process.env.S3_SECRET_KEY,
+            region: process.env.S3_REGION,
+            signatureVersion: 'v4',
+            s3ForcePathStyle: true
+        });
+
+        this.activeUploads = new Map();
+        this.partSize = 5 * 1024 * 1024; // 5MB minimum part size
+    }
+
+    /**
+     * Initialize multipart upload
+     */
+    async initiateUpload(bucket, key, options = {}) {
+        const params = {
+            Bucket: bucket,
+            Key: key,
+            ContentType: options.contentType || 'application/octet-stream',
+            Metadata: options.metadata || {},
+            ServerSideEncryption: 'AES256',
+            StorageClass: options.storageClass || 'STANDARD'
+        };
+
+        const result = await this.s3.createMultipartUpload(params).promise();
+
+        const uploadId = result.UploadId;
+        
+        this.activeUploads.set(uploadId, {
+            bucket,
+            key,
+            uploadId,
+            parts: [],
+            startedAt: new Date(),
+            options
+        });
+
+        return {
+            uploadId,
+            bucket,
+            key,
+            partSize: this.partSize
+        };
+    }
+
+    /**
+     * Upload part
+     */
+    async uploadPart(uploadId, partNumber, body) {
+        const upload = this.activeUploads.get(uploadId);
+        
+        if (!upload) {
+            throw new Error(`Upload not found: ${uploadId}`);
+        }
+
+        const params = {
+            Bucket: upload.bucket,
+            Key: upload.key,
+            UploadId: uploadId,
+            PartNumber: partNumber,
+            Body: body
+        };
+
+        const result = await this.s3.uploadPart(params).promise();
+
+        // Store part info
+        upload.parts.push({
+            PartNumber: partNumber,
+            ETag: result.ETag
+        });
+
+        return {
+            partNumber,
+            etag: result.ETag
+        };
+    }
+
+    /**
+     * Complete multipart upload
+     */
+    async completeUpload(uploadId) {
+        const upload = this.activeUploads.get(uploadId);
+        
+        if (!upload) {
+            throw new Error(`Upload not found: ${uploadId}`);
+        }
+
+        // Sort parts by part number
+        upload.parts.sort((a, b) => a.PartNumber - b.PartNumber);
+
+        const params = {
+            Bucket: upload.bucket,
+            Key: upload.key,
+            UploadId: uploadId,
+            MultipartUpload: {
+                Parts: upload.parts
+            }
+        };
+
+        const result = await this.s3.completeMultipartUpload(params).promise();
+
+        // Clean up
+        this.activeUploads.delete(uploadId);
+
+        return {
+            location: result.Location,
+            bucket: result.Bucket,
+            key: result.Key,
+            etag: result.ETag,
+            totalParts: upload.parts.length,
+            completedAt: new Date()
+        };
+    }
+
+    /**
+     * Abort multipart upload
+     */
+    async abortUpload(uploadId) {
+        const upload = this.activeUploads.get(uploadId);
+        
+        if (!upload) return;
+
+        await this.s3.abortMultipartUpload({
+            Bucket: upload.bucket,
+            Key: upload.key,
+            UploadId: uploadId
+        }).promise();
+
+        this.activeUploads.delete(uploadId);
+    }
+
+    /**
+     * List active uploads
+     */
+    async listActiveUploads(bucket) {
+        const result = await this.s3.listMultipartUploads({
+            Bucket: bucket
+        }).promise();
+
+        return {
+            uploads: result.Uploads?.map(u => ({
+                uploadId: u.UploadId,
+                key: u.Key,
+                initiated: u.Initiated
+            })) || []
+        };
+    }
+
+    /**
+     * Get upload progress
+     */
+    getProgress(uploadId) {
+        const upload = this.activeUploads.get(uploadId);
+        
+        if (!upload) return null;
+
+        return {
+            uploadId,
+            key: upload.key,
+            partsUploaded: upload.parts.length,
+            startedAt: upload.startedAt,
+            elapsed: Date.now() - upload.startedAt.getTime()
+        };
+    }
+
+    /**
+     * Cleanup stale uploads (older than 24 hours)
+     */
+    async cleanupStaleUploads() {
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        
+        for (const [uploadId, upload] of this.activeUploads) {
+            if (upload.startedAt.getTime() < cutoff) {
+                await this.abortUpload(uploadId);
+                console.log(`🧹 Cleaned up stale upload: ${uploadId}`);
+            }
+        }
+    }
+}
+
+module.exports = new MultipartUploadService();

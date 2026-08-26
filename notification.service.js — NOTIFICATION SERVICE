@@ -1,0 +1,160 @@
+// ============================================================
+// 📁 alerts/notification.service.js — NOTIFICATION SERVICE
+// ============================================================
+const EventEmitter = require('events');
+
+class NotificationService extends EventEmitter {
+    constructor() {
+        super();
+        this.channels = {
+            DASHBOARD: { active: true, type: 'REALTIME' },
+            EMAIL: { active: true, type: 'ASYNC', maxPerHour: 50 },
+            SMS: { active: true, type: 'ASYNC', maxPerHour: 10, priority: ['CRITICAL'] },
+            SLACK: { active: true, type: 'REALTIME' },
+            PAGERDUTY: { active: true, type: 'INCIDENT', priority: ['CRITICAL', 'HIGH'] },
+            WEBHOOK: { active: true, type: 'ASYNC' },
+            KAFKA: { active: true, type: 'STREAMING' },
+            PHONE: { active: true, type: 'ASYNC', priority: ['CRITICAL'] }
+        };
+        
+        this.notificationHistory = [];
+        this.rateLimitCounters = new Map();
+        console.log('📬 [NOTIFICATION SERVICE] Active');
+    }
+
+    // =============================================
+    // 📬 SEND NOTIFICATION
+    // =============================================
+    async send(alert, channels = null) {
+        const targetChannels = channels || alert.channels || ['DASHBOARD'];
+        const results = [];
+
+        for (let channel of targetChannels) {
+            if (!this.channels[channel]?.active) continue;
+            if (!this.checkRateLimit(channel)) continue;
+
+            const result = await this.sendToChannel(channel, alert);
+            results.push(result);
+        }
+
+        this.notificationHistory.push({
+            alertId: alert.id,
+            channels: results.map(r => r.channel),
+            timestamp: new Date().toISOString()
+        });
+
+        return results;
+    }
+
+    // =============================================
+    // 📬 SEND TO CHANNEL
+    // =============================================
+    async sendToChannel(channel, alert) {
+        const formatters = {
+            DASHBOARD: (a) => ({
+                type: 'ALERT',
+                id: a.id,
+                severity: a.severity,
+                title: a.title,
+                message: a.message,
+                time: a.timestamp
+            }),
+            EMAIL: (a) => ({
+                subject: `[${a.severity}] ${a.title}`,
+                body: `<h2>${a.title}</h2><p>${a.message}</p><p>Severity: ${a.severity}</p><p>Time: ${a.timestamp}</p>`,
+                to: 'team@company.com'
+            }),
+            SMS: (a) => `[${a.severity}] ${a.title}: ${a.message}`.substring(0, 160),
+            SLACK: (a) => ({
+                text: `🚨 *[${a.severity}]* ${a.title}\n${a.message}`,
+                channel: a.severity === 'CRITICAL' ? '#incidents-critical' : '#alerts'
+            }),
+            PAGERDUTY: (a) => ({
+                routing_key: 'supreme-pd-key',
+                event_action: 'trigger',
+                payload: {
+                    summary: a.title,
+                    source: a.source,
+                    severity: a.severity === 'CRITICAL' ? 'critical' : 'error',
+                    component: a.type,
+                    timestamp: a.timestamp
+                }
+            }),
+            WEBHOOK: (a) => ({
+                alert: a,
+                webhook_url: process.env.WEBHOOK_URL
+            }),
+            KAFKA: (a) => ({
+                topic: 'supreme.alerts',
+                key: a.id,
+                value: JSON.stringify(a)
+            }),
+            PHONE: (a) => ({
+                to: process.env.ONCALL_PHONE,
+                message: `CRITICAL ALERT: ${a.title}`
+            })
+        };
+
+        const formatter = formatters[channel];
+        if (!formatter) return { success: false, channel, error: 'Unknown channel' };
+
+        const message = formatter(alert);
+
+        // Simulate sending
+        console.log(`📬 [${channel}] Alert sent: ${alert.title}`);
+        this.incrementRateLimit(channel);
+
+        return {
+            success: true,
+            channel,
+            messageId: 'MSG-' + Date.now().toString(36),
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    // =============================================
+    // 📬 RATE LIMITING
+    // =============================================
+    checkRateLimit(channel) {
+        const config = this.channels[channel];
+        if (!config?.maxPerHour) return true;
+
+        const key = `${channel}:${new Date().getHours()}`;
+        const count = this.rateLimitCounters.get(key) || 0;
+        
+        return count < config.maxPerHour;
+    }
+
+    incrementRateLimit(channel) {
+        const key = `${channel}:${new Date().getHours()}`;
+        const count = (this.rateLimitCounters.get(key) || 0) + 1;
+        this.rateLimitCounters.set(key, count);
+    }
+
+    // =============================================
+    // 📬 SEND BULK
+    // =============================================
+    async sendBulk(alerts, channels = null) {
+        const results = [];
+        for (let alert of alerts) {
+            const result = await this.send(alert, channels);
+            results.push(...result);
+        }
+        return results;
+    }
+
+    // =============================================
+    // 📊 STATUS
+    // =============================================
+    getStatus() {
+        return {
+            activeChannels: Object.entries(this.channels)
+                .filter(([, config]) => config.active)
+                .map(([name]) => name),
+            totalSent: this.notificationHistory.length,
+            rateLimits: Object.fromEntries(this.rateLimitCounters)
+        };
+    }
+}
+
+module.exports = new NotificationService();

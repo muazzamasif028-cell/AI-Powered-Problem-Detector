@@ -1,0 +1,58 @@
+// ============================================================
+// 🔗 SUPREME Helmet + Bike — Complete Integration Demo
+// ============================================================
+const SupremeHelmetOS = require('./helmet/SupremeHelmetOS');
+const SupremeBikeOS = require('./bike/SupremeBikeOS');
+
+async function demoSmartHelmetBike() {
+    console.log('🏍️🪖 SUPREME Smart Helmet + Bike Demo\n');
+    
+    // Create bike
+    const bike = new SupremeBikeOS({
+        id: 'SUPREME-BIKE-001',
+        model: 'SUPREME-EBIKE-2024',
+        helmetId: 'SUPREME-HELMET-001',
+        location: { lat: 24.8607, lng: 67.0011 }
+    });
+    
+    // Create helmet
+    const helmet = new SupremeHelmetOS({
+        id: 'SUPREME-HELMET-001',
+        ownerId: 'RIDER-001',
+        bikeId: 'SUPREME-BIKE-001'
+    });
+    
+    // Connect helmet to bike
+    await helmet.connectToBike('SUPREME-BIKE-001');
+    
+    console.log('\n🪖 Rider puts on helmet...');
+    helmet.state.worn = true;
+    await helmet.onHelmetPutOn();
+    
+    console.log('\n🎤 Rider says: "SUPREME Start"');
+    await helmet.processVoiceCommand('start');
+    
+    console.log('\n🏍️ Bike Status:');
+    console.log(`   Locked: ${bike.state.locked}`);
+    console.log(`   Motor: ${bike.state.motorOn}`);
+    console.log(`   Mode: ${bike.state.mode}`);
+    console.log(`   Battery: ${bike.state.batteryLevel}%`);
+    
+    console.log('\n🎤 Rider says: "SUPREME Navigate to Islamabad"');
+    await helmet.processVoiceCommand('navigate to Islamabad');
+    
+    console.log('\n🪖 Riding... (simulated)');
+    
+    console.log('\n🪖 Rider removes helmet...');
+    helmet.state.worn = false;
+    await helmet.onHelmetTakenOff();
+    
+    console.log('\n🏍️ Bike Status:');
+    console.log(`   Locked: ${bike.state.locked}`);
+    console.log(`   Motor: ${bike.state.motorOn}`);
+    console.log(`   Mode: ${bike.state.mode}`);
+    
+    console.log('\n✅ SUPREME Helmet + Bike Demo Complete!\n');
+}
+
+demoSmartHelmetBike();

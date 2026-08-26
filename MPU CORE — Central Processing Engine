@@ -1,0 +1,286 @@
+// ============================================================
+// 🧠 mpu-core/CentralProcessor.js
+// SUPREME MPU Core — Central Brain
+// Handles: Behavior Analysis | Crash Analysis | Query Analytics | AI Learning
+// ============================================================
+const BehaviorAnalyzer = require('./BehaviorAnalyzer');
+const CrashAnalyzer = require('./CrashAnalyzer');
+const QueryAnalyzer = require('./QueryAnalyzer');
+const AILearningEngine = require('./AILearningEngine');
+const KnowledgeGraph = require('./KnowledgeGraph');
+const EventEmitter = require('events');
+
+class CentralProcessor extends EventEmitter {
+    constructor() {
+        super();
+        
+        // Core analyzers
+        this.behaviorAnalyzer = new BehaviorAnalyzer();
+        this.crashAnalyzer = new CrashAnalyzer();
+        this.queryAnalyzer = new QueryAnalyzer();
+        
+        // AI & Knowledge
+        this.aiEngine = new AILearningEngine();
+        this.knowledgeGraph = new KnowledgeGraph();
+        
+        // Processing queues
+        this.highPriorityQueue = [];
+        this.normalQueue = [];
+        this.batchQueue = [];
+        
+        // Processing state
+        this.state = {
+            processed: 0,
+            analyzed: 0,
+            learned: 0,
+            predicted: 0,
+            errors: 0,
+            uptime: Date.now()
+        };
+        
+        // Processing intervals
+        this.processInterval = setInterval(() => this.processQueues(), 100);
+        this.learnInterval = setInterval(() => this.aiEngine.runLearningCycle(), 60000);
+    }
+
+    /**
+     * Process incoming telemetry event
+     */
+    async processEvent(event) {
+        try {
+            const startTime = Date.now();
+            
+            // Queue based on priority
+            if (event.priority === 'CRITICAL') {
+                this.highPriorityQueue.push(event);
+            } else if (event.type === 'BATCH') {
+                this.batchQueue.push(event);
+            } else {
+                this.normalQueue.push(event);
+            }
+            
+            // Real-time analysis for critical events
+            if (event.priority === 'CRITICAL') {
+                await this.analyzeEvent(event);
+            }
+            
+            this.state.processed++;
+            
+            // Emit processing metrics
+            this.emit('event:processed', {
+                eventId: event.id,
+                processingTime: Date.now() - startTime,
+                queueSize: this.getQueueSize()
+            });
+            
+        } catch (error) {
+            this.state.errors++;
+            console.error('🧠 [MPU]: Processing error:', error);
+        }
+    }
+
+    /**
+     * Process all queues
+     */
+    async processQueues() {
+        // Process high priority first
+        while (this.highPriorityQueue.length > 0) {
+            const event = this.highPriorityQueue.shift();
+            await this.analyzeEvent(event);
+        }
+        
+        // Process normal queue (batch)
+        if (this.normalQueue.length >= 10) {
+            const batch = this.normalQueue.splice(0, 50);
+            await this.analyzeBatch(batch);
+        }
+    }
+
+    /**
+     * Analyze single event
+     */
+    async analyzeEvent(event) {
+        try {
+            let analysis = {};
+            
+            switch (event.collector) {
+                case 'behavior':
+                    analysis = await this.behaviorAnalyzer.analyze(event.data);
+                    break;
+                    
+                case 'crash':
+                    analysis = await this.crashAnalyzer.analyze(event.data);
+                    
+                    // Auto-fix suggestion if possible
+                    if (analysis.canAutoFix) {
+                        this.emit('autoFix:suggested', {
+                            crashId: event.data.crashId,
+                            fix: analysis.suggestedFix
+                        });
+                    }
+                    break;
+                    
+                case 'query':
+                    analysis = await this.queryAnalyzer.analyze(event.data);
+                    
+                    // Learn from query patterns
+                    await this.aiEngine.learnFromQuery(event.data, analysis);
+                    break;
+                    
+                case 'performance':
+                    analysis = this.analyzePerformance(event.data);
+                    break;
+                    
+                case 'network':
+                    analysis = this.analyzeNetwork(event.data);
+                    break;
+            }
+            
+            // Update knowledge graph
+            await this.knowledgeGraph.addNode({
+                type: event.collector,
+                eventId: event.id,
+                analysis,
+                timestamp: event.timestamp
+            });
+            
+            this.state.analyzed++;
+            
+            return analysis;
+            
+        } catch (error) {
+            this.state.errors++;
+            console.error('🧠 [MPU]: Analysis error:', error);
+        }
+    }
+
+    /**
+     * Analyze batch of events
+     */
+    async analyzeBatch(events) {
+        const batchAnalysis = {
+            batchId: `BATCH_${Date.now()}`,
+            eventCount: events.length,
+            types: {},
+            patterns: [],
+            anomalies: [],
+            insights: []
+        };
+        
+        // Count by type
+        for (const event of events) {
+            batchAnalysis.types[event.collector] = 
+                (batchAnalysis.types[event.collector] || 0) + 1;
+        }
+        
+        // Detect patterns
+        const patterns = await this.aiEngine.detectPatterns(events);
+        batchAnalysis.patterns = patterns;
+        
+        // Detect anomalies
+        const anomalies = await this.aiEngine.detectAnomalies(events);
+        batchAnalysis.anomalies = anomalies;
+        
+        // Generate insights
+        batchAnalysis.insights = await this.aiEngine.generateInsights(
+            events, patterns, anomalies
+        );
+        
+        // Store in knowledge graph
+        await this.knowledgeGraph.addBatch(events, batchAnalysis);
+        
+        this.state.analyzed += events.length;
+        
+        return batchAnalysis;
+    }
+
+    /**
+     * Analyze performance metrics
+     */
+    analyzePerformance(data) {
+        const analysis = {
+            status: 'HEALTHY',
+            metrics: {},
+            recommendations: []
+        };
+        
+        // CPU analysis
+        if (data.cpuUsage > 80) {
+            analysis.status = 'WARNING';
+            analysis.recommendations.push({
+                type: 'CPU',
+                severity: 'HIGH',
+                message: 'CPU usage exceeds 80%',
+                action: 'Consider scaling up or optimizing processes'
+            });
+        }
+        
+        // Memory analysis
+        if (data.memoryUsage?.heapUsedPercent > 85) {
+            analysis.status = 'CRITICAL';
+            analysis.recommendations.push({
+                type: 'MEMORY',
+                severity: 'CRITICAL',
+                message: 'Memory usage exceeds 85%',
+                action: 'Check for memory leaks, increase heap size'
+            });
+        }
+        
+        return analysis;
+    }
+
+    /**
+     * Analyze network metrics
+     */
+    analyzeNetwork(data) {
+        return {
+            latency: data.latency || 0,
+            throughput: data.throughput || 0,
+            errors: data.errors || 0,
+            status: data.errors > 10 ? 'DEGRADED' : 'HEALTHY'
+        };
+    }
+
+    /**
+     * Get queue size
+     */
+    getQueueSize() {
+        return {
+            highPriority: this.highPriorityQueue.length,
+            normal: this.normalQueue.length,
+            batch: this.batchQueue.length,
+            total: this.highPriorityQueue.length + 
+                   this.normalQueue.length + 
+                   this.batchQueue.length
+        };
+    }
+
+    /**
+     * Get MPU status
+     */
+    getStatus() {
+        return {
+            ...this.state,
+            uptime: Date.now() - this.state.uptime,
+            queueSize: this.getQueueSize(),
+            knowledgeGraph: this.knowledgeGraph.getStats(),
+            aiEngine: this.aiEngine.getStatus(),
+            throughput: this.state.processed / ((Date.now() - this.state.uptime) / 1000)
+        };
+    }
+
+    /**
+     * Graceful shutdown
+     */
+    async shutdown() {
+        clearInterval(this.processInterval);
+        clearInterval(this.learnInterval);
+        
+        // Process remaining events
+        await this.processQueues();
+        
+        console.log('✅ [MPU CORE]: Shutdown complete');
+    }
+}
+
+module.exports = CentralProcessor;

@@ -1,0 +1,363 @@
+// ============================================================
+// 💳 services/transaction.service.js
+// SUPREME Domain Transaction Service v15.0
+// ============================================================
+const crypto = require('crypto');
+const EventEmitter = require('events');
+
+class TransactionService extends EventEmitter {
+    constructor() {
+        super();
+        this.transactions = new Map();
+        this.paymentProviders = new Map();
+        
+        this.registerPaymentProviders();
+    }
+
+    /**
+     * Register payment providers
+     */
+    registerPaymentProviders() {
+        this.paymentProviders.set('stripe', {
+            name: 'Stripe',
+            type: 'credit_card',
+            supported: ['visa', 'mastercard', 'amex', 'discover'],
+            currencies: ['USD', 'EUR', 'GBP', 'AED', 'SAR'],
+            fee: 2.9 // percentage
+        });
+
+        this.paymentProviders.set('paypal', {
+            name: 'PayPal',
+            type: 'digital_wallet',
+            supported: ['paypal', 'paypal_credit'],
+            currencies: ['USD', 'EUR', 'GBP', 'AED'],
+            fee: 3.49
+        });
+
+        this.paymentProviders.set('crypto', {
+            name: 'Crypto Payment',
+            type: 'cryptocurrency',
+            supported: ['BTC', 'ETH', 'USDT', 'USDC'],
+            currencies: ['USD', 'USDT'],
+            fee: 1.0
+        });
+
+        this.paymentProviders.set('bank_transfer', {
+            name: 'Bank Transfer',
+            type: 'wire_transfer',
+            supported: ['wire', 'ach', 'sepa'],
+            currencies: ['USD', 'EUR'],
+            fee: 0.5
+        });
+    }
+
+    /**
+     * Create domain purchase transaction
+     */
+    async createPurchaseTransaction(params) {
+        const {
+            userId,
+            domain,
+            tld,
+            years = 1,
+            plan = 'starter',
+            quantumTier = 'standard',
+            paymentMethod,
+            promoCode,
+            currency = 'USD'
+        } = params;
+
+        // Generate transaction ID
+        const transactionId = this.generateTransactionId();
+        
+        // Get pricing
+        const pricingEngine = require('./pricing-engine.service');
+        const price = pricingEngine.calculateTotalPrice({
+            tld,
+            plan,
+            quantumTier,
+            years,
+            promoCode,
+            currency
+        });
+
+        // Get payment provider
+        const provider = this.paymentProviders.get(paymentMethod);
+        if (!provider) {
+            throw new Error(`Invalid payment method: ${paymentMethod}`);
+        }
+
+        // Calculate processing fee
+        const processingFee = parseFloat(price.pricing.breakdown.grandTotal) * (provider.fee / 100);
+
+        // Create transaction
+        const transaction = {
+            id: transactionId,
+            userId,
+            type: 'domain_purchase',
+            domain: `${domain}.${tld}`,
+            tld,
+            years,
+            plan,
+            quantumTier,
+            pricing: price.pricing,
+            payment: {
+                method: paymentMethod,
+                provider: provider.name,
+                currency,
+                subtotal: price.pricing.breakdown.subtotal,
+                discount: price.pricing.breakdown.totalDiscount,
+                processingFee: processingFee.toFixed(2),
+                total: (parseFloat(price.pricing.breakdown.grandTotal) + processingFee).toFixed(2),
+                status: 'pending'
+            },
+            status: 'pending',
+            steps: [
+                { name: 'price_calculation', status: 'completed', timestamp: new Date() },
+                { name: 'payment_processing', status: 'pending', timestamp: null },
+                { name: 'registry_registration', status: 'pending', timestamp: null },
+                { name: 'dns_setup', status: 'pending', timestamp: null },
+                { name: 'ssl_issuance', status: 'pending', timestamp: null },
+                { name: 'completion', status: 'pending', timestamp: null }
+            ],
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+
+        // Store transaction
+        this.transactions.set(transactionId, transaction);
+
+        this.emit('transaction:created', { transactionId, domain: transaction.domain });
+
+        return transaction;
+    }
+
+    /**
+     * Process payment
+     */
+    async processPayment(transactionId, paymentDetails) {
+        const transaction = this.transactions.get(transactionId);
+        
+        if (!transaction) {
+            throw new Error('Transaction not found');
+        }
+
+        transaction.payment.status = 'processing';
+        transaction.steps.find(s => s.name === 'payment_processing').status = 'processing';
+        transaction.steps.find(s => s.name === 'payment_processing').timestamp = new Date();
+
+        try {
+            // Process with payment provider
+            const paymentResult = await this.processWithProvider(
+                transaction.payment.method,
+                {
+                    amount: transaction.payment.total,
+                    currency: transaction.payment.currency,
+                    description: `Domain: ${transaction.domain} (${transaction.years} year(s))`,
+                    ...paymentDetails
+                }
+            );
+
+            if (paymentResult.success) {
+                transaction.payment.status = 'completed';
+                transaction.payment.transactionHash = paymentResult.transactionId;
+                transaction.steps.find(s => s.name === 'payment_processing').status = 'completed';
+                
+                this.emit('payment:completed', { transactionId, amount: transaction.payment.total });
+                
+                // Auto-proceed to registration
+                await this.proceedToRegistration(transactionId);
+            } else {
+                transaction.payment.status = 'failed';
+                transaction.payment.error = paymentResult.error;
+                transaction.status = 'failed';
+                
+                this.emit('payment:failed', { transactionId, error: paymentResult.error });
+            }
+
+            transaction.updatedAt = new Date();
+            this.transactions.set(transactionId, transaction);
+
+            return transaction;
+
+        } catch (error) {
+            transaction.payment.status = 'failed';
+            transaction.payment.error = error.message;
+            transaction.status = 'failed';
+            transaction.updatedAt = new Date();
+            
+            this.emit('payment:error', { transactionId, error: error.message });
+            
+            throw error;
+        }
+    }
+
+    /**
+     * Process payment with provider
+     */
+    async processWithProvider(provider, paymentData) {
+        // In production, this would call Stripe/PayPal/etc.
+        // For now, simulate payment processing
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        return {
+            success: true,
+            transactionId: crypto.randomUUID(),
+            provider,
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    /**
+     * Proceed to domain registration after payment
+     */
+    async proceedToRegistration(transactionId) {
+        const transaction = this.transactions.get(transactionId);
+        
+        if (!transaction || transaction.payment.status !== 'completed') {
+            throw new Error('Payment not completed');
+        }
+
+        transaction.status = 'processing';
+        transaction.steps.find(s => s.name === 'registry_registration').status = 'processing';
+        transaction.steps.find(s => s.name === 'registry_registration').timestamp = new Date();
+
+        try {
+            // Register domain with registry
+            const domainService = require('./domain.service');
+            const domain = await domainService.registerDomain(transaction.userId, {
+                domainName: transaction.domain.split('.')[0],
+                tld: transaction.tld,
+                years: transaction.years,
+                plan: transaction.plan,
+                quantumTier: transaction.quantumTier
+            });
+
+            transaction.steps.find(s => s.name === 'registry_registration').status = 'completed';
+            transaction.steps.find(s => s.name === 'dns_setup').status = 'completed';
+            transaction.steps.find(s => s.name === 'ssl_issuance').status = 'completed';
+            transaction.steps.find(s => s.name === 'completion').status = 'completed';
+            transaction.steps.find(s => s.name === 'completion').timestamp = new Date();
+            
+            transaction.status = 'completed';
+            transaction.domainId = domain._id;
+            transaction.updatedAt = new Date();
+
+            this.emit('transaction:completed', { 
+                transactionId, 
+                domain: transaction.domain,
+                domainId: domain._id 
+            });
+
+            this.transactions.set(transactionId, transaction);
+
+            return transaction;
+
+        } catch (error) {
+            transaction.status = 'failed';
+            transaction.error = error.message;
+            transaction.updatedAt = new Date();
+            
+            this.emit('transaction:failed', { transactionId, error: error.message });
+            
+            // Initiate refund
+            await this.initiateRefund(transactionId);
+            
+            throw error;
+        }
+    }
+
+    /**
+     * Initiate refund
+     */
+    async initiateRefund(transactionId, reason = 'Registration failed') {
+        const transaction = this.transactions.get(transactionId);
+        
+        if (!transaction || transaction.payment.status !== 'completed') {
+            return null;
+        }
+
+        const refund = {
+            id: `REF-${Date.now()}`,
+            transactionId,
+            amount: transaction.payment.total,
+            reason,
+            status: 'processing',
+            createdAt: new Date()
+        };
+
+        // Process refund with provider
+        transaction.payment.status = 'refunded';
+        transaction.status = 'refunded';
+        transaction.refund = refund;
+        transaction.updatedAt = new Date();
+
+        this.transactions.set(transactionId, transaction);
+        this.emit('refund:initiated', refund);
+
+        return refund;
+    }
+
+    /**
+     * Get transaction by ID
+     */
+    getTransaction(transactionId) {
+        return this.transactions.get(transactionId);
+    }
+
+    /**
+     * Get user transactions
+     */
+    getUserTransactions(userId, limit = 20) {
+        const userTransactions = [];
+        
+        for (const [id, transaction] of this.transactions) {
+            if (transaction.userId === userId) {
+                userTransactions.push(transaction);
+            }
+        }
+        
+        return userTransactions
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, limit);
+    }
+
+    /**
+     * Generate transaction ID
+     */
+    generateTransactionId() {
+        const prefix = 'SPRM-DOM';
+        const timestamp = Date.now().toString(36).toUpperCase();
+        const random = crypto.randomBytes(4).toString('hex').toUpperCase();
+        return `${prefix}-${timestamp}-${random}`;
+    }
+
+    /**
+     * Get transaction statistics
+     */
+    getStats() {
+        const stats = {
+            total: this.transactions.size,
+            completed: 0,
+            pending: 0,
+            failed: 0,
+            refunded: 0,
+            totalRevenue: 0
+        };
+        
+        for (const [id, tx] of this.transactions) {
+            stats[tx.status]++;
+            if (tx.status === 'completed') {
+                stats.totalRevenue += parseFloat(tx.payment.total);
+            }
+        }
+        
+        return stats;
+    }
+}
+
+// Singleton
+const transactionService = new TransactionService();
+
+module.exports = transactionService;

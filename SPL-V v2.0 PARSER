@@ -1,0 +1,275 @@
+// ============================================================
+// 🔍 spl-vehicle/SupremeVehicleParser.js
+// SPL-V v2.0 — Vehicle DSL Parser
+// ============================================================
+
+class SupremeVehicleParser {
+    constructor(tokens) {
+        this.tokens = tokens;
+        this.pos = 0;
+    }
+
+    parse() {
+        const ast = { type: 'SPLV_Program', modules: [] };
+        
+        while (!this.isAtEnd()) {
+            if (this.check('KEYWORD')) {
+                switch (this.peek().value) {
+                    case 'copilot': ast.modules.push(this.parseCopilot()); break;
+                    case 'autonomous': ast.modules.push(this.parseAutonomous()); break;
+                    case 'hardware': ast.modules.push(this.parseHardware()); break;
+                    case 'safety': ast.modules.push(this.parseSafety()); break;
+                    case 'fleet': ast.modules.push(this.parseFleet()); break;
+                    case 'ota': ast.modules.push(this.parseOTA()); break;
+                    case 'llm': ast.modules.push(this.parseLLM()); break;
+                    case 'main': ast.modules.push(this.parseMain()); break;
+                    default: this.advance();
+                }
+            } else {
+                this.advance();
+            }
+        }
+        
+        return ast;
+    }
+
+    parseCopilot() {
+        this.consume('KEYWORD', 'copilot');
+        this.consume('LBRACE');
+        
+        const config = { type: 'CopilotConfig', events: [] };
+        
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            if (this.check('IDENTIFIER')) {
+                const key = this.consume('IDENTIFIER').value;
+                this.consume('COLON');
+                const value = this.parseValue();
+                config[key] = value;
+                if (this.check('SEMICOLON')) this.advance();
+            } else if (this.check('KEYWORD') && this.peek().value === 'on') {
+                config.events.push(this.parseCopilotEvent());
+            } else {
+                this.advance();
+            }
+        }
+        
+        this.consume('RBRACE');
+        return config;
+    }
+
+    parseCopilotEvent() {
+        this.consume('KEYWORD', 'on');
+        const trigger = this.parseExpression();
+        this.consume('LBRACE');
+        
+        const actions = [];
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            if (this.check('KEYWORD') && this.peek().value === 'say') {
+                this.advance();
+                actions.push({ type: 'say', message: this.consume('STRING').value });
+            } else if (this.check('KEYWORD') && this.peek().value === 'suggest') {
+                this.advance();
+                actions.push({ type: 'suggest', action: this.consume('IDENTIFIER').value });
+            } else {
+                this.advance();
+            }
+        }
+        
+        this.consume('RBRACE');
+        return { type: 'Event', trigger, actions };
+    }
+
+    parseAutonomous() {
+        this.consume('KEYWORD', 'autonomous');
+        this.consume('LBRACE');
+        
+        const config = { type: 'AutonomousConfig' };
+        
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            if (this.check('KEYWORD')) {
+                const subsystem = this.consume('KEYWORD').value;
+                this.consume('LBRACE');
+                const subConfig = {};
+                while (!this.check('RBRACE') && !this.isAtEnd()) {
+                    if (this.check('IDENTIFIER')) {
+                        const key = this.consume('IDENTIFIER').value;
+                        this.consume('COLON');
+                        subConfig[key] = this.parseValue();
+                    } else {
+                        this.advance();
+                    }
+                }
+                this.consume('RBRACE');
+                config[subsystem] = subConfig;
+            } else {
+                this.advance();
+            }
+        }
+        
+        this.consume('RBRACE');
+        return config;
+    }
+
+    parseHardware() {
+        this.consume('KEYWORD', 'hardware');
+        this.consume('LBRACE');
+        const config = { type: 'HardwareConfig' };
+        
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            if (this.check('KEYWORD')) {
+                const subsystem = this.consume('KEYWORD').value;
+                this.consume('LBRACE');
+                config[subsystem] = this.parseBlock();
+                this.consume('RBRACE');
+            } else {
+                this.advance();
+            }
+        }
+        
+        this.consume('RBRACE');
+        return config;
+    }
+
+    parseSafety() {
+        this.consume('KEYWORD', 'safety');
+        this.consume('LBRACE');
+        const config = { type: 'SafetyConfig', pillars: [] };
+        
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            if (this.check('KEYWORD') && this.peek().value === 'pillars') {
+                this.advance();
+                this.consume('COLON');
+                config.totalPillars = this.consume('NUMBER').value;
+            } else if (this.check('KEYWORD') && this.peek().value === 'pillar') {
+                config.pillars.push(this.parseSafetyPillar());
+            } else {
+                this.advance();
+            }
+        }
+        
+        this.consume('RBRACE');
+        return config;
+    }
+
+    parseSafetyPillar() {
+        this.consume('KEYWORD', 'pillar');
+        const name = this.consume('IDENTIFIER').value;
+        this.consume('LBRACE');
+        
+        const pillar = { type: 'SafetyPillar', name };
+        
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            if (this.check('IDENTIFIER')) {
+                const key = this.consume('IDENTIFIER').value;
+                this.consume('COLON');
+                pillar[key] = this.parseValue();
+            } else {
+                this.advance();
+            }
+        }
+        
+        this.consume('RBRACE');
+        return pillar;
+    }
+
+    parseFleet() {
+        this.consume('KEYWORD', 'fleet');
+        this.consume('LBRACE');
+        const config = {};
+        while (!this.check('RBRACE')) { if (this.check('IDENTIFIER')) { const k = this.consume('IDENTIFIER').value; this.consume('COLON'); config[k] = this.parseValue(); } else this.advance(); }
+        this.consume('RBRACE');
+        return { type: 'FleetConfig', ...config };
+    }
+
+    parseOTA() {
+        this.consume('KEYWORD', 'ota');
+        this.consume('LBRACE');
+        const config = {};
+        while (!this.check('RBRACE')) { if (this.check('IDENTIFIER')) { const k = this.consume('IDENTIFIER').value; this.consume('COLON'); config[k] = this.parseValue(); } else this.advance(); }
+        this.consume('RBRACE');
+        return { type: 'OTAConfig', ...config };
+    }
+
+    parseLLM() {
+        this.consume('KEYWORD', 'llm');
+        this.consume('LBRACE');
+        const config = {};
+        while (!this.check('RBRACE')) { if (this.check('IDENTIFIER')) { const k = this.consume('IDENTIFIER').value; this.consume('COLON'); config[k] = this.parseValue(); } else this.advance(); }
+        this.consume('RBRACE');
+        return { type: 'LLMConfig', ...config };
+    }
+
+    parseMain() {
+        this.consume('KEYWORD', 'main');
+        this.consume('LBRACE');
+        const config = {};
+        while (!this.check('RBRACE')) { if (this.check('KEYWORD')) { const k = this.consume('KEYWORD').value; this.consume('LBRACE'); config[k] = this.parseBlock(); this.consume('RBRACE'); } else this.advance(); }
+        this.consume('RBRACE');
+        return { type: 'MainConfig', ...config };
+    }
+
+    parseBlock() {
+        const config = {};
+        while (!this.check('RBRACE') && !this.isAtEnd()) {
+            if (this.check('IDENTIFIER') || this.check('KEYWORD')) {
+                const key = this.advance().value;
+                this.consume('COLON');
+                config[key] = this.parseValue();
+            } else {
+                this.advance();
+            }
+        }
+        return config;
+    }
+
+    parseValue() {
+        if (this.check('STRING')) return { type: 'String', value: this.consume('STRING').value };
+        if (this.check('NUMBER')) {
+            const num = this.consume('NUMBER');
+            return { type: 'Number', value: num.value, unit: num.unit };
+        }
+        if (this.check('LBRACKET')) {
+            this.advance();
+            const arr = [];
+            while (!this.check('RBRACKET')) {
+                arr.push(this.parseValue());
+                if (this.check('COMMA')) this.advance();
+            }
+            this.consume('RBRACKET');
+            return { type: 'Array', value: arr };
+        }
+        if (this.check('IDENTIFIER')) {
+            const val = this.consume('IDENTIFIER').value;
+            if (val === 'true' || val === 'false') return { type: 'Boolean', value: val === 'true' };
+            return { type: 'Identifier', value: val };
+        }
+        return { type: 'Unknown' };
+    }
+
+    parseExpression() {
+        if (this.check('IDENTIFIER')) {
+            const left = this.consume('IDENTIFIER').value;
+            if (this.check('LT') || this.check('GT') || this.check('EQ') || this.check('LTE') || this.check('GTE')) {
+                const op = this.advance().value;
+                const right = this.parseValue();
+                return { type: 'Condition', left, op, right: right.value };
+            }
+            return { type: 'Identifier', value: left };
+        }
+        return this.parseValue();
+    }
+
+    peek() { return this.tokens[this.pos]; }
+    isAtEnd() { return this.peek()?.type === 'EOF'; }
+    check(type) { return this.peek()?.type === type; }
+    advance() { return this.tokens[this.pos++]; }
+    consume(type, value) {
+        const token = this.advance();
+        if (token.type !== type || (value && token.value !== value)) {
+            throw new Error(`Expected ${type}${value ? ':' + value : ''}, got ${token.type}:${token.value}`);
+        }
+        return token;
+    }
+}
+
+module.exports = SupremeVehicleParser;

@@ -1,0 +1,27 @@
+rotateKey(oldKey){
+
+    const hash=this._hashKey(oldKey);
+
+    const meta=this.keyRegistry.get(hash);
+
+    if(!meta)
+
+        return null;
+
+    this.revoked.add(hash);
+
+    return this.generateKey({
+
+        tenantId:meta.tenantId,
+
+        tier:meta.tier,
+
+        permissions:meta.permissions,
+
+        allowedIPs:meta.allowedIPs,
+
+        allowedDomains:meta.allowedDomains
+
+    });
+
+}

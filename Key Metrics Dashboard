@@ -1,0 +1,31 @@
+const kpiDashboard = {
+    // North Star Metric
+    northStar: 'Daily Active AI Requests',
+    
+    // Growth Metrics
+    growth: {
+        dailySignups: { current: 0, target: 50, trend: '📈' },
+        weeklyActiveUsers: { current: 0, target: 200, trend: '📈' },
+        monthlyRecurringRevenue: { current: 0, target: 5000, trend: '📈' },
+        customerAcquisitionCost: { current: 0, target: '< $20', trend: '📉' },
+        lifetimeValue: { current: 0, target: '> $500', trend: '📈' }
+    },
+    
+    // Product Metrics
+    product: {
+        dailyActiveUsers: { current: 0, target: 100 },
+        aiRequestsPerDay: { current: 0, target: 10000 },
+        averageResponseTime: { current: 0, target: '< 500ms' },
+        uptime: { current: '99.5%', target: '99.9%' },
+        npsScore: { current: 0, target: 50 }
+    },
+    
+    // Business Metrics
+    business: {
+        mrr: { current: 0, target: 5000 },
+        churnRate: { current: 0, target: '< 3%' },
+        conversionRate: { current: 0, target: '5% free → paid' },
+        enterprisePipeline: { current: 0, target: 10 },
+        burnRate: { current: 0, target: '< $5000/month' }
+    }
+};

@@ -1,0 +1,101 @@
+// ============================================================
+// 🛣️ src/routes/next-gen.routes.js
+// SUPREME Next-Gen Features API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const authMiddleware = require('../middleware/auth.middleware');
+const aiOS = require('../services/next-gen/universal-ai-os.service');
+const appGenerator = require('../services/next-gen/ai-app-generator.service');
+const cloudBuilder = require('../services/next-gen/ai-cloud-builder.service');
+
+router.use(authMiddleware.authenticate());
+
+// =============================================
+// 🌍 UNIVERSAL AI OS
+// =============================================
+router.post('/ai-os/devices/connect', async (req, res) => {
+    const result = await aiOS.connectDevice(req.user.sub, req.body);
+    res.json({ success: true, ...result });
+});
+
+router.post('/ai-os/execute', async (req, res) => {
+    const result = await aiOS.executeCommand(req.user.sub, req.body);
+    res.json({ success: true, result });
+});
+
+router.post('/ai-os/voice', async (req, res) => {
+    const result = await aiOS.processVoiceCommand(req.user.sub, req.body.transcript);
+    res.json({ success: true, result });
+});
+
+router.get('/ai-os/devices', (req, res) => {
+    const devices = aiOS.getConnectedDevices(req.user.sub);
+    res.json({ success: true, devices });
+});
+
+router.post('/ai-os/automations', async (req, res) => {
+    const automation = await aiOS.createAutomation(req.user.sub, req.body);
+    res.json({ success: true, automation });
+});
+
+router.get('/ai-os/stats', (req, res) => {
+    const stats = aiOS.getStats(req.user.sub);
+    res.json({ success: true, stats });
+});
+
+// =============================================
+// 🏗️ AI APP GENERATOR
+// =============================================
+router.post('/app-generator/generate', async (req, res) => {
+    const result = await appGenerator.generateApp(req.user.sub, req.body.prompt, req.body.options);
+    res.json({ success: true, ...result });
+});
+
+router.get('/app-generator/progress/:projectId', (req, res) => {
+    const progress = appGenerator.getProgress(req.params.projectId);
+    res.json({ success: true, ...progress });
+});
+
+router.get('/app-generator/app/:projectId', (req, res) => {
+    const app = appGenerator.getApp(req.params.projectId);
+    res.json({ success: true, app });
+});
+
+router.get('/app-generator/apps', (req, res) => {
+    const apps = appGenerator.getUserApps(req.user.sub);
+    res.json({ success: true, apps });
+});
+
+router.get('/app-generator/templates', (req, res) => {
+    res.json({ 
+        success: true, 
+        templates: Array.from(appGenerator.templates.keys()),
+        stacks: Object.keys(appGenerator.supportedStacks)
+    });
+});
+
+// =============================================
+// ☁️ AI CLOUD BUILDER
+// =============================================
+router.post('/cloud-builder/deploy', async (req, res) => {
+    const result = await cloudBuilder.deploy(req.user.sub, req.body.prompt, req.body.options);
+    res.json({ success: true, ...result });
+});
+
+router.get('/cloud-builder/progress/:deploymentId', (req, res) => {
+    const progress = cloudBuilder.getProgress(req.params.deploymentId);
+    res.json({ success: true, ...progress });
+});
+
+router.post('/cloud-builder/estimate', async (req, res) => {
+    const estimate = await cloudBuilder.estimateCost(req.body.prompt);
+    res.json({ success: true, ...estimate });
+});
+
+router.get('/cloud-builder/providers', (req, res) => {
+    const providers = cloudBuilder.getProviders();
+    res.json({ success: true, providers });
+});
+
+module.exports = router;

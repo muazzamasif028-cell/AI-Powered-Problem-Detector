@@ -1,0 +1,28 @@
+Compute:
+  Provider: AWS / GCP / Azure
+  Instances: t3.medium (2 vCPU, 4GB RAM) minimum
+  Auto-scaling: 2-20 instances based on CPU > 70%
+  
+Database:
+  MongoDB Atlas M30 cluster (3 nodes)
+  Redis ElastiCache (cache.t3.medium)
+  Elasticsearch (t3.medium.elasticsearch)
+  
+CDN:
+  CloudFront / Cloudflare for static assets
+  S3 for file storage
+  
+Monitoring:
+  Prometheus + Grafana (t3.medium)
+  OpenTelemetry for tracing
+  Sentry for error tracking
+  
+CI/CD:
+  GitHub Actions → Build Docker image
+  ArgoCD → Deploy to Kubernetes
+  Blue/Green deployment strategy
+  
+Backup:
+  MongoDB: Daily snapshots (retained 30 days)
+  Redis: RDB snapshots every 6 hours
+  S3: Cross-region replication

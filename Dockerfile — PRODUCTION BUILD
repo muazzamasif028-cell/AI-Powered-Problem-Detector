@@ -1,0 +1,62 @@
+# ============================================================
+# 🤫 SUPREME PLATFORM v10.0 — DOCKERFILE
+# ============================================================
+
+# Stage 1: Builder
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY .npmrc ./
+
+# Install all dependencies
+RUN npm ci --only=production --ignore-scripts && \
+    npm cache clean --force
+
+# Stage 2: Production
+FROM node:20-alpine
+
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    tini \
+    tzdata \
+    && cp /usr/share/zoneinfo/UTC /etc/localtime
+
+# Create non-root user
+RUN addgroup -g 1001 supreme && \
+    adduser -S supreme -u 1001 -G supreme
+
+WORKDIR /app
+
+# Copy from builder
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy application code
+COPY . .
+
+# Create directories
+RUN mkdir -p /app/logs /app/uploads /app/backups && \
+    chown -R supreme:supreme /app
+
+# Set environment
+ENV NODE_ENV=production
+ENV PORT=5000
+
+# Switch to non-root user
+USER supreme
+
+# Expose port
+EXPOSE 5000
+
+# Health check
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:5000/api/health || exit 1
+
+# Use tini as init
+ENTRYPOINT ["/sbin/tini", "--"]
+
+# Start application
+CMD ["node", "src/server.unified.js"]

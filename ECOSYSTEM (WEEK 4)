@@ -1,0 +1,29 @@
+const PHASE_4 = {
+    week: 4,
+    components: [
+        {
+            id: 10,
+            name: '📚 Standard Library',
+            current: '50%',
+            target: '100%',
+            file: 'stdlib/*.splv',
+            action: 'Complete all stdlib modules: vehicle, battery, nav, safety, etc.'
+        },
+        {
+            id: 15,
+            name: '🧪 Testing',
+            current: '0%',
+            target: '100%',
+            file: 'spl-test.js',
+            action: 'Test framework with assert, describe, it blocks'
+        },
+        {
+            id: 16,
+            name: '📖 Documentation',
+            current: '40%',
+            target: '100%',
+            file: 'docs/*.md',
+            action: 'Auto-generate from AST, complete API docs, examples'
+        }
+    ]
+};

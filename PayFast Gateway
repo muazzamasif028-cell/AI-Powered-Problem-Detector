@@ -1,0 +1,120 @@
+// gateways/PayFastGateway.js
+const BaseGateway = require('./BaseGateway');
+
+class PayFastGateway extends BaseGateway {
+    constructor() {
+        const config = require('../config/gateways.config').payfast;
+        super(config);
+        this.gatewayId = 'PAYFAST';
+    }
+
+    async processPayment(paymentData) {
+        try {
+            const {
+                amount,
+                currency = 'PKR',
+                customerName,
+                customerEmail,
+                description
+            } = paymentData;
+
+            const transactionId = this.generateTransactionId();
+
+            // PayFast payment request
+            const formData = {
+                merchant_id: this.envConfig.merchantId,
+                merchant_key: this.envConfig.merchantKey,
+                return_url: this.envConfig.returnUrl,
+                cancel_url: this.envConfig.cancelUrl,
+                notify_url: 'https://api.supreme.com/webhooks/payfast',
+                name_first: customerName.split(' ')[0] || customerName,
+                name_last: customerName.split(' ')[1] || '',
+                email_address: customerEmail,
+                m_payment_id: transactionId,
+                amount: parseFloat(amount).toFixed(2),
+                item_name: description || `SUPREME Domain Purchase`,
+                item_description: description || `Payment for ${transactionId}`,
+                custom_int1: 1,
+                custom_str1: 'SUPREME'
+            };
+
+            // Generate signature
+            const signatureString = Object.entries(formData)
+                .filter(([key]) => key !== 'signature')
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+                .join('&');
+
+            formData.signature = this.generateSignature(signatureString, this.envConfig.merchantKey);
+
+            return {
+                success: true,
+                gateway: this.gatewayId,
+                transactionId,
+                amount,
+                currency,
+                redirectUrl: `${this.envConfig.apiUrl}/eng/process`,
+                formData,
+                status: 'PENDING',
+                timestamp: new Date().toISOString()
+            };
+
+        } catch (error) {
+            return this.handleGatewayError(error);
+        }
+    }
+
+    async verifyPayment(transactionId) {
+        try {
+            const response = await this.client.post('/query/query_transaction_detail', {
+                merchant_id: this.envConfig.merchantId,
+                m_payment_id: transactionId
+            });
+
+            const { data } = response;
+
+            return {
+                success: data.payment_status === 'COMPLETE',
+                gateway: this.gatewayId,
+                transactionId,
+                status: this.mapPayFastStatus(data.payment_status),
+                amount: parseFloat(data.amount_gross),
+                fee: parseFloat(data.amount_fee),
+                netAmount: parseFloat(data.amount_net),
+                paymentMethod: data.payment_type,
+                paidAt: data.completed_at,
+                payerEmail: data.email_address
+            };
+
+        } catch (error) {
+            return this.handleGatewayError(error);
+        }
+    }
+
+    async processRefund(transactionId, amount) {
+        // PayFast refund via API
+        const response = await this.client.post('/refund', {
+            merchant_id: this.envConfig.merchantId,
+            m_payment_id: transactionId,
+            amount: parseFloat(amount).toFixed(2)
+        });
+
+        return {
+            success: response.data.success,
+            gateway: this.gatewayId,
+            refundId: response.data.refund_id
+        };
+    }
+
+    mapPayFastStatus(status) {
+        const statusMap = {
+            'COMPLETE': 'SUCCESS',
+            'PENDING': 'PENDING',
+            'FAILED': 'FAILED',
+            'CANCELLED': 'CANCELLED'
+        };
+        return statusMap[status] || 'UNKNOWN';
+    }
+}
+
+module.exports = PayFastGateway;

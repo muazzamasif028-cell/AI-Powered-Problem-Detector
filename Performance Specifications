@@ -1,0 +1,27 @@
+const memoryEngineSpecs = {
+    storage: {
+        capacity: '1,000,000,000+ memories',
+        compressionRatio: '85%',
+        estimatedStorage: '~200 GB for 1B memories',
+        indexingStrategy: 'Multi-index (Vector + Full-text + Metadata)'
+    },
+    search: {
+        maxRetrieval: '100,000 memories per request',
+        targetLatency: '< 100ms',
+        strategies: ['Vector Similarity', 'Full-Text', 'Metadata Filtering', 'Hybrid'],
+        cacheEnabled: true,
+        cacheHitRate: '~60%'
+    },
+    optimization: {
+        deduplication: 'Exact + Semantic (95% threshold)',
+        merging: 'Similar memories merged (85% threshold)',
+        summarization: 'Progressive: 100K → 10K → 1K',
+        rankingFactors: ['Importance', 'Recency', 'Access Count', 'Vector Similarity']
+    },
+    ingestion: {
+        rate: '10,000+ memories/second',
+        batchSize: 1000,
+        flushInterval: '1 second',
+        deduplicationCheck: true
+    }
+};

@@ -1,0 +1,84 @@
+// ============================================================
+// 🌍 spl-v/UniversalVehicleInterface.js
+// SPL-V — One Interface for ALL Vehicles Worldwide
+// ============================================================
+
+import { UniversalVehicleAdapter } from './adapters/UniversalVehicleAdapter.js';
+
+export class UniversalVehicleInterface {
+    constructor() {
+        this.adapter = new UniversalVehicleAdapter();
+        this.connected = false;
+        this.vehicleInfo = null;
+    }
+
+    /**
+     * 🔗 Connect to ANY vehicle
+     */
+    async connect() {
+        console.log('🌍 SPL-V Universal Interface');
+        console.log('═══════════════════════════════\n');
+        
+        this.vehicleInfo = await this.adapter.detectAndLoad();
+        this.connected = true;
+        
+        return {
+            connected: true,
+            manufacturer: this.vehicleInfo.manufacturer,
+            model: this.vehicleInfo.model,
+            protocol: this.adapter.protocol,
+            adapter: this.adapter.adapter?.name
+        };
+    }
+
+    /**
+     * 🚗 Execute universal command on ANY vehicle
+     */
+    async execute(command, params = {}) {
+        if (!this.connected) {
+            await this.connect();
+        }
+
+        const universalCommands = {
+            start: () => this.adapter.adapter.start(),
+            stop: () => this.adapter.adapter.stop(),
+            lock: () => this.adapter.adapter.lock(),
+            unlock: () => this.adapter.adapter.unlock(),
+            readSensor: () => this.adapter.adapter.readSensor(params.sensor),
+            setDestination: () => this.adapter.adapter.setDestination(params.destination),
+            emergencyStop: () => this.adapter.adapter.emergencyStop(),
+            setTemperature: () => this.adapter.adapter.setTemperature(params.temp),
+            getStatus: () => this.getVehicleStatus()
+        };
+
+        const executor = universalCommands[command];
+        if (!executor) {
+            throw new Error(`Unknown command: ${command}`);
+        }
+
+        console.log(`⚡ Executing: ${command} on ${this.vehicleInfo.manufacturer} ${this.vehicleInfo.model}`);
+        return await executor();
+    }
+
+    /**
+     * 📊 Get vehicle status (works on ALL vehicles)
+     */
+    async getVehicleStatus() {
+        const sensors = ['speed', 'battery', 'temperature', 'odometer', 'rpm', 'fuel'];
+        const status = {};
+        
+        for (const sensor of sensors) {
+            try {
+                status[sensor] = await this.adapter.adapter.readSensor(sensor);
+            } catch (e) {
+                status[sensor] = null;
+            }
+        }
+        
+        return {
+            vehicle: this.vehicleInfo,
+            status,
+            timestamp: new Date().toISOString()
+        };
+    }
+}

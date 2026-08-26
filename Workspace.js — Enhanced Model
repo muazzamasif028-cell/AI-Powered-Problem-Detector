@@ -1,0 +1,246 @@
+// ============================================================
+// 🗄️ models/Workspace.js — Enhanced Persistent Workspace
+// ============================================================
+const mongoose = require('mongoose');
+
+const WorkspaceSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+    name: { type: String, default: 'My Workspace' },
+    status: { type: String, enum: ['active', 'idle', 'frozen', 'archived'], default: 'active' },
+    
+    // ==========================================
+    // 📑 OPEN TABS
+    // ==========================================
+    openTabs: [{
+        tabId: String,
+        type: { type: String, enum: ['ai-chat', 'code-editor', 'agent-console', 'file-browser', 'terminal', 'browser', 'docs', 'settings', 'database', 'analytics'] },
+        title: String,
+        icon: String,
+        url: String,
+        isActive: Boolean,
+        isPinned: Boolean,
+        isLoading: Boolean,
+        position: { x: Number, y: Number },
+        size: { width: Number, height: Number },
+        scrollPosition: Number,
+        state: mongoose.Schema.Types.Mixed,   // Tab-specific complete state
+        createdAt: Date,
+        lastAccessed: Date
+    }],
+
+    // ==========================================
+    // 🤖 AI CONTEXT
+    // ==========================================
+    aiContext: {
+        conversations: [{
+            conversationId: String,
+            provider: String,
+            model: String,
+            title: String,
+            messages: [{
+                role: { type: String, enum: ['system', 'user', 'assistant', 'tool'] },
+                content: String,
+                timestamp: Date,
+                tokens: Number,
+                metadata: mongoose.Schema.Types.Mixed
+            }],
+            summary: String,
+            isActive: Boolean,
+            lastMessageAt: Date,
+            pinned: Boolean
+        }],
+        agents: [{
+            agentId: String,
+            name: String,
+            type: String,
+            status: { type: String, enum: ['idle', 'thinking', 'executing', 'waiting', 'completed', 'error'] },
+            currentTask: String,
+            progress: Number,
+            lastOutput: String,
+            runtime: Number, // seconds
+            memory: mongoose.Schema.Types.Mixed,
+            tools: [String]
+        }],
+        memory: {
+            shortTerm: [mongoose.Schema.Types.Mixed],
+            longTerm: [mongoose.Schema.Types.Mixed],
+            preferences: mongoose.Schema.Types.Mixed,
+            contextWindow: mongoose.Schema.Types.Mixed
+        },
+        providerState: {
+            activeProvider: String,
+            activeModel: String,
+            temperature: Number,
+            maxTokens: Number,
+            customInstructions: String
+        }
+    },
+
+    // ==========================================
+    // 💻 CODE EDITOR STATE
+    // ==========================================
+    codeEditor: {
+        projectRoot: String,
+        activeFile: String,
+        openFiles: [{
+            path: String,
+            name: String,
+            language: String,
+            content: String,
+            originalContent: String,
+            isDirty: Boolean,
+            lastSaved: Date,
+            cursorPosition: { line: Number, column: Number },
+            selections: [{ startLine: Number, startColumn: Number, endLine: Number, endColumn: Number }],
+            scrollPosition: { top: Number, left: Number },
+            folding: [Number],
+            breakpoints: [Number],
+            gitStatus: String
+        }],
+        recentFiles: [String],
+        editorSettings: {
+            theme: String,
+            fontSize: Number,
+            tabSize: Number,
+            wordWrap: Boolean,
+            minimap: Boolean,
+            lineNumbers: Boolean
+        }
+    },
+
+    // ==========================================
+    // 🖥️ TERMINAL STATE
+    // ==========================================
+    terminal: {
+        sessions: [{
+            sessionId: String,
+            name: String,
+            type: { type: String, enum: ['bash', 'zsh', 'powershell', 'python', 'node', 'custom'] },
+            workingDirectory: String,
+            command: String,
+            output: String,
+            history: [String],
+            environmentVariables: mongoose.Schema.Types.Mixed,
+            isActive: Boolean,
+            lastActivity: Date
+        }]
+    },
+
+    // ==========================================
+    // 📁 FILE SYSTEM STATE
+    // ==========================================
+    fileSystem: {
+        explorerState: {
+            expandedFolders: [String],
+            selectedFile: String,
+            sortBy: String,
+            filter: String
+        },
+        uploads: [{
+            fileId: String,
+            name: String,
+            path: String,
+            size: Number,
+            type: String,
+            status: { type: String, enum: ['uploading', 'uploaded', 'processing', 'error'] },
+            progress: Number
+        }]
+    },
+
+    // ==========================================
+    // 🌐 BUILT-IN BROWSER STATE
+    // ==========================================
+    browser: {
+        tabs: [{
+            tabId: String,
+            url: String,
+            title: String,
+            favicon: String,
+            scrollPosition: { top: Number, left: Number },
+            history: [{ url: String, title: String, timestamp: Date }],
+            formData: mongoose.Schema.Types.Mixed,
+            zoom: Number
+        }],
+        activeTab: String,
+        bookmarks: [{ url: String, title: String, folder: String, createdAt: Date }]
+    },
+
+    // ==========================================
+    // 🎨 UI LAYOUT
+    // ==========================================
+    layout: {
+        type: { type: String, enum: ['default', 'developer', 'designer', 'manager', 'custom'], default: 'default' },
+        panels: [{
+            panelId: String,
+            type: String,
+            position: { type: String, enum: ['left', 'right', 'top', 'bottom', 'center'] },
+            size: Number,
+            isCollapsed: Boolean,
+            tabs: [String]
+        }],
+        sidebarOpen: Boolean,
+        sidebarWidth: Number,
+        terminalOpen: Boolean,
+        terminalHeight: Number,
+        zenMode: Boolean,
+        fullscreen: Boolean
+    },
+
+    // ==========================================
+    // ☁️ CLOUD RESOURCES
+    // ==========================================
+    cloudResources: {
+        activeInstances: [String],
+        activeDeployments: [String],
+        databaseConnections: [{
+            id: String, type: String, host: String, database: String,
+            status: String, lastQuery: Date
+        }],
+        storageUsage: { used: Number, total: Number }
+    },
+
+    // ==========================================
+    // 🔔 NOTIFICATIONS
+    // ==========================================
+    notifications: [{
+        id: String, type: String, title: String, message: String,
+        isRead: Boolean, isDismissed: Boolean, actionUrl: String,
+        createdAt: Date
+    }],
+
+    // ==========================================
+    // ⚙️ USER PREFERENCES
+    // ==========================================
+    preferences: {
+        theme: { type: String, enum: ['dark', 'light', 'cyberpunk', 'matrix', 'ocean'], default: 'dark' },
+        language: { type: String, default: 'en' },
+        timezone: String,
+        keyboardShortcuts: mongoose.Schema.Types.Mixed,
+        accessibility: { fontSize: Number, highContrast: Boolean, reduceMotion: Boolean },
+        notifications: { email: Boolean, push: Boolean, desktop: Boolean, sound: Boolean }
+    },
+
+    // ==========================================
+    // 📊 METADATA
+    // ==========================================
+    metadata: {
+        version: { type: Number, default: 1 },
+        lastSnapshotId: String,
+        lastSnapshotAt: Date,
+        totalSnapshots: { type: Number, default: 0 },
+        totalUptime: { type: Number, default: 0 },
+        lastActivityAt: Date,
+        isPersistent: { type: Boolean, default: true },
+        deviceId: String,
+        platform: String,
+        buildVersion: String
+    }
+
+}, { timestamps: true });
+
+// Indexes
+WorkspaceSchema.index({ userId: 1 });
+WorkspaceSchema.index({ 'metadata.lastActivityAt': -1 });
+WorkspaceSchema.index({ status: 1 });
+
+module.exports = mongoose.model('Workspace', WorkspaceSchema);

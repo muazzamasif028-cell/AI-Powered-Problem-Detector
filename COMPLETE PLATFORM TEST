@@ -1,0 +1,36 @@
+// test-spl-v50-platform.js
+import { VehicleHAL } from './spl-v/hal/VehicleHAL.js';
+
+async function testPlatform() {
+    console.log('🌍 SPL-V v5.0 — UNIVERSAL VEHICLE PLATFORM\n');
+    console.log('═══════════════════════════════════════\n');
+
+    const hal = new VehicleHAL();
+    await hal.initialize();
+
+    console.log('📊 PLATFORM STATUS:');
+    const status = await hal.getStatus();
+    console.log(JSON.stringify(status, null, 2));
+
+    console.log('\n⚡ TESTING COMMANDS:\n');
+
+    const commands = [
+        { action: 'set_speed', value: 80 },
+        { action: 'read_battery' },
+        { action: 'set_mode', value: 'autonomous' },
+        { action: 'emergency_stop' }
+    ];
+
+    for (const cmd of commands) {
+        try {
+            const result = await hal.executeCommand(cmd);
+            console.log(`   ✅ ${cmd.action}: ${JSON.stringify(result)}`);
+        } catch (error) {
+            console.log(`   ❌ ${cmd.action}: ${error.message}`);
+        }
+    }
+
+    console.log('\n✅ Platform Test Complete!\n');
+}
+
+testPlatform();

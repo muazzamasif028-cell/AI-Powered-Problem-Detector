@@ -1,0 +1,171 @@
+// ============================================================
+// 📨 src/workers/invoice.worker.js
+// Invoice Generation Worker — Processes queue jobs
+// ============================================================
+const Queue = require('bull');
+const Invoice = require('../models/Invoice');
+const invoiceService = require('../services/billing/invoice.service');
+const activityService = require('../services/observability/activity.service');
+
+class InvoiceWorker {
+    constructor() {
+        this.queue = new Queue('invoice-generation', {
+            redis: {
+                host: process.env.REDIS_HOST || 'localhost',
+                port: process.env.REDIS_PORT || 6379,
+                password: process.env.REDIS_PASSWORD
+            },
+            defaultJobOptions: {
+                attempts: 3,
+                backoff: { type: 'exponential', delay: 5000 },
+                removeOnComplete: 100,
+                removeOnFail: 50
+            }
+        });
+
+        this.setupProcessors();
+        this.setupEventHandlers();
+    }
+
+    /**
+     * Setup job processors
+     */
+    setupProcessors() {
+        // Generate PDF invoice
+        this.queue.process('generate-pdf', 5, async (job) => {
+            const { invoiceId } = job.data;
+            console.log(`📄 Generating PDF for invoice: ${invoiceId}`);
+            
+            const pdfPath = await invoiceService.generatePDF(invoiceId);
+            
+            await activityService.logSystem(
+                'invoice_generated',
+                `Invoice PDF generated: ${invoiceId}`
+            );
+            
+            return { pdfPath };
+        });
+
+        // Send invoice email
+        this.queue.process('send-email', 3, async (job) => {
+            const { invoiceId } = job.data;
+            console.log(`📧 Sending invoice email: ${invoiceId}`);
+            
+            await invoiceService.sendInvoice(invoiceId);
+            
+            await activityService.logSystem(
+                'invoice_emailed',
+                `Invoice emailed: ${invoiceId}`
+            );
+            
+            return { sent: true };
+        });
+
+        // Process payment
+        this.queue.process('process-payment', 10, async (job) => {
+            const { invoiceId, paymentData } = job.data;
+            console.log(`💰 Processing payment for invoice: ${invoiceId}`);
+            
+            const invoice = await Invoice.findById(invoiceId);
+            invoice.paymentStatus = 'paid';
+            invoice.paidAt = new Date();
+            invoice.payment = paymentData;
+            invoice.status = 'paid';
+            await invoice.save();
+            
+            await activityService.logBilling(
+                invoice.userId,
+                'payment_received',
+                invoice.total
+            );
+            
+            return { invoiceId, status: 'paid' };
+        });
+
+        // Process refund
+        this.queue.process('process-refund', 2, async (job) => {
+            const { invoiceId, reason } = job.data;
+            console.log(`↩️ Processing refund: ${invoiceId}`);
+            
+            const invoice = await Invoice.findById(invoiceId);
+            invoice.status = 'refunded';
+            invoice.paymentStatus = 'refunded';
+            await invoice.save();
+            
+            await activityService.logSystem(
+                'refund_processed',
+                `Refund processed for invoice ${invoiceId}: ${reason}`
+            );
+            
+            return { invoiceId, status: 'refunded' };
+        });
+    }
+
+    /**
+     * Setup event handlers
+     */
+    setupEventHandlers() {
+        this.queue.on('completed', (job) => {
+            console.log(`✅ Job ${job.id} completed: ${job.name}`);
+        });
+
+        this.queue.on('failed', (job, error) => {
+            console.error(`❌ Job ${job.id} failed: ${error.message}`);
+            
+            // Alert if critical job fails
+            if (job.attemptsMade >= job.opts.attempts) {
+                this.sendAlert('Job permanently failed', {
+                    jobId: job.id,
+                    name: job.name,
+                    error: error.message
+                });
+            }
+        });
+
+        this.queue.on('stalled', (job) => {
+            console.warn(`⚠️ Job ${job.id} stalled`);
+        });
+    }
+
+    /**
+     * Add job to queue
+     */
+    async enqueue(task, data) {
+        const job = await this.queue.add(task, data);
+        console.log(`📥 Enqueued: ${task} (Job ID: ${job.id})`);
+        return job;
+    }
+
+    /**
+     * Send alert on critical failure
+     */
+    sendAlert(title, details) {
+        // Send to monitoring system
+        console.error(`🚨 ALERT: ${title}`, details);
+    }
+
+    /**
+     * Get queue stats
+     */
+    async getStats() {
+        const [waiting, active, completed, failed, delayed] = await Promise.all([
+            this.queue.getWaitingCount(),
+            this.queue.getActiveCount(),
+            this.queue.getCompletedCount(),
+            this.queue.getFailedCount(),
+            this.queue.getDelayedCount()
+        ]);
+
+        return { waiting, active, completed, failed, delayed };
+    }
+
+    /**
+     * Graceful shutdown
+     */
+    async shutdown() {
+        console.log('📨 Shutting down invoice worker...');
+        await this.queue.close();
+    }
+}
+
+module.exports = new InvoiceWorker();

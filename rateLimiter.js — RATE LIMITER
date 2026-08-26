@@ -1,0 +1,203 @@
+// ============================================================
+// ⚡ SUPREME RATE LIMITER v10.0
+// ============================================================
+
+const rateLimit = require('express-rate-limit');
+const RedisStore = require('rate-limit-redis');
+const Redis = require('redis');
+
+class RateLimiter {
+    constructor() {
+        this.redisClient = null;
+        this.initialized = false;
+    }
+
+    // =============================================
+    // Initialize Redis Store
+    // =============================================
+    async initialize() {
+        try {
+            this.redisClient = Redis.createClient({
+                url: process.env.REDIS_URL || 'redis://localhost:6379',
+                socket: {
+                    reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
+                }
+            });
+
+            await this.redisClient.connect();
+            this.initialized = true;
+            console.log('⚡ [RATE LIMITER] Initialized with Redis');
+        } catch (err) {
+            console.warn('⚠️ [RATE LIMITER] Redis not available — using memory store');
+            this.initialized = false;
+        }
+    }
+
+    // =============================================
+    // Get Store
+    // =============================================
+    getStore() {
+        if (this.initialized && this.redisClient?.isReady) {
+            return new RedisStore({
+                sendCommand: (...args) => this.redisClient.sendCommand(args),
+                prefix: 'supreme:ratelimit:'
+            });
+        }
+        return undefined; // Use default memory store
+    }
+
+    // =============================================
+    // Global Rate Limiter
+    // =============================================
+    globalLimiter() {
+        return rateLimit({
+            windowMs: 15 * 60 * 1000, // 15 minutes
+            max: 10000,
+            message: {
+                success: false,
+                error: {
+                    code: 'RATE_LIMITED',
+                    message: 'Too many requests, please try again later',
+                    retryAfter: '15 minutes'
+                }
+            },
+            standardHeaders: true,
+            legacyHeaders: false,
+            store: this.getStore(),
+            keyGenerator: (req) => {
+                return req.ip || req.connection?.remoteAddress || 'unknown';
+            }
+        });
+    }
+
+    // =============================================
+    // Auth Rate Limiter (Strict)
+    // =============================================
+    authLimiter() {
+        return rateLimit({
+            windowMs: 15 * 60 * 1000,
+            max: 20,
+            message: {
+                success: false,
+                error: {
+                    code: 'AUTH_RATE_LIMITED',
+                    message: 'Too many authentication attempts, please try again in 15 minutes',
+                    retryAfter: '15 minutes'
+                }
+            },
+            standardHeaders: true,
+            legacyHeaders: false,
+            store: this.getStore(),
+            skipSuccessfulRequests: true
+        });
+    }
+
+    // =============================================
+    // API Rate Limiter
+    // =============================================
+    apiLimiter() {
+        return rateLimit({
+            windowMs: 1 * 60 * 1000, // 1 minute
+            max: 100,
+            message: {
+                success: false,
+                error: {
+                    code: 'API_RATE_LIMITED',
+                    message: 'API rate limit exceeded, please try again in 1 minute',
+                    retryAfter: '1 minute'
+                }
+            },
+            standardHeaders: true,
+            legacyHeaders: false,
+            store: this.getStore()
+        });
+    }
+
+    // =============================================
+    // Critical Operations Limiter
+    // =============================================
+    criticalLimiter() {
+        return rateLimit({
+            windowMs: 1 * 60 * 1000,
+            max: 10,
+            message: {
+                success: false,
+                error: {
+                    code: 'CRITICAL_RATE_LIMITED',
+                    message: 'Critical operation rate limited',
+                    retryAfter: '1 minute'
+                }
+            },
+            standardHeaders: true,
+            legacyHeaders: false,
+            store: this.getStore()
+        });
+    }
+
+    // =============================================
+    // Dynamic Rate Limiter (Per-Tier)
+    // =============================================
+    tierBasedLimiter() {
+        return rateLimit({
+            windowMs: 1 * 60 * 1000,
+            max: (req) => {
+                const tier = req.user?.tier || 'STARTER';
+                const limits = {
+                    STARTER: 30,
+                    GROWING: 60,
+                    BUSINESS: 100,
+                    ENTERPRISE: 200,
+                    GLOBAL: 500,
+                    SUPER_ADMIN: 1000
+                };
+                return limits[tier] || 30;
+            },
+            message: {
+                success: false,
+                error: {
+                    code: 'TIER_RATE_LIMITED',
+                    message: 'Your plan limit reached. Upgrade for more capacity.'
+                }
+            },
+            standardHeaders: true,
+            legacyHeaders: false,
+            store: this.getStore(),
+            keyGenerator: (req) => {
+                return req.user?.userId || req.ip;
+            }
+        });
+    }
+
+    // =============================================
+    // DDoS Protection (Very Strict)
+    // =============================================
+    ddosProtection() {
+        return rateLimit({
+            windowMs: 10 * 1000, // 10 seconds
+            max: 50,
+            message: {
+                success: false,
+                error: {
+                    code: 'DDOS_PROTECTION',
+                    message: 'Request rate too high — potential DDoS detected'
+                }
+            },
+            standardHeaders: true,
+            legacyHeaders: false,
+            store: this.getStore()
+        });
+    }
+
+    // =============================================
+    // Get Status
+    // =============================================
+    async getStatus() {
+        return {
+            initialized: this.initialized,
+            store: this.initialized ? 'REDIS' : 'MEMORY',
+            redisConnected: this.redisClient?.isReady || false
+        };
+    }
+}
+
+module.exports = new RateLimiter();

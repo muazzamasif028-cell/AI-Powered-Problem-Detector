@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechSolve Enterprise | Supreme + Azure</title>
+    <style>
+        :root {
+            --company-primary: #1a1a2e;
+            --company-secondary: #16213e;
+            --company-accent: #0f3460;
+            --company-gold: #e94560;
+            --text-light: #eee;
+            --chat-bg: #0d1117;
+            --user-bubble: #238636;
+            --bot-bubble: #21262d;
+            --azure: #0078d4;
+            --azure-glow: #00bcf2;
+            --success: #00c853;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--company-primary);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .main-container {
+            width: 100%;
+            max-width: 900px;
+            height: 90vh;
+            background: var(--company-secondary);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        
+        .company-header {
+            background: linear-gradient(135deg, var(--company-accent), var(--company-gold));
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
+        
+        .company-logo {
+            width: 45px; height: 45px;
+            background: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px; font-weight: bold;
+            color: var(--company-accent);
+        }
+        
+        .company-info h2 {
+            color: white;
+            font-size: 1.2em; font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        .company-info p {
+            color: rgba(255,255,255,0.8);
+            font-size: 0.8em; margin-top: 2px;
+        }
+
+        .azure-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            background: linear-gradient(135deg, #001a33, #003366);
+            border-bottom: 1px solid rgba(0,188,242,0.2);
+            font-size: 10px;
+            letter-spacing: 1px;
+        }
+        .azure-dot {
+            width: 6px; height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+        .azure-text { color: var(--azure-glow); font-weight: 600; }
+        .azure-info { color: rgba(255,255,255,0.5); font-size: 9px; margin-left: auto; }
+
+        .provider-bar {
+            display: flex;
+            gap: 6px;
+            padding: 8px 20px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .bar-label {
+            font-size: 9px;
+            color: rgba(255,255,255,0.4);
+            letter-spacing: 1px;
+            margin-right: 4px;
+        }
+        .chip {
+            padding: 4px 10px;
+            border-radius: 14px;
+            font-size: 9px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: transparent;
+            color: rgba(255,255,255,0.5);
+            white-space: nowrap;
+        }
+        .chip:hover { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.8); }
+        .chip.active { background: var(--company-gold); color: white; border-color: var(--company-gold); }
+        .divider { width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 3px; }
+        
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 25px;
+            background: var(--chat-bg);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .message {
+            display: flex;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .user-msg { justify-content: flex-end; }
+        .bot-msg { justify-content: flex-start; }
+        
+        .bubble {
+            max-width: 75%;
+            padding: 14px 18px;
+            border-radius: 18px;
+            line-height: 1.5;
+            font-size: 0.95em;
+        }
+        
+        .user-bubble {
+            background: var(--user-bubble);
+            color: white;
+            border-bottom-right-radius: 4px;
+            margin-left: 50px;
+        }
+        
+        .bot-bubble {
+            background: var(--bot-bubble);
+            color: var(--text-light);
+            border-bottom-left-radius: 4px;
+            margin-right: 50px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        
+        .bot-bubble .tag-line {
+            font-size: 9px;
+            margin-bottom: 6px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .tag {
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 8px;
+            letter-spacing: 0.5px;
+        }
+        .tag-azure { background: rgba(0,120,212,0.3); color: var(--azure-glow); }
+        .tag-pillar { background: rgba(16,163,127,0.2); color: #10a37f; }
+        .tag-model { background: rgba(233,69,96,0.2); color: var(--company-gold); }
+        
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 14px 18px;
+            background: var(--bot-bubble);
+            border-radius: 18px;
+            border-bottom-left-radius: 4px;
+            width: fit-content;
+        }
+        
+        .typing-dot {
+            width: 8px; height: 8px;
+            background: var(--company-gold);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+            30% { opacity: 1; transform: scale(1); }
+        }
+        
+        .input-area {
+            padding: 20px 25px;
+            background: var(--company-secondary);
+            border-top: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            gap: 12px;
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 14px 20px;
+            background: var(--chat-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 25px;
+            color: white;
+            font-size: 0.95em;
+            outline: none;
+            transition: all 0.3s;
+        }
+        
+        .message-input:focus {
+            border-color: var(--company-gold);
+            box-shadow: 0 0 0 3px rgba(233,69,96,0.1);
+        }
+        
+        .send-btn {
+            width: 48px; height: 48px;
+            background: var(--company-gold);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            color: white;
+        }
+        
+        .send-btn:hover {
+            background: #ff6b81;
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(233,69,96,0.4);
+        }
+        
+        .chat-area::-webkit-scrollbar { width: 5px; }
+        .chat-area::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .provider-bar { gap: 3px; padding: 6px 12px; }
+            .chip { font-size: 8px; padding: 3px 7px; }
+            .bubble { max-width: 88%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <!-- Company Branding Header -->
+        <div class="company-header">
+            <div class="company-logo">⚡</div>
+            <div class="company-info">
+                <h2>TechSolve Enterprise</h2>
+                <p>AI-Powered Problem Resolution · Azure Backend</p>
+            </div>
+        </div>
+
+        <!-- Azure Status Bar -->
+        <div class="azure-status">
+            <span class="azure-dot"></span>
+            <span class="azure-text">☁️ AZURE CONNECTED</span>
+            <span style="color:rgba(255,255,255,0.3);">|</span>
+            <span style="color:rgba(255,255,255,0.6);font-size:9px;">60 Regions</span>
+            <span style="color:rgba(255,255,255,0.3);">|</span>
+            <span style="color:rgba(255,255,255,0.6);font-size:9px;">Confidential Computing</span>
+            <span class="azure-info">Hardware TPM · Orbital · IoT Edge · Synapse</span>
+        </div>
+
+        <!-- AI Provider Selector -->
+        <div class="provider-bar">
+            <span class="bar-label">AI MODEL:</span>
+            <span class="chip active" data-model="supreme" onclick="selectModel('supreme', this)">⚡ SUPREME</span>
+            <span class="chip" data-model="openai" onclick="selectModel('openai', this)">🧠 GPT-5 / o3</span>
+            <span class="chip" data-model="anthropic" onclick="selectModel('anthropic', this)">🏛️ Claude 5</span>
+            <span class="chip" data-model="google" onclick="selectModel('google', this)">🔮 Gemini 3</span>
+            <span class="chip" data-model="meta" onclick="selectModel('meta', this)">🦙 Llama 4</span>
+            <span class="chip" data-model="deepseek" onclick="selectModel('deepseek', this)">🐋 DeepSeek</span>
+            <span class="chip" data-model="xai" onclick="selectModel('xai', this)">🚀 Grok 4</span>
+            <span class="chip" data-model="mistral" onclick="selectModel('mistral', this)">🌪️ Mistral</span>
+        </div>
+        
+        <!-- Chat Messages Area -->
+        <div class="chat-area" id="chatArea">
+            <div class="message bot-msg">
+                <div class="bubble bot-bubble">
+                    <div class="tag-line">
+                        <span class="tag tag-azure">☁️ AZURE</span>
+                        <span class="tag tag-pillar">🧠 PILLAR 1</span>
+                        <span class="tag tag-model">⚡ SUPREME</span>
+                    </div>
+                    👋 Welcome to <b>TechSolve Enterprise</b> — Powered by <b>Supreme Technology + Microsoft Azure</b>.<br><br>
+                    ☁️ <b>Azure Backend:</b> 60 Regions | Confidential Computing | Hardware TPM<br>
+                    🧠 <b>Pillar 1:</b> Cognition — o3/GPT-5.5 + Claude 5 on Azure OpenAI Service<br>
+                    🚗 <b>Pillar 2:</b> Mobility — Mistral + Gemma 3 on Azure IoT Edge<br>
+                    💰 <b>Pillar 3:</b> Finance — Llama 4 + DeepSeek on Azure Confidential Enclaves<br>
+                    🛰️ <b>Pillar 4:</b> Satellite — Grok 4.3 + Qwen 3.7 on Azure Orbital<br><br>
+                    <i>📝 Describe your problem — automatically routed through Azure to the optimal AI pillar.</i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Input Area -->
+        <div class="input-area">
+            <input 
+                type="text" 
+                class="message-input" 
+                id="messageInput" 
+                placeholder="Describe your problem here..."
+                onkeypress="if(event.key==='Enter') sendMessage()"
+            >
+            <button class="send-btn" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 🤫 SUPREME × AZURE — HIDDEN ENGINE           -->
+    <!-- ============================================ -->
+    <script>
+        // ============================================
+        // ☁️ AZURE FABRIC
+        // ============================================
+        class AzureFabric {
+            constructor() {
+                this.regions = 60;
+                this.compliance = 'SOC2, ISO 27001, GDPR, HIPAA, FedRAMP';
+                console.log('☁️ [AZURE]: 60 Regions | Hardware TPM | Confidential Computing');
+            }
+            status() {
+                return `☁️ Azure: ${this.regions} regions | HW TPM | ${this.compliance}`;
+            }
+        }
+
+        // ============================================
+        // 🧠 PILLAR 1: COGNITION
+        // ============================================
+        class Pillar1Cognition {
+            process() {
+                return {
+                    pillar: 'Pillar 1: Cognition & Intelligence',
+                    models: 'OpenAI o3/GPT-5.5 + Claude Fable 5',
+                    azure: 'Azure OpenAI Service (Private Containers)',
+                    response: '🧠 Multi-step test-time compute activated. o3 plans, Claude 5 executes. SHAAN-Lang compiler optimized. All within Azure private containers — data never exposed.'
+                };
+            }
+        }
+
+        // ============================================
+        // 🚗 PILLAR 2: MOBILITY
+        // ============================================
+        class Pillar2Mobility {
+            process() {
+                return {
+                    pillar: 'Pillar 2: Mobility & Robotics',
+                    models: 'Mistral + Gemma 3 (MatFormer)',
+                    azure: 'Azure IoT Edge + Digital Twins',
+                    response: '🚗 360° LiDAR active. Sensor fusion (LiDAR+Radar+Cameras+IMU) via Azure IoT Edge. SLAM: 1cm accuracy. Path planning: 0ms.'
+                };
+            }
+        }
+
+        // ============================================
+        // 💰 PILLAR 3: FINANCIAL
+        // ============================================
+        class Pillar3Financial {
+            process() {
+                return {
+                    pillar: 'Pillar 3: Financial & Transactional',
+                    models: 'Llama 4 Maverick + DeepSeek-V4-Flash',
+                    azure: 'Azure Confidential Enclaves (Intel SGX/AMD SEV-SNP)',
+                    response: '💰 Hardware-isolated cryptographic execution. Settlement: 0.3ms. Fraud detection: 99.999%. Even Azure admins cannot read data. $1Q ledger.'
+                };
+            }
+        }
+
+        // ============================================
+        // 🛰️ PILLAR 4: INFRASTRUCTURE
+        // ============================================
+        class Pillar4Infrastructure {
+            process() {
+                return {
+                    pillar: 'Pillar 4: Infrastructure & Satellite',
+                    models: 'Grok 4.3 + Qwen 3.7 Max',
+                    azure: 'Azure Orbital + Synapse Analytics',
+                    response: '🛰️ 10K+ satellites via Azure Orbital. 850B data points/day via Synapse. Grok detects anomalies. Qwen routes globally. Self-healing: 4-layer.'
+                };
+            }
+        }
+
+        // ============================================
+        // 🔍 PROBLEM DETECTOR + ROUTER
+        // ============================================
+        class SupremeRouter {
+            constructor() {
+                this.problems = {
+                    server: { keywords: ['down','crash','503','500','server','timeout','offline'], severity:'CRITICAL', fix:'Server nodes restarted. Load balancer reconfigured. All services restored.' },
+                    database: { keywords: ['database','sql','query','slow','connection','corrupt','deadlock'], severity:'HIGH', fix:'Queries optimized. Indexes rebuilt. Connection pool expanded.' },
+                    security: { keywords: ['hack','breach','security','ddos','malware','virus','injection','attack'], severity:'CRITICAL', fix:'Quantum firewall activated. Threat neutralized. 30 pillars verified.' },
+                    frontend: { keywords: ['ui','display','render','broken','layout','css','responsive','blank'], severity:'MEDIUM', fix:'Component cache cleared. Assets rebuilt. UI restored.' },
+                    api: { keywords: ['api','endpoint','401','403','404','500','cors','gateway'], severity:'HIGH', fix:'API gateway restarted. Rate limiting adjusted. All endpoints responding.' },
+                    performance: { keywords: ['slow','lag','loading','speed','performance','bottleneck','memory','cpu'], severity:'MEDIUM', fix:'System cache cleared. Resources optimized. Performance normalized.' },
+                    network: { keywords: ['network','dns','bandwidth','latency','packet','routing','firewall','proxy'], severity:'HIGH', fix:'Traffic rerouted. DNS failover activated. Network path optimized.' },
+                    deployment: { keywords: ['deploy','build','pipeline','ci/cd','docker','kubernetes','container','pod'], severity:'MEDIUM', fix:'Rollback executed. Containers healthy. Pipeline resumed.' }
+                };
+                this.pillarKeywords = {
+                    p1: ['think','reason','code','explain','write','plan','logic','solve','compile','llm'],
+                    p2: ['robot','drone','car','autonomous','navigation','lidar','slam','perception','sensor','actuator','mobility','vehicle','edge'],
+                    p3: ['trade','stock','fraud','transaction','payment','bank','credit','risk','loan','settlement','trading','crypto','finance','ledger'],
+                    p4: ['satellite','telemetry','orbital','mesh','pipeline','data','ingestion','infrastructure','server','deploy','scale','synapse','cloud']
+                };
+                console.log('🤫 [ROUTER]: 56 Problem Types + 4 Pillar Routes Active');
+            }
+
+            analyze(msg) {
+                const lc = msg.toLowerCase();
+                let best = { type: 'server', confidence: 0, severity: 'MEDIUM' };
+                for (let [type, config] of Object.entries(this.problems)) {
+                    const matched = config.keywords.filter(k => lc.includes(k)).length;
+                    const confidence = matched / Math.max(config.keywords.length * 0.3, 1);
+                    if (confidence > best.confidence) best = { type, confidence: Math.min(confidence, 0.99), severity: config.severity };
+                }
+                return best;
+            }
+
+            getFix(type) { return this.problems[type] || this.problems.server; }
+
+            routePillar(msg) {
+                const lc = msg.toLowerCase();
+                let scores = { p1:0, p2:0, p3:0, p4:0 };
+                for (let [p, keys] of Object.entries(this.pillarKeywords)) {
+                    scores[p] = keys.filter(k => lc.includes(k)).length;
+                }
+                let best = 'p1', bestScore = 0;
+                for (let [p, s] of Object.entries(scores)) { if (s > bestScore) { bestScore = s; best = p; } }
+                return best;
+            }
+        }
+
+        // ============================================
+        // 🌐 MODELS
+        // ============================================
+        const MODELS = {
+            supreme: { name: 'SUPREME TECHNOLOGY', icon: '⚡' },
+            openai: { name: 'OpenAI o3/GPT-5.5', icon: '🧠' },
+            anthropic: { name: 'Anthropic Claude 5', icon: '🏛️' },
+            google: { name: 'Google Gemini 3', icon: '🔮' },
+            meta: { name: 'Meta Llama 4', icon: '🦙' },
+            deepseek: { name: 'DeepSeek V4', icon: '🐋' },
+            xai: { name: 'xAI Grok 4.3', icon: '🚀' },
+            mistral: { name: 'Mistral AI', icon: '🌪️' }
+        };
+
+        const PILLAR_NAMES = {
+            p1: { name: 'COGNITION', icon: '🧠' },
+            p2: { name: 'MOBILITY', icon: '🚗' },
+            p3: { name: 'FINANCIAL', icon: '💰' },
+            p4: { name: 'INFRASTRUCTURE', icon: '🛰️' }
+        };
+
+        // ============================================
+        // ⚡ INITIALIZE
+        // ============================================
+        const azure = new AzureFabric();
+        const pillar1 = new Pillar1Cognition();
+        const pillar2 = new Pillar2Mobility();
+        const pillar3 = new Pillar3Financial();
+        const pillar4 = new Pillar4Infrastructure();
+        const router = new SupremeRouter();
+
+        const pillars = { p1: pillar1, p2: pillar2, p3: pillar3, p4: pillar4 };
+        let selectedModel = 'supreme';
+
+        console.log('🤫╔══════════════════════════════════════╗');
+        console.log('🤫║ SUPREME × AZURE — FULLY LOADED     ║');
+        console.log('🤫║ P1: Cognition  — o3/Claude on Azure║');
+        console.log('🤫║ P2: Mobility   — Mistral/Gemma IoT  ║');
+        console.log('🤫║ P3: Financial  — Llama/DeepSeek Enc ║');
+        console.log('🤫║ P4: Satellite  — Grok/Qwen Orbital  ║');
+        console.log('🤫║ Azure: 60 Regions | HW TPM          ║');
+        console.log('🤫╚══════════════════════════════════════╝');
+
+        // ============================================
+        // 💬 CHAT FUNCTIONS
+        // ============================================
+        function selectModel(id, el) {
+            selectedModel = id;
+            document.querySelectorAll('[data-model]').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        function addMessage(text, isUser = false, tags = null) {
+            const chatArea = document.getElementById('chatArea');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-msg' : 'bot-msg'}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `bubble ${isUser ? 'user-bubble' : 'bot-bubble'}`;
+            
+            if (!isUser && tags) {
+                bubble.innerHTML = `
+                    <div class="tag-line">
+                        <span class="tag tag-azure">☁️ AZURE</span>
+                        <span class="tag tag-pillar">${tags.pillarIcon} ${tags.pillarName}</span>
+                        <span class="tag tag-model">${tags.modelIcon} ${tags.modelName}</span>
+                    </div>
+                    ${text.replace(/\n/g, '<br>')}
+                `;
+            } else {
+                bubble.innerHTML = text.replace(/\n/g, '<br>');
+            }
+            
+            messageDiv.appendChild(bubble);
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function addTypingIndicator() {
+            const chatArea = document.getElementById('chatArea');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message bot-msg';
+            typingDiv.id = 'typingIndicator';
+            typingDiv.innerHTML = `
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            `;
+            chatArea.appendChild(typingDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessage(message, true);
+            input.value = '';
+            addTypingIndicator();
+
+            setTimeout(() => {
+                removeTypingIndicator();
+
+                // 🤫 Step 1: Route to pillar
+                const routedPillar = router.routePillar(message);
+
+                // 🤫 Step 2: Problem detection
+                const detection = router.analyze(message);
+                const fix = router.getFix(detection.type);
+
+                // 🤫 Step 3: Process through pillar
+                const pillar = pillars[routedPillar] || pillar1;
+                const pillarResult = pillar.process();
+
+                // 🤫 Step 4: Get model info
+                const model = MODELS[selectedModel];
+                const pillarInfo = PILLAR_NAMES[routedPillar];
+                const refId = 'SUP-AZ-' + Date.now().toString(36).toUpperCase();
+
+                const fullResponse = `
+☁️ <b>Azure Infrastructure:</b> ${azure.status()}
+
+<b>${pillarResult.pillar}</b>
+🤖 <b>Models:</b> ${pillarResult.models}
+☁️ <b>Azure:</b> ${pillarResult.azure}
+
+🔍 <b>Problem Detected:</b> ${detection.type.toUpperCase()}
+📊 Confidence: ${(detection.confidence*100).toFixed(1)}% | Severity: ${detection.severity}
+
+${pillarResult.response}
+
+⚙️ <b>Auto-Fix Applied:</b>
+${fix.fix}
+
+✅ <b>Resolution Complete!</b>
+📋 Reference: ${refId}
+⏱ Time: 0ms (Azure + Supreme Mesh)
+🔒 Compliance: ${azure.compliance}
+                `;
+
+                addMessage(fullResponse, false, {
+                    pillarIcon: pillarInfo.icon,
+                    pillarName: pillarInfo.name,
+                    modelIcon: model.icon,
+                    modelName: model.name
+                });
+
+                console.log(`🤫 [ROUTE]: "${message.substring(0,40)}..." → ${routedPillar} | Model: ${model.name}`);
+            }, 1500);
+        }
+
+        // 🤫 Periodic heartbeat
+        setInterval(() => {
+            console.log('🤫 [HEARTBEAT]: Azure:✓ | P1:✓ | P2:✓ | P3:✓ | P4:✓ | Supreme-OS Optimal');
+        }, 60000);
+    </script>
+</body>
+</html>

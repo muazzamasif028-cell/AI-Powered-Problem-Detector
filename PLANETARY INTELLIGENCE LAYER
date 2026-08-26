@@ -1,0 +1,49 @@
+// supreme-intelligence/PlanetaryIntelligenceLayer.js
+// Aggregated telemetry → Infrastructure-level intelligence
+
+export class PlanetaryIntelligenceLayer {
+    constructor() {
+        this.telemetryCollector = new GlobalTelemetryCollector();
+        this.patternDetector = new PatternDetector();
+        this.predictor = new PredictiveEngine();
+        this.optimizer = new GlobalOptimizer();
+    }
+
+    /**
+     * Generate planetary insights
+     */
+    async generateInsights() {
+        // 1. Collect global telemetry
+        const telemetry = await this.telemetryCollector.collectGlobal();
+
+        // 2. Detect patterns
+        const patterns = await this.patternDetector.analyze(telemetry);
+
+        // 3. Predict future states
+        const predictions = await this.predictor.predict(patterns);
+
+        // 4. Optimize globally
+        const optimizations = await this.optimizer.optimize(telemetry, predictions);
+
+        return {
+            timestamp: new Date().toISOString(),
+            globalStatus: this.getGlobalStatus(telemetry),
+            patterns: patterns.top10,
+            predictions: predictions.next24Hours,
+            optimizations: optimizations.recommendations,
+            efficiency: optimizations.estimatedSavings
+        };
+    }
+
+    getGlobalStatus(telemetry) {
+        return {
+            totalRegions: telemetry.regions,
+            totalCompanies: telemetry.companies,
+            totalAgents: telemetry.agents,
+            totalCompute: telemetry.computeHours,
+            healthScore: telemetry.healthScore,
+            riskLevel: telemetry.riskLevel,
+            sustainabilityScore: telemetry.sustainabilityScore
+        };
+    }
+}

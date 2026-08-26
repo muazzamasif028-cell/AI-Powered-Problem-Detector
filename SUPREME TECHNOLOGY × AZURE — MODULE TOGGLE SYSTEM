@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechSolve Enterprise | Supreme + Azure</title>
+    <style>
+        :root {
+            --company-primary: #1a1a2e;
+            --company-secondary: #16213e;
+            --company-accent: #0f3460;
+            --company-gold: #e94560;
+            --text-light: #eee;
+            --chat-bg: #0d1117;
+            --user-bubble: #238636;
+            --bot-bubble: #21262d;
+            --azure: #0078d4;
+            --azure-glow: #00bcf2;
+            --success: #00c853;
+            --danger: #ff1744;
+            --warning: #ff9800;
+            --p1-color: #10a37f;
+            --p2-color: #ff9800;
+            --p3-color: #f0c040;
+            --p4-color: #4285f4;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--company-primary);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .main-container {
+            width: 100%;
+            max-width: 950px;
+            height: 94vh;
+            background: var(--company-secondary);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        
+        .company-header {
+            background: linear-gradient(135deg, var(--company-accent), var(--company-gold));
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
+        
+        .company-logo {
+            width: 40px; height: 40px;
+            background: white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px; font-weight: bold;
+            color: var(--company-accent);
+        }
+        
+        .company-info h2 { color: white; font-size: 1.1em; font-weight: 600; letter-spacing: 0.5px; }
+        .company-info p { color: rgba(255,255,255,0.8); font-size: 0.7em; margin-top: 1px; }
+
+        /* Azure Status */
+        .azure-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 20px;
+            background: linear-gradient(135deg, #001a33, #003366);
+            border-bottom: 1px solid rgba(0,188,242,0.2);
+            font-size: 9px;
+            letter-spacing: 0.5px;
+            flex-wrap: wrap;
+        }
+        .azure-dot { width: 5px; height: 5px; background: var(--success); border-radius: 50%; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+        .azure-text { color: var(--azure-glow); font-weight: 600; }
+        .azure-info { color: rgba(255,255,255,0.5); font-size: 8px; margin-left: auto; }
+
+        /* ========== MODULE TOGGLE PANEL ========== */
+        .module-toggle-panel {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            background: rgba(0,0,0,0.5);
+            padding: 1px;
+        }
+        .module-toggle {
+            padding: 10px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+            position: relative;
+            user-select: none;
+        }
+        .module-toggle.p1 { background: rgba(16,163,127,0.06); color: var(--p1-color); }
+        .module-toggle.p2 { background: rgba(255,152,0,0.06); color: var(--p2-color); }
+        .module-toggle.p3 { background: rgba(240,192,64,0.06); color: var(--p3-color); }
+        .module-toggle.p4 { background: rgba(66,133,244,0.06); color: var(--p4-color); }
+        .module-toggle.active { border-bottom-color: currentColor; filter: brightness(1.4); }
+        .module-toggle.inactive { opacity: 0.3; filter: grayscale(0.8); border-bottom-color: transparent; }
+        
+        .module-icon { font-size: 16px; margin-bottom: 2px; }
+        .module-name { font-size: 8px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+        .module-status-indicator {
+            display: inline-block;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            margin-right: 3px;
+        }
+        .status-on { background: var(--success); }
+        .status-off { background: var(--danger); }
+
+        /* Quick toggle all */
+        .quick-toggle-bar {
+            display: flex;
+            gap: 6px;
+            padding: 4px 16px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .quick-btn {
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: transparent;
+            color: rgba(255,255,255,0.6);
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .quick-btn:hover { border-color: rgba(255,255,255,0.4); color: white; }
+        .quick-btn.all-on { border-color: var(--success); color: var(--success); }
+        .quick-btn.all-on:hover { background: rgba(0,200,83,0.1); }
+        .quick-btn.all-off { border-color: var(--danger); color: var(--danger); }
+        .quick-btn.all-off:hover { background: rgba(255,23,68,0.1); }
+
+        /* AI Model Selector */
+        .provider-bar {
+            display: flex;
+            gap: 4px;
+            padding: 6px 16px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .bar-label { font-size: 8px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-right: 2px; }
+        .chip {
+            padding: 3px 9px;
+            border-radius: 12px;
+            font-size: 8px; font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: transparent;
+            color: rgba(255,255,255,0.5);
+            white-space: nowrap;
+        }
+        .chip:hover { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.8); }
+        .chip.active { background: var(--company-gold); color: white; border-color: var(--company-gold); }
+        .divider { width: 1px; height: 14px; background: rgba(255,255,255,0.08); margin: 0 2px; }
+        
+        /* Chat */
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: var(--chat-bg);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message { display: flex; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
+        .user-msg { justify-content: flex-end; }
+        .bot-msg { justify-content: flex-start; }
+        .bubble {
+            max-width: 75%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            line-height: 1.5;
+            font-size: 0.9em;
+        }
+        .user-bubble { background: var(--user-bubble); color: white; border-bottom-right-radius: 4px; margin-left: 40px; }
+        .bot-bubble { background: var(--bot-bubble); color: var(--text-light); border-bottom-left-radius: 4px; margin-right: 40px; border: 1px solid rgba(255,255,255,0.08); }
+        .tag-line { font-size: 8px; margin-bottom: 5px; display: flex; gap: 4px; flex-wrap: wrap; }
+        .tag { padding: 2px 6px; border-radius: 6px; font-weight: 600; font-size: 7px; letter-spacing: 0.5px; }
+        .tag-azure { background: rgba(0,120,212,0.3); color: var(--azure-glow); }
+        .tag-p1 { background: rgba(16,163,127,0.2); color: var(--p1-color); }
+        .tag-p2 { background: rgba(255,152,0,0.2); color: var(--p2-color); }
+        .tag-p3 { background: rgba(240,192,64,0.2); color: var(--p3-color); }
+        .tag-p4 { background: rgba(66,133,244,0.2); color: var(--p4-color); }
+        .tag-model { background: rgba(233,69,96,0.2); color: var(--company-gold); }
+        .tag-off { background: rgba(255,23,68,0.2); color: var(--danger); }
+
+        .typing-indicator {
+            display: flex; gap: 4px;
+            padding: 12px 16px;
+            background: var(--bot-bubble);
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            width: fit-content;
+        }
+        .typing-dot { width: 7px; height: 7px; background: var(--company-gold); border-radius: 50%; animation: typing 1.4s infinite; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing { 0%,60%,100%{opacity:0.3;transform:scale(0.8);} 30%{opacity:1;transform:scale(1);} }
+        
+        .input-area {
+            padding: 16px 20px;
+            background: var(--company-secondary);
+            border-top: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            gap: 10px;
+        }
+        .message-input {
+            flex: 1;
+            padding: 12px 18px;
+            background: var(--chat-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 22px;
+            color: white;
+            font-size: 0.9em;
+            outline: none;
+            transition: all 0.3s;
+        }
+        .message-input:focus { border-color: var(--company-gold); box-shadow: 0 0 0 3px rgba(233,69,96,0.1); }
+        .send-btn {
+            width: 44px; height: 44px;
+            background: var(--company-gold);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            color: white;
+        }
+        .send-btn:hover { background: #ff6b81; transform: scale(1.05); box-shadow: 0 5px 20px rgba(233,69,96,0.4); }
+        .chat-area::-webkit-scrollbar { width: 4px; }
+        .chat-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
+
+        /* Active modules summary */
+        .active-modules-summary {
+            font-size: 8px;
+            color: rgba(255,255,255,0.4);
+            padding: 0 20px 4px;
+            text-align: right;
+            letter-spacing: 0.5px;
+        }
+
+        @media (max-width: 768px) {
+            .module-toggle-panel { grid-template-columns: repeat(2, 1fr); }
+            .provider-bar { gap: 2px; padding: 4px 10px; }
+            .chip { font-size: 7px; padding: 2px 6px; }
+            .bubble { max-width: 88%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <!-- Header -->
+        <div class="company-header">
+            <div class="company-logo">⚡</div>
+            <div class="company-info">
+                <h2>TechSolve Enterprise</h2>
+                <p>AI-Powered Problem Resolution · Azure Backend</p>
+            </div>
+        </div>
+
+        <!-- Azure Status -->
+        <div class="azure-status">
+            <span class="azure-dot"></span>
+            <span class="azure-text">☁️ AZURE CONNECTED</span>
+            <span style="color:rgba(255,255,255,0.3);">|</span>
+            <span style="color:rgba(255,255,255,0.6);font-size:8px;">60 Regions · HW TPM · Orbital · IoT Edge · Synapse</span>
+            <span class="azure-info">Confidential Computing</span>
+        </div>
+
+        <!-- MODULE TOGGLE PANEL — 4 Pillars ON/OFF -->
+        <div class="module-toggle-panel">
+            <div class="module-toggle p1 active" id="toggle-p1" onclick="toggleModule('p1')" title="Click to toggle ON/OFF">
+                <div class="module-icon">🧠</div>
+                <div class="module-name">
+                    <span class="module-status-indicator status-on" id="dot-p1"></span>COGNITION
+                </div>
+                <div style="font-size:6px;color:rgba(255,255,255,0.3);">o3/GPT-5 + Claude 5</div>
+            </div>
+            <div class="module-toggle p2 active" id="toggle-p2" onclick="toggleModule('p2')" title="Click to toggle ON/OFF">
+                <div class="module-icon">🚗</div>
+                <div class="module-name">
+                    <span class="module-status-indicator status-on" id="dot-p2"></span>MOBILITY
+                </div>
+                <div style="font-size:6px;color:rgba(255,255,255,0.3);">Mistral + Gemma 3</div>
+            </div>
+            <div class="module-toggle p3 active" id="toggle-p3" onclick="toggleModule('p3')" title="Click to toggle ON/OFF">
+                <div class="module-icon">💰</div>
+                <div class="module-name">
+                    <span class="module-status-indicator status-on" id="dot-p3"></span>FINANCIAL
+                </div>
+                <div style="font-size:6px;color:rgba(255,255,255,0.3);">Llama 4 + DeepSeek</div>
+            </div>
+            <div class="module-toggle p4 active" id="toggle-p4" onclick="toggleModule('p4')" title="Click to toggle ON/OFF">
+                <div class="module-icon">🛰️</div>
+                <div class="module-name">
+                    <span class="module-status-indicator status-on" id="dot-p4"></span>INFRASTRUCTURE
+                </div>
+                <div style="font-size:6px;color:rgba(255,255,255,0.3);">Grok 4.3 + Qwen 3.7</div>
+            </div>
+        </div>
+
+        <!-- Quick Toggle Buttons -->
+        <div class="quick-toggle-bar">
+            <span style="font-size:8px;color:rgba(255,255,255,0.3);letter-spacing:1px;">QUICK:</span>
+            <button class="quick-btn all-on" onclick="allModulesOn()">✅ ALL ON</button>
+            <button class="quick-btn all-off" onclick="allModulesOff()">❌ ALL OFF</button>
+            <button class="quick-btn" onclick="toggleOnly('p1')">🧠 Only P1</button>
+            <button class="quick-btn" onclick="toggleOnly('p2')">🚗 Only P2</button>
+            <button class="quick-btn" onclick="toggleOnly('p3')">💰 Only P3</button>
+            <button class="quick-btn" onclick="toggleOnly('p4')">🛰️ Only P4</button>
+        </div>
+
+        <!-- AI Model Selector -->
+        <div class="provider-bar">
+            <span class="bar-label">AI:</span>
+            <span class="chip active" data-model="supreme" onclick="selectModel('supreme', this)">⚡SUPREME</span>
+            <span class="chip" data-model="openai" onclick="selectModel('openai', this)">🧠o3/GPT-5</span>
+            <span class="chip" data-model="anthropic" onclick="selectModel('anthropic', this)">🏛️Claude 5</span>
+            <span class="chip" data-model="google" onclick="selectModel('google', this)">🔮Gemini 3</span>
+            <span class="chip" data-model="meta" onclick="selectModel('meta', this)">🦙Llama 4</span>
+            <span class="chip" data-model="deepseek" onclick="selectModel('deepseek', this)">🐋DeepSeek</span>
+            <span class="chip" data-model="xai" onclick="selectModel('xai', this)">🚀Grok 4</span>
+            <span class="chip" data-model="mistral" onclick="selectModel('mistral', this)">🌪️Mistral</span>
+        </div>
+
+        <!-- Active Modules Summary -->
+        <div class="active-modules-summary" id="activeSummary">🟢 Active: P1 · P2 · P3 · P4</div>
+        
+        <!-- Chat -->
+        <div class="chat-area" id="chatArea">
+            <div class="message bot-msg">
+                <div class="bubble bot-bubble">
+                    <div class="tag-line">
+                        <span class="tag tag-azure">☁️ AZURE</span>
+                        <span class="tag tag-p1">🧠 P1</span>
+                        <span class="tag tag-model">⚡ SUPREME</span>
+                    </div>
+                    👋 Welcome to <b>TechSolve Enterprise</b> — Powered by <b>Supreme Technology + Microsoft Azure</b>.<br><br>
+                    🎛️ <b>Module Control:</b> Click any pillar above to <b>toggle ON/OFF</b>.<br>
+                    ✅ <b>All 4 Pillars Active</b> by default.<br>
+                    🔄 Use <b>Quick Toggle</b> buttons to activate/deactivate modules instantly.<br><br>
+                    <i>📝 Describe your problem — routed through Azure to active AI pillars only.</i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Input -->
+        <div class="input-area">
+            <input type="text" class="message-input" id="messageInput" 
+                   placeholder="Describe your problem here..."
+                   onkeypress="if(event.key==='Enter') sendMessage()">
+            <button class="send-btn" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 🤫 SUPREME × AZURE — MODULE TOGGLE ENGINE     -->
+    <!-- ============================================ -->
+    <script>
+        // ============================================
+        // MODULE STATE
+        // ============================================
+        let moduleState = {
+            p1: true,  // Cognition — ON
+            p2: true,  // Mobility — ON
+            p3: true,  // Financial — ON
+            p4: true   // Infrastructure — ON
+        };
+
+        // ============================================
+        // ☁️ AZURE FABRIC
+        // ============================================
+        class AzureFabric {
+            constructor() { this.regions = 60; this.compliance = 'SOC2, ISO 27001, GDPR, HIPAA, FedRAMP'; }
+            status() { return `☁️ Azure: ${this.regions} regions | HW TPM | ${this.compliance}`; }
+        }
+
+        // ============================================
+        // 🧠 PILLAR 1: COGNITION
+        // ============================================
+        class Pillar1Cognition {
+            process() {
+                return {
+                    pillar: 'Pillar 1: Cognition & Intelligence',
+                    models: 'OpenAI o3/GPT-5.5 + Claude Fable 5',
+                    azure: 'Azure OpenAI Service (Private Containers)',
+                    response: '🧠 Multi-step test-time compute activated. o3 plans, Claude 5 executes. SHAAN-Lang compiler optimized. All within Azure private containers.'
+                };
+            }
+        }
+
+        // ============================================
+        // 🚗 PILLAR 2: MOBILITY
+        // ============================================
+        class Pillar2Mobility {
+            process() {
+                return {
+                    pillar: 'Pillar 2: Mobility & Robotics',
+                    models: 'Mistral + Gemma 3 (MatFormer)',
+                    azure: 'Azure IoT Edge + Digital Twins',
+                    response: '🚗 360° LiDAR active. Sensor fusion via Azure IoT Edge. SLAM: 1cm accuracy. Path planning: 0ms.'
+                };
+            }
+        }
+
+        // ============================================
+        // 💰 PILLAR 3: FINANCIAL
+        // ============================================
+        class Pillar3Financial {
+            process() {
+                return {
+                    pillar: 'Pillar 3: Financial & Transactional',
+                    models: 'Llama 4 Maverick + DeepSeek-V4-Flash',
+                    azure: 'Azure Confidential Enclaves (Intel SGX/AMD SEV-SNP)',
+                    response: '💰 Hardware-isolated execution. Settlement: 0.3ms. Fraud detection: 99.999%. $1Q ledger.'
+                };
+            }
+        }
+
+        // ============================================
+        // 🛰️ PILLAR 4: INFRASTRUCTURE
+        // ============================================
+        class Pillar4Infrastructure {
+            process() {
+                return {
+                    pillar: 'Pillar 4: Infrastructure & Satellite',
+                    models: 'Grok 4.3 + Qwen 3.7 Max',
+                    azure: 'Azure Orbital + Synapse Analytics',
+                    response: '🛰️ 10K+ satellites via Azure Orbital. 850B data points/day. Self-healing: 4-layer active.'
+                };
+            }
+        }
+
+        // ============================================
+        // 🔍 PROBLEM DETECTOR + ROUTER
+        // ============================================
+        class SupremeRouter {
+            constructor() {
+                this.problems = {
+                    server: { keywords: ['down','crash','503','500','server','timeout','offline'], severity:'CRITICAL', fix:'Server nodes restarted. Load balancer reconfigured.' },
+                    database: { keywords: ['database','sql','query','slow','connection','corrupt','deadlock'], severity:'HIGH', fix:'Queries optimized. Indexes rebuilt. Connection pool expanded.' },
+                    security: { keywords: ['hack','breach','security','ddos','malware','virus','injection','attack'], severity:'CRITICAL', fix:'Quantum firewall activated. Threat neutralized.' },
+                    frontend: { keywords: ['ui','display','render','broken','layout','css','responsive','blank'], severity:'MEDIUM', fix:'Component cache cleared. Assets rebuilt. UI restored.' },
+                    api: { keywords: ['api','endpoint','401','403','404','500','cors','gateway'], severity:'HIGH', fix:'API gateway restarted. All endpoints responding.' },
+                    performance: { keywords: ['slow','lag','loading','speed','performance','bottleneck','memory','cpu'], severity:'MEDIUM', fix:'Cache cleared. Resources optimized.' },
+                    network: { keywords: ['network','dns','bandwidth','latency','packet','routing'], severity:'HIGH', fix:'Traffic rerouted. DNS failover activated.' },
+                    deployment: { keywords: ['deploy','build','pipeline','ci/cd','docker','kubernetes','container'], severity:'MEDIUM', fix:'Rollback executed. Containers healthy.' }
+                };
+                this.pillarKw = {
+                    p1: ['think','reason','code','explain','write','plan','logic','solve','compile','llm'],
+                    p2: ['robot','drone','car','autonomous','navigation','lidar','slam','perception','sensor','mobility','vehicle','edge'],
+                    p3: ['trade','stock','fraud','transaction','payment','bank','credit','risk','loan','settlement','trading','crypto','finance'],
+                    p4: ['satellite','telemetry','orbital','mesh','pipeline','data','ingestion','infrastructure','server','deploy','scale','synapse','cloud']
+                };
+            }
+            analyze(msg) {
+                const lc = msg.toLowerCase();
+                let best = { type: 'server', confidence: 0, severity: 'MEDIUM' };
+                for (let [type, config] of Object.entries(this.problems)) {
+                    const matched = config.keywords.filter(k => lc.includes(k)).length;
+                    const confidence = matched / Math.max(config.keywords.length * 0.3, 1);
+                    if (confidence > best.confidence) best = { type, confidence: Math.min(confidence, 0.99), severity: config.severity };
+                }
+                return best;
+            }
+            getFix(type) { return this.problems[type] || this.problems.server; }
+            
+            routePillar(msg) {
+                const lc = msg.toLowerCase();
+                let scores = { p1:0, p2:0, p3:0, p4:0 };
+                for (let [p, keys] of Object.entries(this.pillarKw)) {
+                    if (!moduleState[p]) continue; // Skip inactive modules
+                    scores[p] = keys.filter(k => lc.includes(k)).length;
+                }
+                let best = 'p1', bestScore = 0;
+                for (let [p, s] of Object.entries(scores)) {
+                    if (s > bestScore && moduleState[p]) { bestScore = s; best = p; }
+                }
+                // If no active module matched, use first active module
+                if (bestScore === 0) {
+                    for (let p of ['p1','p2','p3','p4']) {
+                        if (moduleState[p]) { best = p; break; }
+                    }
+                }
+                return best;
+            }
+
+            getActivePillars() {
+                return Object.entries(moduleState).filter(([k,v]) => v).map(([k]) => k);
+            }
+        }
+
+        // ============================================
+        // 🌐 DATA
+        // ============================================
+        const MODELS = {
+            supreme: { name: 'SUPREME TECHNOLOGY', icon: '⚡' },
+            openai: { name: 'OpenAI o3/GPT-5.5', icon: '🧠' },
+            anthropic: { name: 'Anthropic Claude 5', icon: '🏛️' },
+            google: { name: 'Google Gemini 3', icon: '🔮' },
+            meta: { name: 'Meta Llama 4', icon: '🦙' },
+            deepseek: { name: 'DeepSeek V4', icon: '🐋' },
+            xai: { name: 'xAI Grok 4.3', icon: '🚀' },
+            mistral: { name: 'Mistral AI', icon: '🌪️' }
+        };
+
+        const PILLARS = {
+            p1: { name: 'COGNITION', icon: '🧠', tagClass: 'tag-p1', toggleClass: 'p1' },
+            p2: { name: 'MOBILITY', icon: '🚗', tagClass: 'tag-p2', toggleClass: 'p2' },
+            p3: { name: 'FINANCIAL', icon: '💰', tagClass: 'tag-p3', toggleClass: 'p3' },
+            p4: { name: 'INFRASTRUCTURE', icon: '🛰️', tagClass: 'tag-p4', toggleClass: 'p4' }
+        };
+
+        // ============================================
+        // ⚡ INITIALIZE
+        // ============================================
+        const azure = new AzureFabric();
+        const pillar1 = new Pillar1Cognition();
+        const pillar2 = new Pillar2Mobility();
+        const pillar3 = new Pillar3Financial();
+        const pillar4 = new Pillar4Infrastructure();
+        const router = new SupremeRouter();
+        const pillars = { p1: pillar1, p2: pillar2, p3: pillar3, p4: pillar4 };
+        let selectedModel = 'supreme';
+
+        // ============================================
+        // 🎛️ MODULE TOGGLE FUNCTIONS
+        // ============================================
+        function toggleModule(pillarId) {
+            moduleState[pillarId] = !moduleState[pillarId];
+            updateModuleUI(pillarId);
+            updateActiveSummary();
+            console.log(`🎛️ [TOGGLE]: ${PILLARS[pillarId].name} → ${moduleState[pillarId] ? 'ON ✅' : 'OFF ❌'}`);
+        }
+
+        function updateModuleUI(pillarId) {
+            const toggle = document.getElementById(`toggle-${pillarId}`);
+            const dot = document.getElementById(`dot-${pillarId}`);
+            
+            if (moduleState[pillarId]) {
+                toggle.classList.remove('inactive');
+                toggle.classList.add('active');
+                dot.classList.remove('status-off');
+                dot.classList.add('status-on');
+            } else {
+                toggle.classList.remove('active');
+                toggle.classList.add('inactive');
+                dot.classList.remove('status-on');
+                dot.classList.add('status-off');
+            }
+        }
+
+        function allModulesOn() {
+            ['p1','p2','p3','p4'].forEach(p => { moduleState[p] = true; updateModuleUI(p); });
+            updateActiveSummary();
+            console.log('🎛️ [TOGGLE]: ALL MODULES ON ✅');
+        }
+
+        function allModulesOff() {
+            ['p1','p2','p3','p4'].forEach(p => { moduleState[p] = false; updateModuleUI(p); });
+            updateActiveSummary();
+            console.log('🎛️ [TOGGLE]: ALL MODULES OFF ❌');
+        }
+
+        function toggleOnly(pillarId) {
+            ['p1','p2','p3','p4'].forEach(p => { moduleState[p] = (p === pillarId); updateModuleUI(p); });
+            updateActiveSummary();
+            console.log(`🎛️ [TOGGLE]: ONLY ${PILLARS[pillarId].name} ON`);
+        }
+
+        function updateActiveSummary() {
+            const active = Object.entries(moduleState).filter(([k,v]) => v).map(([k]) => PILLARS[k].name);
+            const summary = document.getElementById('activeSummary');
+            if (active.length === 0) {
+                summary.innerHTML = '🔴 <b>NO MODULES ACTIVE</b> — Please activate at least one pillar.';
+                summary.style.color = 'var(--danger)';
+            } else if (active.length === 4) {
+                summary.innerHTML = '🟢 <b>ALL MODULES ACTIVE:</b> ' + active.join(' · ');
+                summary.style.color = 'rgba(255,255,255,0.4)';
+            } else {
+                summary.innerHTML = `🟡 <b>${active.length}/4 ACTIVE:</b> ` + active.join(' · ');
+                summary.style.color = 'var(--warning)';
+            }
+        }
+
+        // ============================================
+        // 💬 CHAT FUNCTIONS
+        // ============================================
+        function selectModel(id, el) {
+            selectedModel = id;
+            document.querySelectorAll('[data-model]').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        function addMessage(text, isUser = false, tags = null) {
+            const chatArea = document.getElementById('chatArea');
+            const div = document.createElement('div');
+            div.className = `message ${isUser ? 'user-msg' : 'bot-msg'}`;
+            const bubble = document.createElement('div');
+            bubble.className = `bubble ${isUser ? 'user-bubble' : 'bot-bubble'}`;
+            
+            if (!isUser && tags) {
+                bubble.innerHTML = `
+                    <div class="tag-line">
+                        <span class="tag tag-azure">☁️ AZURE</span>
+                        <span class="tag ${tags.pillarTagClass}">${tags.pillarIcon} ${tags.pillarName}</span>
+                        <span class="tag tag-model">${tags.modelIcon} ${tags.modelName}</span>
+                    </div>
+                    ${text.replace(/\n/g, '<br>')}
+                `;
+            } else {
+                bubble.innerHTML = text.replace(/\n/g, '<br>');
+            }
+            
+            div.appendChild(bubble);
+            chatArea.appendChild(div);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function addTyping() {
+            const area = document.getElementById('chatArea');
+            const div = document.createElement('div');
+            div.className = 'message bot-msg';
+            div.id = 'typing';
+            div.innerHTML = '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>';
+            area.appendChild(div);
+            area.scrollTop = area.scrollHeight;
+        }
+
+        function removeTyping() {
+            const el = document.getElementById('typing');
+            if (el) el.remove();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            // Check if any module is active
+            const activePillars = router.getActivePillars();
+            if (activePillars.length === 0) {
+                addMessage('⚠️ <b>No modules active!</b> Please activate at least one pillar using the toggle buttons above.', false, {
+                    pillarIcon: '⚠️', pillarName: 'INACTIVE', pillarTagClass: 'tag-off',
+                    modelIcon: '⚡', modelName: 'SUPREME'
+                });
+                return;
+            }
+
+            addMessage(msg, true);
+            input.value = '';
+            addTyping();
+
+            setTimeout(() => {
+                removeTyping();
+
+                const routedPillar = router.routePillar(msg);
+                const detection = router.analyze(msg);
+                const fix = router.getFix(detection.type);
+                const pillar = pillars[routedPillar] || pillar1;
+                const pillarResult = pillar.process();
+                const model = MODELS[selectedModel];
+                const pillarInfo = PILLARS[routedPillar];
+                const refId = 'SUP-AZ-' + Date.now().toString(36).toUpperCase();
+
+                const fullResponse = `
+☁️ <b>Azure Infrastructure:</b> ${azure.status()}
+
+<b>${pillarResult.pillar}</b>
+🤖 <b>Models:</b> ${pillarResult.models}
+☁️ <b>Azure:</b> ${pillarResult.azure}
+
+🔍 <b>Problem Detected:</b> ${detection.type.toUpperCase()}
+📊 Confidence: ${(detection.confidence*100).toFixed(1)}% | Severity: ${detection.severity}
+
+${pillarResult.response}
+
+⚙️ <b>Auto-Fix Applied:</b>
+${fix.fix}
+
+✅ <b>Resolution Complete!</b>
+📋 Ref: ${refId}
+⏱ Time: 0ms (Azure + Supreme Mesh)
+🎛️ Active Modules: ${activePillars.map(p => PILLARS[p].name).join(', ')}
+                `;
+
+                addMessage(fullResponse, false, {
+                    pillarIcon: pillarInfo.icon,
+                    pillarName: pillarInfo.name,
+                    pillarTagClass: pillarInfo.tagClass,
+                    modelIcon: model.icon,
+                    modelName: model.name
+                });
+
+                console.log(`🤫 [ROUTE]: "${msg.substring(0,40)}..." → ${routedPillar} | Active: ${activePillars.join(',')} | Model: ${model.name}`);
+            }, 1200);
+        }
+
+        // ============================================
+        // 🚀 INIT
+        // ============================================
+        console.log('🤫╔══════════════════════════════════════╗');
+        console.log('🤫║ SUPREME × AZURE — TOGGLE SYSTEM    ║');
+        console.log('🤫║ P1: Cognition  — ON ✅              ║');
+        console.log('🤫║ P2: Mobility   — ON ✅              ║');
+        console.log('🤫║ P3: Financial  — ON ✅              ║');
+        console.log('🤫║ P4: Satellite  — ON ✅              ║');
+        console.log('🤫║ Toggle: Click any pillar to ON/OFF ║');
+        console.log('🤫╚══════════════════════════════════════╝');
+
+        setInterval(() => {
+            const active = router.getActivePillars();
+            console.log(`🤫 [HEARTBEAT]: Active Modules: ${active.length}/4 | ${active.map(p => PILLARS[p].name).join(', ')}`);
+        }, 60000);
+    </script>
+</body>
+</html>

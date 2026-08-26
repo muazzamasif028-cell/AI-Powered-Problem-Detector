@@ -1,0 +1,15 @@
+audit(event,target){
+
+    this.auditLogs.push({
+
+        id:crypto.randomUUID(),
+
+        event,
+
+        target,
+
+        timestamp:new Date().toISOString()
+
+    });
+
+}

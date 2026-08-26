@@ -1,0 +1,121 @@
+// ============================================================
+// 🔌 spl-v/adapters/UniversalVehicleAdapter.js
+// SPL-V Universal Adapter — One Interface, All Vehicles
+// ============================================================
+
+export class UniversalVehicleAdapter {
+    constructor(vehicleType = 'auto') {
+        this.vehicleType = vehicleType;
+        this.adapter = null;
+        this.protocol = null;
+    }
+
+    /**
+     * 🔍 Auto-detect vehicle and load correct adapter
+     */
+    async detectAndLoad() {
+        console.log('🔍 Detecting vehicle...');
+        
+        // Try to detect vehicle type
+        const detected = await this.detectVehicle();
+        
+        // Load appropriate adapter
+        this.adapter = await this.loadAdapter(detected.manufacturer, detected.model);
+        this.protocol = this.adapter.getProtocol();
+        
+        console.log(`✅ Vehicle detected: ${detected.manufacturer} ${detected.model}`);
+        console.log(`   Protocol: ${this.protocol}`);
+        console.log(`   Adapter: ${this.adapter.name}`);
+        
+        return detected;
+    }
+
+    /**
+     * 🔍 Auto-detect vehicle manufacturer and model
+     */
+    async detectVehicle() {
+        // Try each detection method
+        const methods = [
+            this.detectViaOBD,
+            this.detectViaCAN,
+            this.detectViaEthernet,
+            this.detectViaAPI,
+            this.detectViaVIN
+        ];
+        
+        for (const method of methods) {
+            try {
+                const result = await method.call(this);
+                if (result) return result;
+            } catch (e) {
+                // Try next method
+            }
+        }
+        
+        // Default to generic adapter
+        return { manufacturer: 'generic', model: 'unknown' };
+    }
+
+    async detectViaOBD() {
+        // OBD-II port detection
+        return null; // Not connected
+    }
+
+    async detectViaCAN() {
+        // CAN bus detection
+        return null;
+    }
+
+    async detectViaEthernet() {
+        // Automotive Ethernet detection
+        return null;
+    }
+
+    async detectViaAPI() {
+        // Try known OEM APIs
+        const knownAPIs = [
+            { url: 'https://api.tesla.com/vehicles', manufacturer: 'tesla' },
+            { url: 'https://api.toyota.com/vehicles', manufacturer: 'toyota' },
+            { url: 'https://api.bmw.com/vehicles', manufacturer: 'bmw' }
+        ];
+        
+        for (const api of knownAPIs) {
+            try {
+                const response = await fetch(api.url);
+                if (response.ok) {
+                    return { manufacturer: api.manufacturer, model: 'detected' };
+                }
+            } catch (e) {
+                // Try next
+            }
+        }
+        
+        return null;
+    }
+
+    async detectViaVIN() {
+        // VIN-based detection
+        return null;
+    }
+
+    /**
+     * 📦 Load vehicle-specific adapter
+     */
+    async loadAdapter(manufacturer, model) {
+        const adapters = {
+            tesla: () => import('./manufacturers/TeslaAdapter.js'),
+            toyota: () => import('./manufacturers/ToyotaAdapter.js'),
+            bmw: () => import('./manufacturers/BMWAdapter.js'),
+            mercedes: () => import('./manufacturers/MercedesAdapter.js'),
+            ford: () => import('./manufacturers/FordAdapter.js'),
+            honda: () => import('./manufacturers/HondaAdapter.js'),
+            volvo: () => import('./manufacturers/VolvoAdapter.js'),
+            supreme: () => import('./manufacturers/SupremeAdapter.js'),
+            generic: () => import('./manufacturers/GenericAdapter.js')
+        };
+        
+        const loader = adapters[manufacturer] || adapters.generic;
+        const module = await loader();
+        return new module.default(model);
+    }
+}

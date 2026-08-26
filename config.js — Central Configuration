@@ -1,0 +1,66 @@
+// ============================================================
+// ⚙️ src/config.js
+// SUPREME OS MVP Configuration
+// ============================================================
+require('dotenv').config();
+
+module.exports = {
+    // Server
+    port: process.env.PORT || 3000,
+    nodeEnv: process.env.NODE_ENV || 'development',
+    
+    // Database
+    mongodbUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/supreme',
+    
+    // Redis
+    redis: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+        password: process.env.REDIS_PASSWORD || ''
+    },
+    
+    // JWT
+    jwt: {
+        secret: process.env.JWT_SECRET || 'supreme-mvp-secret-change-in-production',
+        expiry: '24h',
+        refreshExpiry: '7d'
+    },
+    
+    // AI Providers
+    ai: {
+        openai: { apiKey: process.env.OPENAI_API_KEY, enabled: true },
+        anthropic: { apiKey: process.env.ANTHROPIC_API_KEY, enabled: true },
+        google: { apiKey: process.env.GOOGLE_AI_KEY, enabled: true },
+        deepseek: { apiKey: process.env.DEEPSEEK_API_KEY, enabled: false },
+        qwen: { apiKey: process.env.QWEN_API_KEY, enabled: false }
+    },
+    
+    // Billing
+    billing: {
+        provider: process.env.BILLING_PROVIDER || 'stripe', // stripe | paddle | lemonsqueezy
+        stripe: {
+            secretKey: process.env.STRIPE_SECRET_KEY,
+            webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+            priceBasic: process.env.STRIPE_PRICE_BASIC,
+            pricePro: process.env.STRIPE_PRICE_PRO
+        },
+        paddle: {
+            apiKey: process.env.PADDLE_API_KEY,
+            clientToken: process.env.PADDLE_CLIENT_TOKEN
+        }
+    },
+    
+    // Rate Limiting
+    rateLimit: {
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 100
+    },
+    
+    // Plans
+    plans: {
+        free: { price: 0, aiRequests: 100, agents: 1, storage: '100MB' },
+        basic: { price: 19, aiRequests: 1000, agents: 5, storage: '1GB' },
+        pro: { price: 49, aiRequests: 10000, agents: 25, storage: '10GB' },
+        enterprise: { price: 199, aiRequests: 100000, agents: 100, storage: '100GB' }
+    }
+};

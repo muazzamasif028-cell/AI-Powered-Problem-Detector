@@ -1,0 +1,189 @@
+// config/gateways.config.js
+module.exports = {
+    safepay: {
+        name: 'SafePay Pakistan',
+        type: 'PAKISTAN_INTERNATIONAL',
+        enabled: true,
+        environment: process.env.SAFEPAY_ENV || 'sandbox',
+        sandbox: {
+            apiUrl: 'https://sandbox.api.safepay.com.pk',
+            apiKey: process.env.SAFEPAY_SANDBOX_KEY,
+            apiSecret: process.env.SAFEPAY_SANDBOX_SECRET,
+            webhookSecret: process.env.SAFEPAY_SANDBOX_WEBHOOK
+        },
+        production: {
+            apiUrl: 'https://api.safepay.com.pk',
+            apiKey: process.env.SAFEPAY_PROD_KEY,
+            apiSecret: process.env.SAFEPAY_PROD_SECRET,
+            webhookSecret: process.env.SAFEPAY_PROD_WEBHOOK
+        },
+        supportedCards: ['visa', 'mastercard', 'unionpay'],
+        supportedCurrencies: ['PKR', 'USD'],
+        features: {
+            subscriptions: true,
+            refunds: true,
+            partialRefunds: true,
+            preAuthorization: true
+        },
+        fees: {
+            domestic: 2.5, // 2.5%
+            international: 3.5, // 3.5%
+            fixedFee: 0 // PKR
+        }
+    },
+    
+    payfast: {
+        name: 'PayFast Pakistan',
+        type: 'PAKISTAN_LOCAL',
+        enabled: true,
+        environment: process.env.PAYFAST_ENV || 'sandbox',
+        sandbox: {
+            apiUrl: 'https://sandbox.payfast.com.pk',
+            merchantId: process.env.PAYFAST_SANDBOX_MERCHANT_ID,
+            merchantKey: process.env.PAYFAST_SANDBOX_KEY,
+            returnUrl: 'https://supreme.com/payment/return',
+            cancelUrl: 'https://supreme.com/payment/cancel'
+        },
+        production: {
+            apiUrl: 'https://api.payfast.com.pk',
+            merchantId: process.env.PAYFAST_PROD_MERCHANT_ID,
+            merchantKey: process.env.PAYFAST_PROD_KEY,
+            returnUrl: 'https://supreme.com/payment/return',
+            cancelUrl: 'https://supreme.com/payment/cancel'
+        },
+        supportedCards: ['visa', 'mastercard'],
+        supportedCurrencies: ['PKR'],
+        features: {
+            subscriptions: true,
+            refunds: true,
+            partialRefunds: false
+        },
+        fees: {
+            domestic: 2.0,
+            international: 'NOT_SUPPORTED',
+            fixedFee: 0
+        }
+    },
+    
+    hbl: {
+        name: 'HBL Payment Gateway',
+        type: 'BANK_PAKISTAN',
+        enabled: true,
+        environment: process.env.HBL_ENV || 'sandbox',
+        sandbox: {
+            apiUrl: 'https://sandbox.hblpgw.com',
+            merchantId: process.env.HBL_SANDBOX_MERCHANT_ID,
+            password: process.env.HBL_SANDBOX_PASSWORD,
+            accessCode: process.env.HBL_SANDBOX_ACCESS_CODE
+        },
+        production: {
+            apiUrl: 'https://hblpgw.com',
+            merchantId: process.env.HBL_PROD_MERCHANT_ID,
+            password: process.env.HBL_PROD_PASSWORD,
+            accessCode: process.env.HBL_PROD_ACCESS_CODE
+        },
+        supportedCards: ['visa', 'mastercard'],
+        supportedCurrencies: ['PKR', 'USD'],
+        features: {
+            subscriptions: true,
+            refunds: true,
+            emiOption: true
+        },
+        fees: {
+            domestic: 2.0,
+            international: 3.0,
+            fixedFee: 0
+        }
+    },
+    
+    jazzcash: {
+        name: 'JazzCash Business',
+        type: 'MOBILE_WALLET_PAKISTAN',
+        enabled: true,
+        environment: process.env.JAZZCASH_ENV || 'sandbox',
+        sandbox: {
+            apiUrl: 'https://sandbox.jazzcash.com.pk/application/rest',
+            merchantId: process.env.JAZZCASH_SANDBOX_MERCHANT_ID,
+            password: process.env.JAZZCASH_SANDBOX_PASSWORD,
+            integritySalt: process.env.JAZZCASH_SANDBOX_SALT
+        },
+        production: {
+            apiUrl: 'https://api.jazzcash.com.pk/application/rest',
+            merchantId: process.env.JAZZCASH_PROD_MERCHANT_ID,
+            password: process.env.JAZZCASH_PROD_PASSWORD,
+            integritySalt: process.env.JAZZCASH_PROD_SALT
+        },
+        supportedMethods: ['MOBILE_ACCOUNT', 'QR_CODE', 'OTP'],
+        supportedCurrencies: ['PKR'],
+        features: {
+            subscriptions: false,
+            refunds: true
+        },
+        fees: {
+            domestic: 1.5,
+            walletLoad: 'FREE',
+            fixedFee: 0
+        }
+    },
+    
+    easypaisa: {
+        name: 'Easypaisa Business',
+        type: 'MOBILE_WALLET_PAKISTAN',
+        enabled: true,
+        environment: process.env.EASYPAISA_ENV || 'sandbox',
+        sandbox: {
+            apiUrl: 'https://sandbox.api.easypaisa.com.pk',
+            merchantId: process.env.EASYPAISA_SANDBOX_MERCHANT_ID,
+            secret: process.env.EASYPAISA_SANDBOX_SECRET
+        },
+        production: {
+            apiUrl: 'https://api.easypaisa.com.pk',
+            merchantId: process.env.EASYPAISA_PROD_MERCHANT_ID,
+            secret: process.env.EASYPAISA_PROD_SECRET
+        },
+        supportedMethods: ['MOBILE_ACCOUNT', 'QR_CODE'],
+        supportedCurrencies: ['PKR'],
+        features: {
+            subscriptions: false,
+            refunds: true
+        },
+        fees: {
+            domestic: 1.5,
+            fixedFee: 0
+        }
+    },
+    
+    stripe: {
+        name: 'Stripe International',
+        type: 'INTERNATIONAL',
+        enabled: process.env.STRIPE_ENABLED === 'true',
+        environment: process.env.STRIPE_ENV || 'sandbox',
+        sandbox: {
+            apiUrl: 'https://api.stripe.com/v1',
+            secretKey: process.env.STRIPE_SANDBOX_SECRET,
+            publishableKey: process.env.STRIPE_SANDBOX_PUBLISHABLE,
+            webhookSecret: process.env.STRIPE_SANDBOX_WEBHOOK
+        },
+        production: {
+            apiUrl: 'https://api.stripe.com/v1',
+            secretKey: process.env.STRIPE_PROD_SECRET,
+            publishableKey: process.env.STRIPE_PROD_PUBLISHABLE,
+            webhookSecret: process.env.STRIPE_PROD_WEBHOOK
+        },
+        supportedCards: ['visa', 'mastercard', 'amex', 'discover', 'unionpay'],
+        supportedCurrencies: ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'PKR'],
+        features: {
+            subscriptions: true,
+            refunds: true,
+            partialRefunds: true,
+            preAuthorization: true,
+            applePay: true,
+            googlePay: true
+        },
+        fees: {
+            domestic: 2.9,
+            international: 3.9,
+            fixedFee: 0.30 // USD
+        }
+    }
+};

@@ -1,0 +1,65 @@
+// ============================================================
+// 🛣️ src/routes/planetary-core.routes.js
+// SUPREME Planetary Core API
+// ============================================================
+const express = require('express');
+const router = express.Router();
+const authMiddleware = require('../middleware/auth.middleware');
+const constitutionalCore = require('../services/planetary-core/constitutional-core.service');
+const uacp = require('../services/planetary-core/uacp.service');
+const simulationWorld = require('../services/planetary-core/simulation-world.service');
+const skillDNA = require('../services/planetary-core/skill-dna.service');
+const timeMachine = require('../services/planetary-core/time-machine.service');
+const learningNetwork = require('../services/planetary-core/learning-network.service');
+const evolutionEngine = require('../services/planetary-core/evolution-engine.service');
+const digitalBrain = require('../services/planetary-core/digital-brain.service');
+const zeroLatencyRouter = require('../services/planetary-core/zero-latency-router.service');
+const commandCenter = require('../services/planetary-core/planetary-command.service');
+
+router.use(authMiddleware.authenticate());
+
+// Constitutional Core
+router.post('/constitution/validate', async (req, res) => {
+    const result = await constitutionalCore.validateAction(req.body.action, req.body.context);
+    res.json({ success: true, validation: result });
+});
+
+router.get('/constitution/violations', (req, res) => {
+    const report = constitutionalCore.getViolationReport(req.query.timeframe);
+    res.json({ success: true, report });
+});
+
+// UACP
+router.post('/uacp/agents/register', (req, res) => {
+    const agent = uacp.registerAgent(req.body);
+    res.json({ success: true, agent });
+});
+
+router.post('/uacp/send', async (req, res) => {
+    const result = await uacp.sendMessage(req.body.from, req.body.to, req.body.message);
+    res.json({ success: true, result });
+});
+
+router.get('/uacp/network', (req, res) => {
+    const stats = uacp.getNetworkStats();
+    res.json({ success: true, stats });
+});
+
+// Zero-Latency Router
+router.post('/router/route', async (req, res) => {
+    const result = await zeroLatencyRouter.route(req.body.query, req.body.options);
+    res.json({ success: true, route: result });
+});
+
+router.get('/router/stats', (req, res) => {
+    const stats = zeroLatencyRouter.getStats();
+    res.json({ success: true, stats });
+});
+
+// Planetary Command Center
+router.get('/command/dashboard', async (req, res) => {
+    const dashboard = await commandCenter.getDashboard();
+    res.json({ success: true, dashboard });
+});
+
+module.exports = router;

@@ -1,0 +1,112 @@
+// spl-v/hal/SafetyBoundary.js
+
+export class SafetyBoundary {
+    constructor() {
+        this.rules = [];
+        this.activeRestrictions = new Map();
+        this.violations = [];
+    }
+
+    async initialize(capabilities) {
+        console.log('🛡️ Safety Boundary Initializing...');
+
+        // Load safety rules based on vehicle capabilities
+        this.loadDefaultRules();
+        
+        // Apply vehicle-specific restrictions
+        for (const [name, cap] of capabilities) {
+            if (cap.range) {
+                this.activeRestrictions.set(name, {
+                    min: cap.range[0],
+                    max: cap.range[1],
+                    unit: cap.unit
+                });
+            }
+        }
+
+        console.log(`   ✅ ${this.rules.length} safety rules loaded`);
+        console.log(`   ✅ ${this.activeRestrictions.size} restrictions applied\n`);
+    }
+
+    loadDefaultRules() {
+        this.rules = [
+            {
+                name: 'MAX_SPEED_LIMIT',
+                check: (cmd) => {
+                    if (cmd.action === 'set_speed' && cmd.value > 200) {
+                        return { allowed: false, reason: 'Speed exceeds global maximum of 200 kmh' };
+                    }
+                    return { allowed: true };
+                }
+            },
+            {
+                name: 'BATTERY_PROTECTION',
+                check: (cmd) => {
+                    if (cmd.action === 'set_speed' && cmd.value > 80) {
+                        // Check battery level
+                        return { allowed: true, warning: 'Check battery level before high-speed operation' };
+                    }
+                    return { allowed: true };
+                }
+            },
+            {
+                name: 'EMERGENCY_ONLY',
+                check: (cmd) => {
+                    if (cmd.action === 'emergency_stop') {
+                        return { allowed: true, priority: 'MAXIMUM' };
+                    }
+                    return { allowed: true };
+                }
+            },
+            {
+                name: 'LOCK_WHILE_MOVING',
+                check: (cmd) => {
+                    if ((cmd.action === 'lock' || cmd.action === 'unlock') && 
+                        this.vehicleState?.speed > 5) {
+                        return { allowed: false, reason: 'Cannot lock/unlock while vehicle is moving' };
+                    }
+                    return { allowed: true };
+                }
+            }
+        ];
+    }
+
+    async validate(command) {
+        for (const rule of this.rules) {
+            const result = rule.check(command);
+            if (!result.allowed) {
+                this.violations.push({
+                    timestamp: Date.now(),
+                    command,
+                    rule: rule.name,
+                    reason: result.reason
+                });
+                return result;
+            }
+            if (result.warning) {
+                console.log(`   ⚠️ Safety Warning: ${result.warning}`);
+            }
+        }
+
+        // Check vehicle restrictions
+        const restriction = this.activeRestrictions.get(command.action);
+        if (restriction && command.value !== undefined) {
+            if (command.value < restriction.min || command.value > restriction.max) {
+                return {
+                    allowed: false,
+                    reason: `${command.action} must be between ${restriction.min} and ${restriction.max} ${restriction.unit}`
+                };
+            }
+        }
+
+        return { allowed: true };
+    }
+
+    getStatus() {
+        return {
+            rules: this.rules.length,
+            restrictions: this.activeRestrictions.size,
+            violations: this.violations.length
+        };
+    }
+}

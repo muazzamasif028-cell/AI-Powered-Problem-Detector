@@ -1,0 +1,70 @@
+// service/AnalyticsService.java
+package com.supreme.billing.service;
+
+import org.springframework.stereotype.Service;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.*;
+
+@Service
+public class AnalyticsService {
+    
+    private final SubscriptionRepository subscriptionRepository;
+    private final PaymentRepository paymentRepository;
+    private final InvoiceRepository invoiceRepository;
+    
+    public BigDecimal calculateMRR() {
+        return subscriptionRepository.calculateMRR();
+    }
+    
+    public BigDecimal calculateARR() {
+        return calculateMRR().multiply(new BigDecimal("12"));
+    }
+    
+    public ChurnResponse calculateChurnRate(int days) {
+        LocalDateTime startDate = LocalDateTime.now().minusDays(days);
+        
+        long activeStart = subscriptionRepository.countActiveAt(startDate);
+        long churned = subscriptionRepository.countCancelledBetween(startDate, LocalDateTime.now());
+        
+        double churnRate = activeStart > 0 ? (double) churned / activeStart * 100 : 0;
+        
+        return ChurnResponse.builder()
+            .churnRate(new BigDecimal(churnRate))
+            .activeCustomers(activeStart - churned)
+            .churnedCustomers(churned)
+            .period(days)
+            .build();
+    }
+    
+    public RevenueResponse getRevenue(String period) {
+        LocalDateTime startDate = switch (period) {
+            case "DAILY" -> LocalDateTime.now().minusDays(1);
+            case "WEEKLY" -> LocalDateTime.now().minusWeeks(1);
+            case "MONTHLY" -> LocalDateTime.now().minusMonths(1);
+            case "YEARLY" -> LocalDateTime.now().minusYears(1);
+            default -> LocalDateTime.now().minusMonths(1);
+        };
+        
+        BigDecimal totalRevenue = paymentRepository.calculateRevenueBetween(startDate, LocalDateTime.now());
+        long totalTransactions = paymentRepository.countTransactionsBetween(startDate, LocalDateTime.now());
+        Map<String, BigDecimal> revenueByCountry = paymentRepository.revenueByCountry(startDate);
+        Map<String, BigDecimal> revenueByPlan = paymentRepository.revenueByPlan(startDate);
+        
+        return RevenueResponse.builder()
+            .totalRevenue(totalRevenue)
+            .totalTransactions(totalTransactions)
+            .averageTransactionValue(totalTransactions > 0 ? 
+                totalRevenue.divide(new BigDecimal(totalTransactions), 2, RoundingMode.HALF_UP) : 
+                BigDecimal.ZERO)
+            .revenueByCountry(revenueByCountry)
+            .revenueByPlan(revenueByPlan)
+            .period(period)
+            .build();
+    }
+    
+    public CustomerLifetimeValue calculateLTV(String userId) {
+        // Average revenue per user * average customer lifespan
+        return new CustomerLifetimeValue();
+    }
+}

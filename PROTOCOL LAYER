@@ -1,0 +1,114 @@
+// spl-v/hal/ProtocolLayer.js
+
+export class ProtocolLayer {
+    constructor() {
+        this.protocols = new Map();
+        this.activeProtocol = null;
+    }
+
+    async initialize(adapter) {
+        console.log('🔌 Protocol Layer Initializing...');
+
+        // Register all protocols
+        this.registerProtocols();
+
+        // Detect which protocol the adapter uses
+        if (adapter?.protocol) {
+            this.activeProtocol = this.protocols.get(adapter.protocol);
+            if (this.activeProtocol) {
+                await this.activeProtocol.initialize();
+                console.log(`   ✅ Active: ${adapter.protocol}`);
+            }
+        } else {
+            // Auto-detect
+            this.activeProtocol = await this.autoDetectProtocol();
+            console.log(`   ✅ Auto-detected: ${this.activeProtocol?.name || 'SIMULATOR'}`);
+        }
+
+        console.log('');
+    }
+
+    registerProtocols() {
+        this.protocols.set('CAN 11-bit 500kbps', new CANProtocol(500000, 11));
+        this.protocols.set('CAN 29-bit 500kbps', new CANProtocol(500000, 29));
+        this.protocols.set('CAN-FD', new CANFDProtocol());
+        this.protocols.set('J1939', new J1939Protocol());
+        this.protocols.set('Automotive Ethernet', new AutomotiveEthernetProtocol());
+        this.protocols.set('LIN', new LINProtocol());
+        this.protocols.set('FlexRay', new FlexRayProtocol());
+        this.protocols.set('ROS 2', new ROS2Protocol());
+        this.protocols.set('SIMULATOR', new SimulatorProtocol());
+
+        console.log(`   📋 ${this.protocols.size} protocols registered`);
+    }
+
+    async autoDetectProtocol() {
+        // Try each protocol to see which one responds
+        for (const [name, protocol] of this.protocols) {
+            if (name === 'SIMULATOR') continue;
+            const detected = await protocol.probe();
+            if (detected) return protocol;
+        }
+        return this.protocols.get('SIMULATOR');
+    }
+
+    getStatus() {
+        return {
+            active: this.activeProtocol?.name || 'SIMULATOR',
+            available: Array.from(this.protocols.keys())
+        };
+    }
+}
+
+// Protocol implementations
+class CANProtocol {
+    constructor(baudRate, idLength) {
+        this.name = `CAN ${idLength}-bit ${baudRate/1000}kbps`;
+        this.baudRate = baudRate;
+        this.idLength = idLength;
+    }
+    async initialize() { console.log(`      Initialized: ${this.name}`); }
+    async probe() { return false; }
+}
+
+class CANFDProtocol {
+    constructor() { this.name = 'CAN-FD'; }
+    async initialize() { console.log('      Initialized: CAN-FD (5 Mbps)'); }
+    async probe() { return false; }
+}
+
+class J1939Protocol {
+    constructor() { this.name = 'J1939'; }
+    async initialize() { console.log('      Initialized: J1939 (250 kbps)'); }
+    async probe() { return false; }
+}
+
+class AutomotiveEthernetProtocol {
+    constructor() { this.name = 'Automotive Ethernet'; }
+    async initialize() { console.log('      Initialized: Automotive Ethernet (1 Gbps)'); }
+    async probe() { return false; }
+}
+
+class LINProtocol {
+    constructor() { this.name = 'LIN'; }
+    async initialize() { console.log('      Initialized: LIN (19.2 kbps)'); }
+    async probe() { return false; }
+}
+
+class FlexRayProtocol {
+    constructor() { this.name = 'FlexRay'; }
+    async initialize() { console.log('      Initialized: FlexRay (10 Mbps)'); }
+    async probe() { return false; }
+}
+
+class ROS2Protocol {
+    constructor() { this.name = 'ROS 2'; }
+    async initialize() { console.log('      Initialized: ROS 2'); }
+    async probe() { return false; }
+}
+
+class SimulatorProtocol {
+    constructor() { this.name = 'SIMULATOR'; }
+    async initialize() { console.log('      Initialized: SIMULATOR (No hardware required)'); }
+    async probe() { return false; }
+}

@@ -1,0 +1,238 @@
+// ============================================================
+// 🌐 agents/AgentRouter.js
+// SUPREME Agent Router — Routes requests to best agents
+// AI-Powered | Load-Aware | Multi-Region
+// ============================================================
+
+class AgentRouter {
+    constructor(registry, scheduler) {
+        this.registry = registry;
+        this.scheduler = scheduler;
+        
+        // Routing strategies
+        this.strategies = {
+            ROUND_ROBIN: 'roundRobin',
+            LEAST_LOADED: 'leastLoaded',
+            GEO_PROXIMITY: 'geoProximity',
+            AI_POWERED: 'aiPowered',
+            PERFORMANCE_BASED: 'performanceBased',
+            COST_OPTIMIZED: 'costOptimized'
+        };
+        
+        // Region latency map
+        this.regionLatency = new Map();
+        
+        // Agent performance history
+        this.performanceHistory = new Map();
+    }
+
+    /**
+     * Route request to best agent
+     */
+    async routeRequest(request) {
+        const {
+            intent,
+            context = {},
+            constraints = {},
+            strategy = 'AI_POWERED'
+        } = request;
+
+        // 1. Find matching agents
+        const candidates = await this.findMatchingAgents(intent, context);
+        
+        if (candidates.length === 0) {
+            throw new Error(`No agents found for intent: ${intent}`);
+        }
+
+        // 2. Filter by constraints
+        const filtered = this.applyConstraints(candidates, constraints);
+
+        // 3. Rank by strategy
+        const ranked = this.rankAgents(filtered, strategy, context);
+
+        // 4. Select best agent
+        const selected = ranked[0];
+
+        // 5. Execute through scheduler
+        const task = await this.scheduler.submitAgent(
+            selected.agentId,
+            {
+                intent,
+                context,
+                ...request.params
+            },
+            request.priority || 'MEDIUM'
+        );
+
+        return {
+            taskId: task.taskId,
+            agentId: selected.agentId,
+            agentName: selected.name,
+            confidence: selected.confidence,
+            alternatives: ranked.slice(1, 4).map(a => ({
+                agentId: a.agentId,
+                name: a.name,
+                confidence: a.confidence
+            }))
+        };
+    }
+
+    /**
+     * Find matching agents for intent
+     */
+    async findMatchingAgents(intent, context) {
+        // Search by category
+        const categoryAgents = this.registry.queryAgents({
+            category: this.inferCategory(intent),
+            limit: 1000
+        });
+
+        // Search by capability
+        const capabilityAgents = this.registry.queryAgents({
+            capability: this.inferCapability(intent),
+            limit: 1000
+        });
+
+        // Merge and deduplicate
+        const allAgents = new Map();
+        
+        for (const agent of [...categoryAgents, ...capabilityAgents]) {
+            if (agent && agent.status === 'ACTIVE') {
+                allAgents.set(agent.agentId, agent);
+            }
+        }
+
+        return Array.from(allAgents.values());
+    }
+
+    /**
+     * Apply constraints to filter agents
+     */
+    applyConstraints(agents, constraints) {
+        let filtered = [...agents];
+
+        if (constraints.maxCost) {
+            filtered = filtered.filter(a => a.metadata.price <= constraints.maxCost);
+        }
+
+        if (constraints.minRating) {
+            filtered = filtered.filter(a => a.metadata.rating >= constraints.minRating);
+        }
+
+        if (constraints.maxLatency) {
+            filtered = filtered.filter(a => 
+                (this.performanceHistory.get(a.agentId)?.avgLatency || 0) <= constraints.maxLatency
+            );
+        }
+
+        if (constraints.region) {
+            filtered = filtered.filter(a => a.metadata.region === constraints.region);
+        }
+
+        return filtered;
+    }
+
+    /**
+     * Rank agents by strategy
+     */
+    rankAgents(agents, strategy, context) {
+        switch (strategy) {
+            case 'ROUND_ROBIN':
+                return this.rankByRoundRobin(agents);
+                
+            case 'LEAST_LOADED':
+                return this.rankByLoad(agents);
+                
+            case 'GEO_PROXIMITY':
+                return this.rankByProximity(agents, context.userRegion);
+                
+            case 'PERFORMANCE_BASED':
+                return this.rankByPerformance(agents);
+                
+            case 'COST_OPTIMIZED':
+                return this.rankByCost(agents);
+                
+            case 'AI_POWERED':
+            default:
+                return this.rankByAI(agents, context);
+        }
+    }
+
+    /**
+     * AI-powered ranking
+     */
+    rankByAI(agents, context) {
+        return agents.map(agent => {
+            let score = 0;
+            
+            // Performance score
+            const perf = this.performanceHistory.get(agent.agentId);
+            if (perf) {
+                score += (perf.successRate / 100) * 40;
+                score += (1 - perf.avgLatency / 1000) * 20;
+            }
+            
+            // Rating score
+            score += (agent.metadata.rating / 5) * 20;
+            
+            // Cost score (lower is better)
+            score += (1 - agent.metadata.price / 100) * 10;
+            
+            // Popularity score
+            score += Math.min(agent.metadata.executions / 10000, 1) * 10;
+            
+            return {
+                ...agent,
+                confidence: Math.min(score, 100).toFixed(2)
+            };
+        }).sort((a, b) => b.confidence - a.confidence);
+    }
+
+    /**
+     * Infer category from intent
+     */
+    inferCategory(intent) {
+        const intentLower = intent.toLowerCase();
+        
+        if (intentLower.includes('code') || intentLower.includes('program')) return 'CODING';
+        if (intentLower.includes('image') || intentLower.includes('vision')) return 'VISION';
+        if (intentLower.includes('text') || intentLower.includes('language')) return 'NLP';
+        if (intentLower.includes('data') || intentLower.includes('analytics')) return 'DATA';
+        if (intentLower.includes('security') || intentLower.includes('threat')) return 'SECURITY';
+        if (intentLower.includes('finance') || intentLower.includes('trading')) return 'FINANCE';
+        if (intentLower.includes('medical') || intentLower.includes('health')) return 'MEDICAL';
+        
+        return 'GENERAL';
+    }
+
+    /**
+     * Infer capability from intent
+     */
+    inferCapability(intent) {
+        const intentLower = intent.toLowerCase();
+        const capabilities = [];
+        
+        if (intentLower.includes('generate')) capabilities.push('GENERATION');
+        if (intentLower.includes('analyze')) capabilities.push('ANALYSIS');
+        if (intentLower.includes('detect')) capabilities.push('DETECTION');
+        if (intentLower.includes('predict')) capabilities.push('PREDICTION');
+        if (intentLower.includes('optimize')) capabilities.push('OPTIMIZATION');
+        if (intentLower.includes('translate')) capabilities.push('TRANSLATION');
+        
+        return capabilities[0] || 'PROCESSING';
+    }
+
+    /**
+     * Get router stats
+     */
+    getStats() {
+        return {
+            strategies: Object.keys(this.strategies),
+            regions: this.regionLatency.size,
+            performanceEntries: this.performanceHistory.size,
+            scheduler: this.scheduler.getStats()
+        };
+    }
+}
+
+module.exports = AgentRouter;

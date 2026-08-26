@@ -1,0 +1,162 @@
+// ============================================================
+// 📱 app/SupremeApp.js
+// SUPREME Mobile App — All Your Vehicles, One App
+// My Cars | My Bikes | My Jet | My Limousine | My Yacht
+// ============================================================
+
+class SupremeApp {
+    constructor(ownerAccount) {
+        this.account = ownerAccount;
+        this.authenticated = false;
+        this.currentView = 'FLEET'; // FLEET | VEHICLE_DETAIL | CONTROLS | SETTINGS
+        this.selectedVehicle = null;
+    }
+
+    /**
+     * 📱 App Login
+     */
+    async login(credentials) {
+        console.log('📱 SUPREME App — Login');
+        
+        const result = await this.account.login(credentials);
+        
+        if (result.success) {
+            this.authenticated = true;
+        }
+        
+        return result;
+    }
+
+    /**
+     * 🏠 Home Screen — My Fleet
+     */
+    getHomeScreen() {
+        if (!this.authenticated) {
+            return { screen: 'LOGIN' };
+        }
+        
+        const vehicles = [];
+        
+        for (const [id, vehicle] of this.account.vehicles) {
+            vehicles.push({
+                vehicleId: id,
+                model: vehicle.model,
+                type: vehicle.type,
+                nickname: vehicle.nickname || vehicle.model,
+                icon: this.getVehicleIcon(vehicle.type),
+                status: 'PARKED',
+                battery: '85%',
+                range: '680 km',
+                locked: true,
+                cabinTemp: '22°C',
+                quickActions: ['LOCK', 'CLIMATE', 'LOCATE']
+            });
+        }
+        
+        return {
+            screen: 'MY_FLEET',
+            greeting: `Welcome back, ${this.account.owner.name}`,
+            vehicleCount: vehicles.length,
+            vehicles,
+            addVehicleOption: true,
+            quickSummary: {
+                totalRange: '2,450 km',
+                vehiclesOnline: vehicles.length,
+                needsService: 0
+            }
+        };
+    }
+
+    /**
+     * 🚗 Vehicle Detail Screen
+     */
+    getVehicleDetailScreen(vehicleId) {
+        const controls = this.account.getVehicleControls(vehicleId);
+        
+        if (controls.error) {
+            return { screen: 'ERROR', message: controls.error };
+        }
+        
+        return {
+            screen: 'VEHICLE_DETAIL',
+            vehicle: controls,
+            tabs: ['CONTROLS', 'STATUS', 'SERVICE', 'HISTORY', 'PERMISSIONS'],
+            actions: [
+                { icon: '🔒', label: 'Lock', action: 'LOCK' },
+                { icon: '🔓', label: 'Unlock', action: 'UNLOCK' },
+                { icon: '❄️', label: 'Climate', action: 'CLIMATE' },
+                { icon: '📍', label: 'Find', action: 'LOCATE' },
+                { icon: '🔔', label: 'Horn', action: 'HORN' },
+                { icon: '💡', label: 'Lights', action: 'LIGHTS' }
+            ]
+        };
+    }
+
+    /**
+     * 👥 Permission Management Screen
+     */
+    getPermissionsScreen(vehicleId) {
+        const activePermissions = [];
+        
+        for (const [id, perm] of this.account.permissions) {
+            if (perm.vehicleId === vehicleId && perm.status === 'ACTIVE') {
+                activePermissions.push({
+                    permissionId: id,
+                    userName: perm.userName,
+                    role: perm.role,
+                    permissions: perm.permissions,
+                    grantedAt: perm.grantedAt,
+                    expiresAt: perm.expiresAt
+                });
+            }
+        }
+        
+        return {
+            screen: 'PERMISSIONS',
+            vehicleId,
+            activePermissions,
+            canAdd: [
+                { role: 'FAMILY', description: 'Full access except security settings' },
+                { role: 'DRIVER', description: 'Drive and navigation only' },
+                { role: 'MECHANIC', description: 'Diagnostics only (temporary)' },
+                { role: 'TEMPORARY', description: '24-hour limited access' }
+            ]
+        };
+    }
+
+    /**
+     * 🔧 Service Booking Screen
+     */
+    getServiceScreen(vehicleId) {
+        return {
+            screen: 'SERVICE',
+            vehicleId,
+            nextServiceDue: '2025-06-01',
+            serviceCenters: [
+                { id: 'DXB-01', name: 'SUPREME Dubai', distance: '12 km', rating: 4.9 },
+                { id: 'AUH-01', name: 'SUPREME Abu Dhabi', distance: '45 km', rating: 4.8 }
+            ],
+            services: [
+                { type: 'ANNUAL', price: '$2,500', duration: '1 day' },
+                { type: 'INTERIM', price: '$1,200', duration: '4 hours' },
+                { type: 'BRAKE_CHECK', price: '$500', duration: '2 hours' }
+            ]
+        };
+    }
+
+    getVehicleIcon(type) {
+        const icons = {
+            'SupremeElite': '🚗',
+            'SupremeBike': '🏍️',
+            'SupremeBus': '🚌',
+            'SupremeTitanX': '🚛',
+            'SupremeLimousine': '👑',
+            'SupremeApexJet': '✈️',
+            'SupremeYacht': '🛥️',
+            'SupremeHelicopter': '🚁'
+        };
+        return icons[type] || '🚗';
+    }
+}
+
+module.exports = SupremeApp;
