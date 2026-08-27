@@ -28,3 +28,17 @@
     "node": ">=18.0.0"
   }
 }
+{
+  "health": {
+    "status": "HEALTHY",
+    "modules": {
+      "total": 1,
+      "enabled": 1,
+      "disabled": 0
+    }
+  },
+  "orchestrator": {
+    "started": true,
+    "registeredModules": 1
+  }
+}
