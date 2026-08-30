@@ -1,98 +1,54 @@
 'use strict';
 
+/**
+ * SUPREME BACKEND LAYER FABRIC
+ *
+ * Logical layer-capacity manager.
+ * Does not allocate billions of objects in memory.
+ */
+
 class BackendLayerFabric {
 
     constructor(capacity) {
         this.capacity = BigInt(capacity);
-
-        this.activeLayers = new Map();
-
-        this.totalCreated = 0n;
+        this.registered = 0n;
+        this.activeInMemory = 0;
     }
 
-    create(id, metadata = {}) {
+    register(layer) {
 
-        if (this.totalCreated >= this.capacity) {
-            throw new Error('BACKEND_LAYER_CAPACITY_REACHED');
+        if (this.registered >= this.capacity) {
+            throw new Error('Backend layer capacity reached');
         }
 
-        if (this.activeLayers.has(id)) {
-            throw new Error(`BACKEND_LAYER_EXISTS: ${id}`);
+        if (!layer) {
+            throw new TypeError('Backend layer is required');
         }
 
-        const layer = {
-            id,
-            metadata,
-            createdAt: new Date().toISOString(),
-            status: 'ACTIVE'
+        this.registered += 1n;
+        this.activeInMemory += 1;
+
+        return {
+            id: `BACKEND-LAYER-${this.registered}`,
+            layer
         };
+    }
 
-        this.activeLayers.set(id, layer);
+    release() {
 
-        this.totalCreated++;
-
-        return layer;
+        if (this.activeInMemory > 0) {
+            this.activeInMemory -= 1;
+        }
     }
 
     status() {
 
         return {
             capacity: this.capacity.toString(),
-            totalCreated: this.totalCreated.toString(),
-            activeInMemory: this.activeLayers.size
+            registered: this.registered.toString(),
+            activeInMemory: this.activeInMemory
         };
-
     }
-
-}
-
-module.exports = BackendLayerFabric;'use strict';
-
-class BackendLayerFabric {
-
-    constructor(capacity) {
-        this.capacity = BigInt(capacity);
-
-        this.activeLayers = new Map();
-
-        this.totalCreated = 0n;
-    }
-
-    create(id, metadata = {}) {
-
-        if (this.totalCreated >= this.capacity) {
-            throw new Error('BACKEND_LAYER_CAPACITY_REACHED');
-        }
-
-        if (this.activeLayers.has(id)) {
-            throw new Error(`BACKEND_LAYER_EXISTS: ${id}`);
-        }
-
-        const layer = {
-            id,
-            metadata,
-            createdAt: new Date().toISOString(),
-            status: 'ACTIVE'
-        };
-
-        this.activeLayers.set(id, layer);
-
-        this.totalCreated++;
-
-        return layer;
-    }
-
-    status() {
-
-        return {
-            capacity: this.capacity.toString(),
-            totalCreated: this.totalCreated.toString(),
-            activeInMemory: this.activeLayers.size
-        };
-
-    }
-
 }
 
 module.exports = BackendLayerFabric;
-

@@ -3,18 +3,25 @@
 /**
  * SUPREME SCALE CONFIGURATION
  *
- * Logical capacity targets for the platform.
+ * Logical capacity targets.
  * These values represent addressable architecture capacity,
  * not simultaneously allocated JavaScript objects.
  */
 
 const SUPREME_SCALE = Object.freeze({
+
     version: '1.0.0',
 
     frontend: {
         layers: 6_000_000_000n,
         components: 500_000_000_000n,
         nodes: 2_500_000_000_000n
+    },
+
+    backend: {
+        layers: 60_000_000_000n,
+        components: 5_000_000_000_000n,
+        nodes: 25_000_000_000_000n
     },
 
     compute: {
@@ -38,12 +45,17 @@ const SUPREME_SCALE = Object.freeze({
             role: 'processing-orchestration'
         }
     }
+
 });
 
 function serializeScale(scale) {
     return JSON.parse(
-        JSON.stringify(scale, (_, value) =>
-            typeof value === 'bigint' ? value.toString() : value
+        JSON.stringify(
+            scale,
+            (_, value) =>
+                typeof value === 'bigint'
+                    ? value.toString()
+                    : value
         )
     );
 }
@@ -52,6 +64,3 @@ module.exports = {
     SUPREME_SCALE,
     serializeScale
 };
-
-
-
