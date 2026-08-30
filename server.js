@@ -15,26 +15,29 @@ const registry = require('./integration/registry');
 const orchestrator = require('./integration/orchestrator');
 const { registerCoreModules } = require('./integration/register-core');
 
-// Optional integration health support
+const supremeScale = require('./supreme-scale');
+
+// ============================================
+// Optional Integration Health
+// ============================================
+
 let integrationHealth = null;
 
 try {
-    integrationHealth = require('./integration/health');
+integrationHealth = require('./integration/health');
 } catch (error) {
-    console.warn(
-        '[Integration] Health module not available:',
-        error.message
-    );
+console.warn(
+'[Integration] Health module not available:',
+error.message
+);
 }
 
 // ============================================
-// SUPREME SCALE RUNTIME
+// Application
 // ============================================
 
-const supremeScale = require('./supreme-scale');
-
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
 
 let server = null;
 let shuttingDown = false;
@@ -50,7 +53,7 @@ app.use(cors());
 app.use(compression());
 
 app.use(express.json({
-    limit: '10mb'
+limit: '10mb'
 }));
 
 // ============================================
@@ -59,33 +62,56 @@ app.use(express.json({
 
 registerCoreModules();
 
-// Register server module safely
+// Register core server only if it does not already exist.
 
-const existingCoreServer = registry.get('core.server');
+if (!registry.get('core.server')) {
+registry.register(
+'core.server',
+{
+initialize() {
+console.log(
+'[Integration] Core server initialized'
+);
+},
 
-if (!existingCoreServer) {
-
-    registry.register(
-        'core.server',
-        {
-            initialize() {
-                console.log(
-                    '[Integration] Core server initialized'
-                );
-            },
-
-            shutdown() {
-                console.log(
-                    '[Integration] Core server shutdown'
-                );
-            }
-        },
-        {
-            version: '14.0.0',
-            category: 'core'
+```
+        shutdown() {
+            console.log(
+                '[Integration] Core server shutdown'
+            );
         }
-    );
+    },
+    {
+        version: '14.0.0',
+        category: 'core'
+    }
+);
+```
 
+}
+
+// ============================================
+// Helper Functions
+// ============================================
+
+function getIntegrationHealth() {
+if (
+integrationHealth &&
+typeof integrationHealth.getIntegrationHealth === 'function'
+) {
+return integrationHealth.getIntegrationHealth();
+}
+
+```
+return {
+    available: false
+};
+```
+
+}
+
+function getScaleStatus() {
+return supremeScale.status();
 }
 
 // ============================================
@@ -93,18 +119,19 @@ if (!existingCoreServer) {
 // ============================================
 
 app.get('/', (req, res) => {
+res.json({
+name: 'SUPREME Platform',
+version: '14.0.0',
+status: 'RUNNING',
 
-    res.json({
-        name: 'SUPREME Platform',
-        version: '14.0.0',
-        status: 'RUNNING',
+```
+    uptime: process.uptime(),
 
-        uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
 
-        timestamp: new Date().toISOString(),
-
-        scale: supremeScale.status()
-    });
+    scale: getScaleStatus()
+});
+```
 
 });
 
@@ -113,44 +140,35 @@ app.get('/', (req, res) => {
 // ============================================
 
 app.get('/api/health', (req, res) => {
+const modules = registry.list();
 
-    const modules = registry.list();
+```
+res.json({
+    status: 'HEALTHY',
 
-    const health =
-        integrationHealth &&
-        typeof integrationHealth.getIntegrationHealth === 'function'
-            ? integrationHealth.getIntegrationHealth()
-            : null;
+    timestamp: new Date().toISOString(),
 
-    res.json({
+    uptime: process.uptime(),
 
-        status: 'HEALTHY',
+    modules: {
+        total: modules.length,
 
-        timestamp: new Date().toISOString(),
+        enabled: modules.filter(
+            module => module.enabled
+        ).length,
 
-        uptime: process.uptime(),
+        disabled: modules.filter(
+            module => !module.enabled
+        ).length
+    },
 
-        modules: {
+    integration: getIntegrationHealth(),
 
-            total: modules.length,
+    orchestrator: orchestrator.status(),
 
-            enabled: modules.filter(
-                module => module.enabled
-            ).length,
-
-            disabled: modules.filter(
-                module => !module.enabled
-            ).length
-
-        },
-
-        integration: health,
-
-        orchestrator: orchestrator.status(),
-
-        hyperscale: supremeScale.status()
-
-    });
+    hyperscale: getScaleStatus()
+});
+```
 
 });
 
@@ -159,60 +177,40 @@ app.get('/api/health', (req, res) => {
 // ============================================
 
 app.get('/api/dashboard', (req, res) => {
+res.json({
+dashboard: 'SUPREME PLATFORM',
 
-    res.json({
+```
+    version: '14.0.0',
 
-        dashboard: 'SUPREME PLATFORM',
+    status: 'OPERATIONAL',
 
-        version: '14.0.0',
+    modules: [
+        'Problem Detector',
+        'AI Engine',
+        'Payment Gateway',
+        'Domain Engine',
+        'Satellite Layer',
+        'Fleet Management',
+        'Security Engine',
+        'SUPREME Scale Runtime',
+        'Backend HyperScale Runtime'
+    ],
 
-        status: 'OPERATIONAL',
+    integration: {
+        registeredModules: registry.count(),
 
-        modules: [
+        orchestrator: orchestrator.status()
+    },
 
-            'Problem Detector',
+    hyperscale: getScaleStatus(),
 
-            'AI Engine',
-
-            'Payment Gateway',
-
-            'Domain Engine',
-
-            'Satellite Layer',
-
-            'Fleet Management',
-
-            'Security Engine',
-
-            'SUPREME Scale Runtime',
-
-            'Backend HyperScale Runtime'
-
-        ],
-
-        integration: {
-
-            registeredModules: registry.count(),
-
-            orchestrator: orchestrator.status()
-
-        },
-
-        hyperscale: {
-
-            status: supremeScale.status()
-
-        },
-
-        revenue: {
-
-            mrr: '$1,250',
-
-            arr: '$15,000'
-
-        }
-
-    });
+    revenue: {
+        mrr: '$1,250',
+        arr: '$15,000'
+    }
+});
+```
 
 });
 
@@ -221,60 +219,52 @@ app.get('/api/dashboard', (req, res) => {
 // ============================================
 
 app.get('/api/integration', (req, res) => {
+let manifest;
 
-    let manifest = null;
+```
+try {
+    manifest = require('./integration/manifest');
+} catch (error) {
+    manifest = {
+        available: false
+    };
+}
 
-    try {
+res.json({
+    status: 'ACTIVE',
 
-        manifest = require('./integration/manifest');
+    manifest,
 
-    } catch (error) {
+    health: getIntegrationHealth(),
 
-        manifest = {
-            available: false
-        };
+    orchestrator: orchestrator.status(),
 
-    }
+    modules: registry.list(),
 
-    const health =
-        integrationHealth &&
-        typeof integrationHealth.getIntegrationHealth === 'function'
-            ? integrationHealth.getIntegrationHealth()
-            : null;
-
-    res.json({
-
-        status: 'ACTIVE',
-
-        manifest,
-
-        health,
-
-        orchestrator: orchestrator.status(),
-
-        modules: registry.list(),
-
-        hyperscale: supremeScale.status()
-
-    });
+    hyperscale: getScaleStatus()
+});
+```
 
 });
 
 // ============================================
-// SUPREME SCALE STATUS
+// SUPREME Scale Status
 // ============================================
 
 app.get('/api/scale', (req, res) => {
+const runtime = getScaleStatus();
 
-    res.json({
+```
+res.json({
+    status: runtime.started
+        ? 'ONLINE'
+        : 'OFFLINE',
 
-        status: 'ONLINE',
+    runtime,
 
-        runtime: supremeScale.status(),
-
-        timestamp: new Date().toISOString()
-
-    });
+    timestamp: new Date().toISOString()
+});
+```
 
 });
 
@@ -283,33 +273,38 @@ app.get('/api/scale', (req, res) => {
 // ============================================
 
 app.post('/api/detect', (req, res, next) => {
+try {
+const detector =
+registry.get('problem-detector');
 
-    try {
-
-        const detector =
-            registry.get('problem-detector');
-
-        if (!detector) {
-
-            return res.status(503).json({
-
-                error:
-                    'DETECTION_SERVICE_UNAVAILABLE'
-
-            });
-
-        }
-
-        const result =
-            detector.detect(req.body?.input);
-
-        return res.status(200).json(result);
-
-    } catch (error) {
-
-        return next(error);
-
+```
+    if (!detector) {
+        return res.status(503).json({
+            error:
+                'DETECTION_SERVICE_UNAVAILABLE'
+        });
     }
+
+    const input = req.body?.input;
+
+    if (
+        typeof input !== 'string' ||
+        input.trim().length === 0
+    ) {
+        return res.status(400).json({
+            error: 'DETECTION_INPUT_REQUIRED'
+        });
+    }
+
+    const result =
+        detector.detect(input.trim());
+
+    return res.status(200).json(result);
+
+} catch (error) {
+    return next(error);
+}
+```
 
 });
 
@@ -318,14 +313,13 @@ app.post('/api/detect', (req, res, next) => {
 // ============================================
 
 app.use((req, res) => {
+res.status(404).json({
+error: 'ENDPOINT_NOT_FOUND',
 
-    res.status(404).json({
-
-        error: 'ENDPOINT_NOT_FOUND',
-
-        path: req.path
-
-    });
+```
+    path: req.path
+});
+```
 
 });
 
@@ -334,19 +328,21 @@ app.use((req, res) => {
 // ============================================
 
 app.use((err, req, res, next) => {
+console.error(
+'[SUPREME Server Error]',
+err.message
+);
 
-    console.error(
-        '[SUPREME Server Error]',
-        err.message
-    );
+```
+res.status(500).json({
+    error: 'INTERNAL_SERVER_ERROR',
 
-    res.status(500).json({
-
-        error: 'INTERNAL_SERVER_ERROR',
-
-        message: err.message
-
-    });
+    message:
+        process.env.NODE_ENV === 'production'
+            ? undefined
+            : err.message
+});
+```
 
 });
 
@@ -356,70 +352,100 @@ app.use((err, req, res, next) => {
 
 function startServer() {
 
-    // Start integration orchestrator
+```
+// Prevent duplicate server startup.
+
+if (server) {
+    console.log(
+        '[SUPREME] Server is already running'
+    );
+
+    return server;
+}
+
+try {
+
+    // Start integration runtime.
 
     orchestrator.start();
 
-    // Start SUPREME frontend + backend scale
+    // Start frontend + backend scale runtime.
 
     supremeScale.start();
 
-    server = app.listen(PORT, () => {
+} catch (error) {
 
-        console.log('');
-        console.log(
-            '============================================'
-        );
+    console.error(
+        '[SUPREME Startup Error]',
+        error.message
+    );
 
-        console.log(
-            'SUPREME Platform v14.0.0 RUNNING'
-        );
+    throw error;
+}
 
-        console.log(
-            '============================================'
-        );
+server = app.listen(PORT, () => {
 
-        console.log(
-            'Port: ' + PORT
-        );
+    console.log('');
+    console.log(
+        '============================================'
+    );
 
-        console.log(
-            'Health: http://localhost:' +
-            PORT +
-            '/api/health'
-        );
+    console.log(
+        'SUPREME Platform v14.0.0 RUNNING'
+    );
 
-        console.log(
-            'Dashboard: http://localhost:' +
-            PORT +
-            '/api/dashboard'
-        );
+    console.log(
+        '============================================'
+    );
 
-        console.log(
-            'Integration: http://localhost:' +
-            PORT +
-            '/api/integration'
-        );
+    console.log('Port: ' + PORT);
 
-        console.log(
-            'Scale Runtime: http://localhost:' +
-            PORT +
-            '/api/scale'
-        );
+    console.log(
+        'Health: http://localhost:' +
+        PORT +
+        '/api/health'
+    );
 
-        console.log(
-            'Detection API: POST http://localhost:' +
-            PORT +
-            '/api/detect'
-        );
+    console.log(
+        'Dashboard: http://localhost:' +
+        PORT +
+        '/api/dashboard'
+    );
 
-        console.log(
-            '============================================'
-        );
+    console.log(
+        'Integration: http://localhost:' +
+        PORT +
+        '/api/integration'
+    );
 
-    });
+    console.log(
+        'Scale Runtime: http://localhost:' +
+        PORT +
+        '/api/scale'
+    );
 
-    return server;
+    console.log(
+        'Detection API: POST http://localhost:' +
+        PORT +
+        '/api/detect'
+    );
+
+    console.log(
+        '============================================'
+    );
+});
+
+server.on('error', error => {
+
+    console.error(
+        '[SUPREME Server Error]',
+        error.message
+    );
+
+});
+
+return server;
+```
 
 }
 
@@ -429,62 +455,72 @@ function startServer() {
 
 function shutdown(signal) {
 
-    if (shuttingDown) {
-        return;
-    }
+```
+if (shuttingDown) {
+    return;
+}
 
-    shuttingDown = true;
+shuttingDown = true;
 
-    console.log('');
+console.log('');
+console.log(
+    '[SUPREME] Received ' +
+    signal +
+    '. Shutting down...'
+);
+
+try {
+    orchestrator.stop();
+
+} catch (error) {
+
+    console.error(
+        '[Integration Shutdown Error]',
+        error.message
+    );
+}
+
+try {
+    supremeScale.stop();
+
+} catch (error) {
+
+    console.error(
+        '[Scale Shutdown Error]',
+        error.message
+    );
+}
+
+if (!server) {
+
+    process.exit(0);
+
+    return;
+}
+
+server.close(() => {
+
     console.log(
-        '[SUPREME] Received ' +
-        signal +
-        '. Shutting down...'
+        '[SUPREME] Server shutdown complete'
     );
 
-    try {
+    server = null;
 
-        orchestrator.stop();
+    process.exit(0);
+});
 
-    } catch (error) {
+// Force exit if connections do not close.
 
-        console.error(
-            '[Integration Shutdown Error]',
-            error.message
-        );
+setTimeout(() => {
 
-    }
+    console.error(
+        '[SUPREME] Forced shutdown timeout reached'
+    );
 
-    try {
+    process.exit(1);
 
-        supremeScale.stop();
-
-    } catch (error) {
-
-        console.error(
-            '[Scale Shutdown Error]',
-            error.message
-        );
-
-    }
-
-    if (!server) {
-
-        process.exit(0);
-
-        return;
-
-    }
-
-    server.close(() => {
-
-        console.log(
-            '[SUPREME] Server shutdown complete'
-        );
-
-        process.exit(0);
-
-    });
+}, 10000).unref();
+```
 
 }
 
@@ -493,13 +529,13 @@ function shutdown(signal) {
 // ============================================
 
 process.on(
-    'SIGINT',
-    () => shutdown('SIGINT')
+'SIGINT',
+() => shutdown('SIGINT')
 );
 
 process.on(
-    'SIGTERM',
-    () => shutdown('SIGTERM')
+'SIGTERM',
+() => shutdown('SIGTERM')
 );
 
 // ============================================
@@ -507,9 +543,7 @@ process.on(
 // ============================================
 
 if (require.main === module) {
-
-    startServer();
-
+startServer();
 }
 
 // ============================================
@@ -517,11 +551,7 @@ if (require.main === module) {
 // ============================================
 
 module.exports = {
-
-    app,
-
-    startServer,
-
-    shutdown
-
+app,
+startServer,
+shutdown
 };
