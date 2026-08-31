@@ -1,12 +1,5 @@
 'use strict';
 
-/**
- * SUPREME Enterprise Access Control
- *
- * Restricted enterprise features are available
- * only to explicitly authorized organizations.
- */
-
 const ENTERPRISE_FEATURES = Object.freeze({
     NEOM_COMMAND_CENTER: {
         id: 'neom-command-center',
@@ -24,7 +17,9 @@ const ENTERPRISE_FEATURES = Object.freeze({
 });
 
 function normalizeOrganization(value) {
-    if (!value) return null;
+    if (!value) {
+        return null;
+    }
 
     return String(value)
         .trim()
@@ -32,13 +27,19 @@ function normalizeOrganization(value) {
 }
 
 function getOrganization(req) {
+    if (!req.auth) {
+        return null;
+    }
+
     return normalizeOrganization(
-        req.headers['x-supreme-organization']
+        req.auth.organization
     );
 }
 
 function canAccessFeature(organization, feature) {
-    if (!feature) return false;
+    if (!feature) {
+        return false;
+    }
 
     return feature.access.includes(
         normalizeOrganization(organization)
@@ -51,7 +52,10 @@ function getAvailableFeatures(organization) {
 
     return Object.values(ENTERPRISE_FEATURES)
         .filter(feature =>
-            canAccessFeature(normalizedOrganization, feature)
+            canAccessFeature(
+                normalizedOrganization,
+                feature
+            )
         )
         .map(feature => ({
             id: feature.id,
@@ -63,19 +67,28 @@ function getAvailableFeatures(organization) {
 
 function requireFeature(featureKey) {
     return (req, res, next) => {
-        const feature = ENTERPRISE_FEATURES[featureKey];
-        const organization = getOrganization(req);
+        const feature =
+            ENTERPRISE_FEATURES[featureKey];
 
-        if (!canAccessFeature(organization, feature)) {
+        const organization =
+            getOrganization(req);
+
+        if (!canAccessFeature(
+            organization,
+            feature
+        )) {
             return res.status(403).json({
                 error: 'ENTERPRISE_ACCESS_DENIED',
                 message:
                     'This feature is restricted to authorized organizations only.',
-                requestedFeature: feature?.id || null
+                requestedFeature:
+                    feature?.id || null
             });
         }
 
-        req.enterpriseOrganization = organization;
+        req.enterpriseOrganization =
+            organization;
+
         next();
     };
 }

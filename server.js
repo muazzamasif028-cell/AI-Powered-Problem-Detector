@@ -14,6 +14,7 @@ const { registerCoreModules } = require('./integration/register-core');
 // SUPREME Frontend + Backend HyperScale Runtime
 const supremeScale = require('./supreme-scale');
 const enterpriseAccess = require('./security/enterprise-access');
+const { authenticateToken, createToken } = require('./security/auth/jwt-auth');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -130,6 +131,48 @@ app.get('/api/dashboard', (req, res) => {
 });
 
 // ============================================
+// ============================================
+// Development Authentication — LOCAL TESTING ONLY
+// ============================================
+
+app.post('/api/auth/dev-token', (req, res) => {
+
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(404).json({
+            error: 'ENDPOINT_NOT_AVAILABLE'
+        });
+    }
+
+    const {
+        userId = 'development-user',
+        organization,
+        role = 'USER'
+    } = req.body || {};
+
+    if (!organization) {
+        return res.status(400).json({
+            error: 'ORGANIZATION_REQUIRED'
+        });
+    }
+
+    const token = createToken({
+        userId,
+        organization,
+        role
+    });
+
+    res.json({
+        tokenType: 'Bearer',
+        organization: organization.toUpperCase(),
+        role,
+        expiresIn:
+            process.env.JWT_EXPIRES_IN || '1h',
+        token
+    });
+});
+
+// ============================================
+
 // Integration Status
 // ============================================
 
@@ -151,6 +194,7 @@ app.get('/api/integration', (req, res) => {
 
 app.get(
     '/api/enterprise/neom',
+    authenticateToken,
 
     enterpriseAccess.requireFeature(
         'NEOM_COMMAND_CENTER'
@@ -185,6 +229,7 @@ app.get(
 
 app.get(
     '/api/enterprise/spacex',
+    authenticateToken,
 
     enterpriseAccess.requireFeature(
         'SPACEX_MISSION_CONTROL'
