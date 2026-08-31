@@ -16,6 +16,14 @@ const supremeScale = require('./supreme-scale');
 const enterpriseAccess = require('./security/enterprise-access');
 const { authenticateToken, createToken } = require('./security/auth/jwt-auth');
 
+const {
+    PERMISSIONS
+} = require('./security/rbac/permissions');
+
+const {
+    requirePermission
+} = require('./security/rbac/require-permission');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -200,6 +208,10 @@ app.get(
         'NEOM_COMMAND_CENTER'
     ),
 
+    requirePermission(
+        PERMISSIONS.NEOM_VIEW
+    ),
+
     (req, res) => {
 
         res.json({
@@ -233,6 +245,10 @@ app.get(
 
     enterpriseAccess.requireFeature(
         'SPACEX_MISSION_CONTROL'
+    ),
+
+    requirePermission(
+        PERMISSIONS.SPACEX_VIEW
     ),
 
     (req, res) => {
