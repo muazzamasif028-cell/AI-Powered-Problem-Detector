@@ -14,30 +14,6 @@ const { registerCoreModules } = require('./integration/register-core');
 // SUPREME Frontend + Backend HyperScale Runtime
 const supremeScale = require('./supreme-scale');
 
-const organizationRoutes =
-    require('./organizations/organization-routes');
-
-const memberRoutes =
-    require('./organizations/members/member-routes');
-const enterpriseAccess = require('./security/enterprise-access');
-const { authenticateToken, createToken } = require('./security/auth/jwt-auth');
-
-const {
-    requireOrganization
-} = require('./security/organizations/require-organization');
-
-const {
-    requireOrganizationMember
-} = require('./organizations/security/require-organization-member');
-
-const {
-    PERMISSIONS
-} = require('./security/rbac/permissions');
-
-const {
-    requirePermission
-} = require('./security/rbac/require-permission');
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -61,16 +37,6 @@ app.use(compression());
 app.use(express.json({
     limit: '10mb'
 }));
-
-app.use(
-    '/api/organizations',
-    organizationRoutes
-);
-
-app.use(
-    '/api/organization-members',
-    memberRoutes
-);
 
 // ============================================
 // Root
@@ -123,21 +89,10 @@ app.get('/api/health', (req, res) => {
 // ============================================
 
 app.get('/api/dashboard', (req, res) => {
-
-    const organization =
-        enterpriseAccess.getOrganization(req);
-
-    const enterpriseFeatures =
-        enterpriseAccess.getAvailableFeatures(
-            organization
-        );
-
     res.json({
         dashboard: 'SUPREME PLATFORM',
         version: '14.0.0',
         status: 'OPERATIONAL',
-
-        organization: organization || 'PUBLIC',
 
         modules: [
             'Problem Detector',
@@ -151,8 +106,6 @@ app.get('/api/dashboard', (req, res) => {
             'Backend HyperScale Runtime'
         ],
 
-        enterpriseFeatures,
-
         integration: {
             registeredModules: registry.count(),
             orchestrator: orchestrator.status()
@@ -163,48 +116,6 @@ app.get('/api/dashboard', (req, res) => {
 });
 
 // ============================================
-// ============================================
-// Development Authentication — LOCAL TESTING ONLY
-// ============================================
-
-app.post('/api/auth/dev-token', (req, res) => {
-
-    if (process.env.NODE_ENV === 'production') {
-        return res.status(404).json({
-            error: 'ENDPOINT_NOT_AVAILABLE'
-        });
-    }
-
-    const {
-        userId = 'development-user',
-        organization,
-        role = 'USER'
-    } = req.body || {};
-
-    if (!organization) {
-        return res.status(400).json({
-            error: 'ORGANIZATION_REQUIRED'
-        });
-    }
-
-    const token = createToken({
-        userId,
-        organization,
-        role
-    });
-
-    res.json({
-        tokenType: 'Bearer',
-        organization: organization.toUpperCase(),
-        role,
-        expiresIn:
-            process.env.JWT_EXPIRES_IN || '1h',
-        token
-    });
-});
-
-// ============================================
-
 // Integration Status
 // ============================================
 
@@ -219,90 +130,6 @@ app.get('/api/integration', (req, res) => {
         hyperscale: supremeScale.status()
     });
 });
-
-// ============================================
-// NEOM Command Center — Restricted
-// ============================================
-
-app.get(
-    '/api/enterprise/neom',
-    authenticateToken,
-
-    requireOrganization,
-
-    enterpriseAccess.requireFeature(
-        'NEOM_COMMAND_CENTER'
-    ),
-
-    requirePermission(
-        PERMISSIONS.NEOM_VIEW
-    ),
-
-    (req, res) => {
-
-        res.json({
-            organization: 'NEOM',
-            feature: 'NEOM Command Center',
-            status: 'AUTHORIZED',
-
-            systems: [
-                'Renewable Energy Management',
-                'Green Hydrogen Monitoring',
-                'THE LINE Infrastructure',
-                'OXAGON Operations',
-                'BESS Energy Storage',
-                'Carbon Intelligence'
-            ],
-
-            timestamp:
-                new Date().toISOString()
-        });
-
-    }
-);
-
-// ============================================
-// SpaceX Mission Control — Restricted
-// ============================================
-
-app.get(
-    '/api/enterprise/spacex',
-    authenticateToken,
-
-    requireOrganization,
-
-    enterpriseAccess.requireFeature(
-        'SPACEX_MISSION_CONTROL'
-    ),
-
-    requirePermission(
-        PERMISSIONS.SPACEX_VIEW
-    ),
-
-    (req, res) => {
-
-        res.json({
-            organization: 'SpaceX',
-            feature: 'SpaceX Mission Control',
-            status: 'AUTHORIZED',
-
-            systems: [
-                'Mission Operations',
-                'Launch Monitoring',
-                'Fleet Telemetry',
-                'Satellite Operations',
-                'Engineering Intelligence',
-                'Autonomous Systems'
-            ],
-
-            timestamp:
-                new Date().toISOString()
-        });
-
-    }
-);
-
-// ============================================
 
 // ============================================
 // SUPREME SCALE STATUS
@@ -361,8 +188,8 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
     console.error('[SUPREME Server Error]', err.message);
 
-    res.status(err instanceof TypeError ? 400 : 500).json({
-        error: err instanceof TypeError ? 'BAD_REQUEST' : 'INTERNAL_SERVER_ERROR',
+    res.status(500).json({
+        error: 'INTERNAL_SERVER_ERROR',
         message: err.message
     });
 });

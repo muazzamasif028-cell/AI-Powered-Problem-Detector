@@ -1,0 +1,369 @@
+.neom-canvas {
+    min-height: 100vh;
+    padding: 40px;
+    background:
+        radial-gradient(circle at 75% 10%, rgba(0, 255, 210, 0.08), transparent 30%),
+        radial-gradient(circle at 10% 90%, rgba(0, 180, 255, 0.06), transparent 35%),
+        #050708;
+    color: #eefdf9;
+    font-family: Inter, Arial, sans-serif;
+}
+
+.neom-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+}
+
+.neom-eyebrow,
+.panel-heading > div > span,
+.hero-copy > span,
+.mini-panel > span {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    opacity: 0.55;
+}
+
+.neom-header h1 {
+    margin: 8px 0;
+    font-size: clamp(32px, 4vw, 58px);
+    font-weight: 500;
+    letter-spacing: -0.04em;
+}
+
+.neom-header p {
+    margin: 0;
+    color: rgba(238, 253, 249, 0.55);
+}
+
+.system-status {
+    padding: 11px 16px;
+    border: 1px solid rgba(0, 255, 210, 0.18);
+    border-radius: 999px;
+    background: rgba(0, 255, 210, 0.035);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+}
+
+.status-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: #5dffd9;
+    box-shadow: 0 0 16px #5dffd9;
+}
+
+.hero-panel,
+.panel,
+.metric-card,
+.mini-panel {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.025);
+    backdrop-filter: blur(24px);
+    box-shadow: 0 30px 100px rgba(0, 0, 0, 0.35);
+}
+
+.hero-panel {
+    min-height: 430px;
+    padding: 55px;
+    border-radius: 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    overflow: hidden;
+}
+
+.hero-copy {
+    max-width: 650px;
+}
+
+.hero-copy h2 {
+    margin: 18px 0;
+    font-size: clamp(38px, 5vw, 72px);
+    line-height: 0.98;
+    letter-spacing: -0.055em;
+    font-weight: 500;
+}
+
+.hero-copy p {
+    max-width: 560px;
+    color: rgba(238, 253, 249, 0.58);
+    line-height: 1.7;
+}
+
+.command-button {
+    margin-top: 20px;
+    padding: 14px 20px;
+    border: 1px solid rgba(0, 255, 210, 0.35);
+    border-radius: 999px;
+    background: rgba(0, 255, 210, 0.08);
+    color: #dffff7;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+}
+
+.digital-core {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    display: grid;
+    place-items: center;
+}
+
+.core-ring {
+    position: absolute;
+    inset: 0;
+    border: 1px solid rgba(93, 255, 217, 0.25);
+    border-radius: 50%;
+    animation: rotate 18s linear infinite;
+}
+
+.ring-two {
+    inset: 25px;
+    border-style: dashed;
+    animation-duration: 12s;
+    animation-direction: reverse;
+}
+
+.ring-three {
+    inset: 55px;
+    opacity: 0.55;
+    animation-duration: 8s;
+}
+
+.core-center {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    background: rgba(0, 255, 210, 0.07);
+    border: 1px solid rgba(93, 255, 217, 0.4);
+    box-shadow: 0 0 70px rgba(0, 255, 210, 0.15);
+    text-align: center;
+}
+
+.core-center strong {
+    font-size: 20px;
+}
+
+.core-center small {
+    margin-top: 5px;
+    font-size: 8px;
+    letter-spacing: 0.2em;
+    opacity: 0.5;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin: 14px 0;
+}
+
+.metric-card {
+    padding: 22px;
+    border-radius: 20px;
+}
+
+.metric-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    color: rgba(238, 253, 249, 0.55);
+    font-size: 12px;
+}
+
+.metric-top b {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+}
+
+.metric-card > strong {
+    display: block;
+    margin: 28px 0 5px;
+    font-size: 34px;
+    font-weight: 400;
+}
+
+.metric-card small {
+    opacity: 0.4;
+}
+
+.operations-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 0.8fr;
+    gap: 14px;
+}
+
+.panel {
+    padding: 26px;
+    border-radius: 24px;
+}
+
+.panel-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 25px;
+}
+
+.panel-heading h3 {
+    margin: 8px 0 0;
+    font-size: 22px;
+    font-weight: 400;
+}
+
+.live-label,
+.zone-status {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    opacity: 0.55;
+}
+
+.zone-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.zone-row:last-child {
+    border-bottom: 0;
+}
+
+.zone-row strong,
+.zone-row small {
+    display: block;
+}
+
+.zone-row small {
+    margin-top: 5px;
+    color: rgba(238, 253, 249, 0.42);
+}
+
+.ai-orb {
+    width: 150px;
+    height: 150px;
+    margin: 10px auto 25px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(93,255,217,0.3);
+    box-shadow: 0 0 80px rgba(0,255,210,0.08);
+}
+
+.ai-orb div {
+    width: 65px;
+    height: 65px;
+    border-radius: 50%;
+    background: rgba(93,255,217,0.15);
+    box-shadow: 0 0 45px rgba(93,255,217,0.25);
+}
+
+.intelligence-panel p {
+    color: rgba(238,253,249,0.5);
+    line-height: 1.7;
+}
+
+.ai-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 25px;
+}
+
+.ai-stats div {
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.025);
+}
+
+.ai-stats strong,
+.ai-stats span {
+    display: block;
+}
+
+.ai-stats strong {
+    font-size: 20px;
+}
+
+.ai-stats span {
+    margin-top: 4px;
+    font-size: 9px;
+    opacity: 0.4;
+}
+
+.bottom-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.mini-panel {
+    padding: 22px;
+    border-radius: 20px;
+}
+
+.mini-panel strong,
+.mini-panel small {
+    display: block;
+}
+
+.mini-panel strong {
+    margin: 12px 0 5px;
+    font-size: 18px;
+}
+
+.mini-panel small {
+    opacity: 0.4;
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 900px) {
+    .neom-canvas {
+        padding: 20px;
+    }
+
+    .hero-panel {
+        padding: 32px;
+    }
+
+    .digital-core {
+        display: none;
+    }
+
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .operations-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .neom-header {
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .metrics-grid,
+    .bottom-grid {
+        grid-template-columns: 1fr;
+    }
+}

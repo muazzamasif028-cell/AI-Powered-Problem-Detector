@@ -21,7 +21,7 @@ before(async () => {
             const output = data.toString();
             process.stdout.write(output);
 
-            if (output.includes('running on port 5000')) {
+            if (output.includes('SUPREME Platform v14.0.0 RUNNING')) {
                 clearTimeout(timeout);
                 resolve();
             }
@@ -96,4 +96,63 @@ test('GET unknown endpoint returns 404 JSON', async () => {
     const data = await response.json();
 
     assert.strictEqual(data.error, 'ENDPOINT_NOT_FOUND');
+});
+
+
+test('POST /api/detect detects database problems', async () => {
+    const response = await fetch(`${BASE_URL}/api/detect`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            input: 'Database connection is failing intermittently'
+        })
+    });
+
+    assert.strictEqual(response.status, 200);
+
+    const data = await response.json();
+
+    assert.strictEqual(data.detected, true);
+    assert.strictEqual(data.category, 'DATABASE');
+    assert.strictEqual(data.type, 'database-problem');
+    assert.strictEqual(data.severity, 'HIGH');
+});
+
+test('POST /api/detect returns false for unknown healthy input', async () => {
+    const response = await fetch(`${BASE_URL}/api/detect`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            input: 'The application is running normally and all services are healthy'
+        })
+    });
+
+    assert.strictEqual(response.status, 200);
+
+    const data = await response.json();
+
+    assert.strictEqual(data.detected, false);
+    assert.strictEqual(data.type, 'unknown-problem');
+});
+
+test('POST /api/detect rejects missing input', async () => {
+    const response = await fetch(`${BASE_URL}/api/detect`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            text: 'Database connection is failing'
+        })
+    });
+
+    assert.strictEqual(response.status, 400);
+
+    const data = await response.json();
+
+    assert.strictEqual(data.error, 'BAD_REQUEST');
 });

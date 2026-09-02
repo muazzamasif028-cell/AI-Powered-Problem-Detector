@@ -23,13 +23,13 @@ class PaddleProvider {
         ];
 
         this.paymentMethods = {
-            US: ['card', 'paypal'],
-            UK: ['card', 'paypal'],
+            US: ['card', 'paypal', 'apple_pay', 'google_pay'],
+            UK: ['card', 'paypal', 'apple_pay', 'google_pay'],
             IN: ['card', 'upi', 'netbanking', 'paypal'],
             PK: ['card', 'paypal'],
-            AE: ['card', 'paypal'],
-            SA: ['card', 'mada', 'paypal'],
-            JP: ['card', 'paypal', 'konbini'],
+            AE: ['card', 'paypal', 'apple_pay'],
+            SA: ['card', 'mada', 'paypal', 'apple_pay'],
+            JP: ['card', 'paypal', 'apple_pay', 'konbini'],
             BR: ['card', 'paypal', 'boleto', 'pix'],
             MX: ['card', 'paypal', 'oxxo'],
             default: ['card', 'paypal']

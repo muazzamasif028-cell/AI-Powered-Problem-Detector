@@ -1,0 +1,72 @@
+
+
+
+
+
+
+'use strict';
+
+/**
+ * SUPREME Problem Detector
+ *
+ * Central problem detection service.
+ * Receives a problem/input and produces a normalized
+ * detection result for the integration runtime.
+ */
+
+class ProblemDetector {
+    constructor() {
+        this.initialized = false;
+        this.detections = 0;
+    }
+
+    initialize() {
+        this.initialized = true;
+        console.log('Problem Detector initialized');
+    }
+
+    shutdown() {
+        this.initialized = false;
+        console.log('Problem Detector shutdown');
+    }
+
+    detect(input) {
+        if (!this.initialized) {
+            throw new Error('Problem Detector is not initialized');
+        }
+
+        if (input === undefined || input === null) {
+            throw new TypeError('Detection input is required');
+        }
+
+        const value = typeof input === 'string'
+            ? input.trim()
+            : JSON.stringify(input);
+
+        if (!value) {
+            throw new TypeError('Detection input cannot be empty');
+        }
+
+        this.detections += 1;
+
+        return {
+            detected: true,
+            type: 'problem',
+            input: value,
+            confidence: 1,
+            detectionId: `DET-${this.detections}`,
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    status() {
+        return {
+            initialized: this.initialized,
+            detections: this.detections
+        };
+    }
+}
+
+module.exports = new ProblemDetector();
+
+

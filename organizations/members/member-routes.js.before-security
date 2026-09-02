@@ -1,0 +1,98 @@
+'use strict';
+
+const express = require('express');
+
+const {
+    createMember,
+    getMember,
+    listMembers,
+    getOrganizationMember,
+    removeMember
+} = require('./member-registry');
+
+const { authenticateToken } =
+    require('../../security/auth/jwt-auth');
+
+const {
+    requireOrganizationMember
+} = require('../security/require-organization-member');
+
+const router = express.Router();
+
+// List organization members
+router.get('/organization/:organizationId', (req, res) => {
+    res.json({
+        organizationId: req.params.organizationId,
+        members: listMembers(req.params.organizationId)
+    });
+});
+
+// Get member by ID
+router.get('/:id', (req, res) => {
+    const member = getMember(req.params.id);
+
+    if (!member) {
+        return res.status(404).json({
+            error: 'MEMBER_NOT_FOUND'
+        });
+    }
+
+    res.json({ member });
+});
+
+// Get a user's membership in an organization
+router.get(
+    '/organization/:organizationId/user/:userId',
+    (req, res) => {
+        const member = getOrganizationMember(
+            req.params.organizationId,
+            req.params.userId
+        );
+
+        if (!member) {
+            return res.status(404).json({
+                error: 'MEMBER_NOT_FOUND'
+            });
+        }
+
+        res.json({ member });
+    }
+);
+
+// Create member
+router.post('/', (req, res) => {
+    try {
+        const member = createMember({
+            id: req.body?.id,
+            organizationId: req.body?.organizationId,
+            userId: req.body?.userId,
+            role: req.body?.role,
+            status: req.body?.status,
+            metadata: req.body?.metadata
+        });
+
+        return res.status(201).json({
+            member
+        });
+
+    } catch (error) {
+        return res.status(400).json({
+            error: error.message
+        });
+    }
+});
+
+// Remove member
+router.delete('/:id', (req, res) => {
+    const removed = removeMember(req.params.id);
+
+    if (!removed) {
+        return res.status(404).json({
+            error: 'MEMBER_NOT_FOUND'
+        });
+    }
+
+    return res.status(204).end();
+});
+
+module.exports = router;

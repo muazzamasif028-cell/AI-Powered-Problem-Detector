@@ -10,13 +10,13 @@
 
 const BACKEND_SCALE = Object.freeze({
 
-    version: '1.0.0',
+    version: '2.0.0',
 
-    layers: 60_000_000_000n,
+    layers: 177_000_000_000_000n,
 
-    components: 5_000_000_000_000n,
+    components: 15_000_000_000_000_000n,
 
-    nodes: 25_000_000_000_000n,
+    nodes: 75_000_000_000_000_000n,
 
     compute: {
 

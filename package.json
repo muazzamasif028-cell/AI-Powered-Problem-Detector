@@ -10,7 +10,10 @@
     "build": "node scripts/build.js",
     "test": "node --test",
     "lint": "echo 'Lint: No ESLint configured yet'",
-    "clean": "node scripts/clean.js"
+    "clean": "node scripts/clean.js",
+    "frontend": "vite --config vite.config.js",
+    "frontend:build": "vite build --config vite.config.js",
+    "frontend:preview": "vite preview --config vite.config.js"
   },
   "dependencies": {
     "compression": "^1.7.4",
@@ -20,10 +23,15 @@
     "express-rate-limit": "^7.1.5",
     "express-session": "^1.17.3",
     "helmet": "^7.1.0",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.3"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@vitejs/plugin-react": "^6.1.1",
+    "nodemon": "^3.0.2",
+    "vite": "^8.2.2"
   },
   "engines": {
     "node": ">=18.0.0"

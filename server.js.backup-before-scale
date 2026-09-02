@@ -1,0 +1,149 @@
+'use strict';
+
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+require('dotenv').config();
+
+const registry = require('./integration/registry');
+const orchestrator = require('./integration/orchestrator');
+const { registerCoreModules } = require('./integration/register-core');
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Core integration
+registerCoreModules();
+orchestrator.start();
+
+// Middleware
+app.use(helmet());
+app.use(cors());
+app.use(compression());
+app.use(express.json());
+
+// Root
+app.get('/', (req, res) => {
+    res.json({
+        name: 'SUPREME Platform',
+        version: '14.0.0',
+        status: 'RUNNING',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Health
+app.get('/api/health', (req, res) => {
+    const modules = registry.list();
+
+    res.json({
+        status: 'HEALTHY',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        integration: {
+            modules: {
+                total: modules.length,
+                enabled: modules.filter(module => module.enabled).length,
+                disabled: modules.filter(module => !module.enabled).length
+            },
+            orchestrator: orchestrator.status()
+        }
+    });
+});
+
+// Dashboard
+app.get('/api/dashboard', (req, res) => {
+    res.json({
+        dashboard: 'SUPREME PLATFORM',
+        version: '14.0.0',
+        status: 'OPERATIONAL',
+        modules: [
+            'Problem Detector',
+            'AI Engine',
+            'Payment Gateway',
+            'Domain Engine',
+            'Satellite Layer',
+            'Fleet Management',
+            'Security Engine'
+        ],
+        integration: {
+            registeredModules: registry.count(),
+            orchestrator: orchestrator.status()
+        }
+    });
+});
+
+// Integration status
+app.get('/api/integration', (req, res) => {
+    res.json({
+        status: 'ACTIVE',
+        orchestrator: orchestrator.status(),
+        modules: registry.list()
+    });
+});
+
+// Problem Detection
+app.post('/api/detect', (req, res, next) => {
+    try {
+        const detector = registry.get('problem-detector');
+
+        if (!detector) {
+            return res.status(503).json({
+                error: 'DETECTION_SERVICE_UNAVAILABLE'
+            });
+        }
+
+        const result = detector.detect(req.body?.input);
+
+        return res.status(200).json(result);
+    } catch (error) {
+        return next(error);
+    }
+});
+
+// 404
+app.use((req, res) => {
+    res.status(404).json({
+        error: 'ENDPOINT_NOT_FOUND',
+        path: req.path
+    });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    console.error('Server error:', err.message);
+
+    res.status(500).json({
+        error: 'INTERNAL_SERVER_ERROR',
+        message: err.message
+    });
+});
+
+// Start
+const server = app.listen(PORT, () => {
+    console.log('SUPREME Platform running on port ' + PORT);
+    console.log('Health check: http://localhost:' + PORT + '/api/health');
+    console.log('Detection API: POST http://localhost:' + PORT + '/api/detect');
+});
+
+// Graceful shutdown
+function shutdown(signal) {
+    console.log('\n' + signal + ' received. Shutting down...');
+
+    orchestrator.stop();
+
+    server.close(() => {
+        console.log('SUPREME Platform stopped.');
+        process.exit(0);
+    });
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+module.exports = {
+    app,
+    server
+};

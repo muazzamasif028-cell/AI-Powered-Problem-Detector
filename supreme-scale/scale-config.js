@@ -10,18 +10,24 @@
 
 const SUPREME_SCALE = Object.freeze({
 
-    version: '1.0.0',
+    version: '2.0.0',
+
+    architecture: Object.freeze({
+        layers: 177_000_000_000_000n,
+        components: 15_000_000_000_000_000n,
+        nodes: 75_000_000_000_000_000n
+    }),
 
     frontend: {
-        layers: 6_000_000_000n,
-        components: 500_000_000_000n,
-        nodes: 2_500_000_000_000n
+        layers: 177_000_000_000_000n,
+        components: 15_000_000_000_000_000n,
+        nodes: 75_000_000_000_000_000n
     },
 
     backend: {
-        layers: 60_000_000_000n,
-        components: 5_000_000_000_000n,
-        nodes: 25_000_000_000_000n
+        layers: 177_000_000_000_000n,
+        components: 15_000_000_000_000_000n,
+        nodes: 75_000_000_000_000_000n
     },
 
     compute: {
