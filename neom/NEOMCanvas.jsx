@@ -2,28 +2,28 @@ import React, { useEffect, useState } from 'react';
 
 const defaultMetrics = [
     {
-        label: 'Platform Status',
-        value: 'LOADING',
-        status: 'CONNECTING',
-        detail: 'Backend connection'
+        label: 'Renewable Energy',
+        value: '4.0 GW',
+        status: 'ONLINE',
+        detail: 'Solar + Wind'
+    },
+    {
+        label: 'Green Hydrogen',
+        value: '98.7%',
+        status: 'STABLE',
+        detail: 'Production efficiency'
+    },
+    {
+        label: 'Energy Storage',
+        value: '87.4%',
+        status: 'READY',
+        detail: 'BESS capacity'
     },
     {
         label: 'AI Operations',
-        value: '0',
-        status: 'LOADING',
-        detail: 'Platform modules'
-    },
-    {
-        label: 'System Health',
-        value: '--',
-        status: 'CHECKING',
-        detail: 'Runtime health'
-    },
-    {
-        label: 'Uptime',
-        value: '--',
-        status: 'LOADING',
-        detail: 'Server availability'
+        value: '24',
+        status: 'ACTIVE',
+        detail: 'Agents online'
     }
 ];
 
@@ -55,92 +55,65 @@ export default function NEOMCanvas() {
     const [health, setHealth] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [commandMode, setCommandMode] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState(null);
+
+    async function loadSystemData() {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const [dashboardResponse, healthResponse] = await Promise.all([
+                fetch('/api/dashboard'),
+                fetch('/api/health')
+            ]);
+
+            if (!dashboardResponse.ok || !healthResponse.ok) {
+                throw new Error('Unable to connect to SUPREME backend');
+            }
+
+            const dashboardData = await dashboardResponse.json();
+            const healthData = await healthResponse.json();
+
+            setDashboard(dashboardData);
+            setHealth(healthData);
+            setLastUpdated(new Date());
+
+        } catch (err) {
+            console.error('NEOM Canvas API Error:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }
 
     useEffect(() => {
-        async function loadPlatformData() {
-            try {
-                setLoading(true);
-                setError(null);
+        loadSystemData();
 
-                const [dashboardResponse, healthResponse] =
-                    await Promise.all([
-                        fetch('/api/dashboard'),
-                        fetch('/api/health')
-                    ]);
+        const interval = setInterval(() => {
+            loadSystemData();
+        }, 30000);
 
-                if (!dashboardResponse.ok) {
-                    throw new Error(
-                        `Dashboard API failed: ${dashboardResponse.status}`
-                    );
-                }
-
-                if (!healthResponse.ok) {
-                    throw new Error(
-                        `Health API failed: ${healthResponse.status}`
-                    );
-                }
-
-                const dashboardData = await dashboardResponse.json();
-                const healthData = await healthResponse.json();
-
-                setDashboard(dashboardData);
-                setHealth(healthData);
-
-            } catch (err) {
-                console.error('Failed to load platform data:', err);
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        loadPlatformData();
+        return () => clearInterval(interval);
     }, []);
 
-    const moduleCount = dashboard?.modules?.length ?? 0;
-
-    const uptime =
-        typeof health?.uptime === 'number'
-            ? `${Math.floor(health.uptime)}s`
-            : '--';
-
     const metrics = [
+        ...defaultMetrics,
         {
             label: 'Platform Status',
-            value: dashboard?.status ?? 'LOADING',
-            status: health?.status ?? 'CONNECTING',
-            detail: 'SUPREME Platform runtime'
-        },
-        {
-            label: 'Active Modules',
-            value: moduleCount,
-            status: moduleCount > 0 ? 'ONLINE' : 'WAITING',
-            detail: 'Registered platform modules'
-        },
-        {
-            label: 'System Health',
-            value: health?.status ?? '--',
-            status: health ? 'LIVE' : 'CHECKING',
-            detail: 'Real backend health API'
-        },
-        {
-            label: 'Uptime',
-            value: uptime,
-            status: health ? 'ACTIVE' : 'LOADING',
-            detail: 'Current server runtime'
+            value: dashboard?.status || 'CONNECTING',
+            status: health?.status || 'WAITING',
+            detail: `${dashboard?.modules?.length || 0} modules registered`
         }
     ];
 
-    const displayedMetrics =
-        loading ? defaultMetrics : metrics;
-
     return (
-        <div className="neom-canvas">
+        <div className={`neom-canvas ${commandMode ? 'command-mode' : ''}`}>
 
             <header className="neom-header">
                 <div>
                     <div className="neom-eyebrow">
-                        SUPREME / NEOM
+                        SUPREME / NEOM / LIVE
                     </div>
 
                     <h1>NEOM Command Center</h1>
@@ -151,20 +124,32 @@ export default function NEOMCanvas() {
                     </p>
                 </div>
 
-                <div className="system-status">
-                    <span className="status-dot" />
-                    {loading
-                        ? 'CONNECTING'
-                        : error
-                            ? 'BACKEND ERROR'
-                            : 'SYSTEM OPERATIONAL'}
+                <div className="header-actions">
+                    <button
+                        className="refresh-button"
+                        onClick={loadSystemData}
+                        disabled={loading}
+                    >
+                        {loading ? 'SYNCING...' : 'REFRESH'}
+                    </button>
+
+                    <div className="system-status">
+                        <span className="status-dot" />
+                        {health?.status || 'CONNECTING'}
+                    </div>
                 </div>
             </header>
+
+            {error && (
+                <div className="system-error">
+                    BACKEND CONNECTION ERROR: {error}
+                </div>
+            )}
 
             <section className="hero-panel">
 
                 <div className="hero-copy">
-                    <span>LIVE ENTERPRISE OPERATIONS</span>
+                    <span>NEOM DIGITAL OPERATIONS</span>
 
                     <h2>
                         One intelligent canvas
@@ -172,19 +157,25 @@ export default function NEOMCanvas() {
                     </h2>
 
                     <p>
-                        Live SUPREME Platform data is connected
-                        directly to the command interface.
+                        Monitor infrastructure, energy,
+                        AI operations, sustainability and
+                        critical systems from one command layer.
                     </p>
 
                     <button
                         className="command-button"
-                        onClick={() => window.scrollTo({
-                            top: document.body.scrollHeight,
-                            behavior: 'smooth'
-                        })}
+                        onClick={() => setCommandMode(!commandMode)}
                     >
-                        ENTER COMMAND MODE
+                        {commandMode
+                            ? 'EXIT COMMAND MODE'
+                            : 'ENTER COMMAND MODE'}
                     </button>
+
+                    {lastUpdated && (
+                        <small className="last-updated">
+                            LAST SYNC: {lastUpdated.toLocaleTimeString()}
+                        </small>
+                    )}
                 </div>
 
                 <div className="digital-core">
@@ -193,17 +184,8 @@ export default function NEOMCanvas() {
                     <div className="core-ring ring-three" />
 
                     <div className="core-center">
-                        <strong>
-                            {health?.status === 'HEALTHY'
-                                ? 'LIVE'
-                                : 'NEOM'}
-                        </strong>
-
-                        <small>
-                            {loading
-                                ? 'CONNECTING'
-                                : 'LIVE CORE'}
-                        </small>
+                        <strong>NEOM</strong>
+                        <small>LIVE CORE</small>
                     </div>
                 </div>
 
@@ -211,7 +193,7 @@ export default function NEOMCanvas() {
 
             <section className="metrics-grid">
 
-                {displayedMetrics.map((metric) => (
+                {metrics.map((metric) => (
                     <article
                         className="metric-card"
                         key={metric.label}
@@ -234,38 +216,31 @@ export default function NEOMCanvas() {
                 <div className="panel">
                     <div className="panel-heading">
                         <div>
-                            <span>PLATFORM MODULES</span>
+                            <span>NEOM ZONES</span>
                             <h3>Infrastructure Overview</h3>
                         </div>
 
                         <span className="live-label">
-                            {loading ? 'LOADING' : 'LIVE'}
+                            LIVE
                         </span>
                     </div>
 
                     <div className="zone-list">
 
-                        {(dashboard?.modules?.length
-                            ? dashboard.modules.map((module) => ({
-                                name: module,
-                                status: 'ONLINE',
-                                description: 'SUPREME Platform module'
-                            }))
-                            : zones
-                        ).map((item) => (
+                        {zones.map((zone) => (
                             <div
                                 className="zone-row"
-                                key={item.name}
+                                key={zone.name}
                             >
                                 <div>
-                                    <strong>{item.name}</strong>
+                                    <strong>{zone.name}</strong>
                                     <small>
-                                        {item.description}
+                                        {zone.description}
                                     </small>
                                 </div>
 
                                 <span className="zone-status">
-                                    {item.status}
+                                    {zone.status}
                                 </span>
                             </div>
                         ))}
@@ -277,7 +252,7 @@ export default function NEOMCanvas() {
 
                     <div className="panel-heading">
                         <div>
-                            <span>LIVE BACKEND</span>
+                            <span>AI INTELLIGENCE</span>
                             <h3>Command Intelligence</h3>
                         </div>
                     </div>
@@ -287,32 +262,29 @@ export default function NEOMCanvas() {
                     </div>
 
                     <p>
-                        {error
-                            ? `Backend connection error: ${error}`
-                            : loading
-                                ? 'Connecting to the SUPREME backend...'
-                                : 'Backend health and dashboard services are connected and operational.'
-                        }
+                        AI operations layer is connected to the
+                        SUPREME platform runtime and ready to
+                        analyze infrastructure signals.
                     </p>
 
                     <div className="ai-stats">
                         <div>
-                            <strong>{moduleCount}</strong>
-                            <span>Modules</span>
+                            <strong>24</strong>
+                            <span>Agents</span>
                         </div>
 
                         <div>
                             <strong>
-                                {health?.status ?? '--'}
+                                {health?.status === 'HEALTHY'
+                                    ? '99.9%'
+                                    : '--'}
                             </strong>
-                            <span>Health</span>
+                            <span>Availability</span>
                         </div>
 
                         <div>
-                            <strong>
-                                {dashboard?.organization ?? 'PUBLIC'}
-                            </strong>
-                            <span>Organization</span>
+                            <strong>0</strong>
+                            <span>Critical alerts</span>
                         </div>
                     </div>
 
@@ -323,29 +295,31 @@ export default function NEOMCanvas() {
             <section className="bottom-grid">
 
                 <div className="mini-panel">
-                    <span>PLATFORM VERSION</span>
+                    <span>PLATFORM</span>
                     <strong>
-                        {dashboard?.version ?? '14.0.0'}
+                        {dashboard?.dashboard || 'CONNECTING'}
                     </strong>
-                    <small>Live backend version</small>
+                    <small>
+                        Version {dashboard?.version || '--'}
+                    </small>
                 </div>
 
                 <div className="mini-panel">
-                    <span>INTEGRATION</span>
-                    <strong>
-                        {dashboard?.integration?.orchestrator?.started
-                            ? 'CONNECTED'
-                            : 'WAITING'}
-                    </strong>
-                    <small>Integration orchestrator</small>
+                    <span>SECURITY</span>
+                    <strong>PROTECTED</strong>
+                    <small>
+                        Organization policy enforced
+                    </small>
                 </div>
 
                 <div className="mini-panel">
-                    <span>BACKEND STATUS</span>
+                    <span>BACKEND</span>
                     <strong>
-                        {health?.status ?? 'OFFLINE'}
+                        {health?.status || 'CONNECTING'}
                     </strong>
-                    <small>Real-time health endpoint</small>
+                    <small>
+                        Real-time telemetry gateway
+                    </small>
                 </div>
 
             </section>
