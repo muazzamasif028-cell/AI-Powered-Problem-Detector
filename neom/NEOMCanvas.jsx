@@ -53,6 +53,9 @@ const zones = [
 export default function NEOMCanvas() {
     const [dashboard, setDashboard] = useState(null);
     const [health, setHealth] = useState(null);
+    const [detectionInput, setDetectionInput] = useState('');
+    const [detectionResult, setDetectionResult] = useState(null);
+    const [detectionLoading, setDetectionLoading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [commandMode, setCommandMode] = useState(false);
@@ -84,6 +87,44 @@ export default function NEOMCanvas() {
             setError(err.message);
         } finally {
             setLoading(false);
+        }
+    }
+
+    async function runDetection() {
+        const input = detectionInput.trim();
+
+        if (!input) {
+            setDetectionResult({
+                error: 'Please enter an incident or system problem.'
+            });
+            return;
+        }
+
+        try {
+            setDetectionLoading(true);
+            setDetectionResult(null);
+
+            const response = await fetch('/api/detect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ input })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || data.error || 'Detection failed');
+            }
+
+            setDetectionResult(data);
+        } catch (err) {
+            setDetectionResult({
+                error: err.message
+            });
+        } finally {
+            setDetectionLoading(false);
         }
     }
 
@@ -209,6 +250,48 @@ export default function NEOMCanvas() {
                     </article>
                 ))}
 
+            </section>
+
+            <section className="incident-panel panel">
+                <div className="panel-heading">
+                    <div>
+                        <span>INCIDENT INTELLIGENCE</span>
+                        <h3>Problem Detection</h3>
+                    </div>
+                    <span className="live-label">AI READY</span>
+                </div>
+
+                <div className="detection-form">
+                    <textarea
+                        value={detectionInput}
+                        onChange={(e) => setDetectionInput(e.target.value)}
+                        placeholder="Describe an infrastructure incident, system failure, network issue..."
+                        rows="4"
+                    />
+                    <button
+                        className="command-button"
+                        onClick={runDetection}
+                        disabled={detectionLoading}
+                    >
+                        {detectionLoading ? 'ANALYZING...' : 'ANALYZE INCIDENT'}
+                    </button>
+                </div>
+
+                {detectionResult && (
+                    <div className="detection-result">
+                        {detectionResult.error ? (
+                            <strong>ERROR: {detectionResult.error}</strong>
+                        ) : (
+                            <>
+                                <div><span>STATUS</span><strong>{detectionResult.detected ? 'INCIDENT DETECTED' : 'NO INCIDENT'}</strong></div>
+                                <div><span>CATEGORY</span><strong>{detectionResult.category}</strong></div>
+                                <div><span>TYPE</span><strong>{detectionResult.type}</strong></div>
+                                <div><span>SEVERITY</span><strong>{detectionResult.severity}</strong></div>
+                                <div><span>CONFIDENCE</span><strong>{Math.round(detectionResult.confidence * 100)}%</strong></div>
+                            </>
+                        )}
+                    </div>
+                )}
             </section>
 
             <section className="operations-grid">
