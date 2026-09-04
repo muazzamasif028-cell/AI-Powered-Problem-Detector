@@ -11,6 +11,7 @@ const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const mongoose = require('mongoose');
 const Redis = require('redis');
+const { RedisStore } = require('connect-redis');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const cluster = require('cluster');
@@ -125,7 +126,7 @@ if (cluster.isMaster) {
             maxAge: 24 * 60 * 60 * 1000,
             sameSite: 'strict'
         },
-        store: new (require('connect-redis')(session))({ client: redisClient })
+        store: new RedisStore({ client: redisClient })
     }));
     
     // Request Logging
