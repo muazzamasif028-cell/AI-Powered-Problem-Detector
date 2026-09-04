@@ -64,19 +64,23 @@ if (cluster.isMaster) {
     // =============================================
     // DATABASE CONNECTIONS
     // =============================================
-    mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/supreme-platform', {
-        maxPoolSize: 50,
-        minPoolSize: 10,
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000
-    }).then(() => console.log(`💾 [Worker ${WORKER_ID}] MongoDB Connected`))
-      .catch(err => console.error('MongoDB Error:', err));
-    
-    const redisClient = Redis.createClient({
-        url: process.env.REDIS_URL || 'redis://localhost:6379',
-        socket: { reconnectStrategy: retries => Math.min(retries * 100, 3000) }
-    });
-    redisClient.connect().then(() => console.log(`⚡ [Worker ${WORKER_ID}] Redis Connected`));
+    if (process.env.NODE_ENV === 'production') {
+        mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/supreme-platform', {
+            maxPoolSize: 50,
+            minPoolSize: 10,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000
+        }).then(() => console.log(`💾 [Worker ${WORKER_ID}] MongoDB Connected`))
+          .catch(err => console.error('MongoDB Error:', err));
+    } else {
+        console.log(`ℹ️ [Worker ${WORKER_ID}] MongoDB disabled in development mode`);
+    }
+
+    const redisClient = null;
+
+    console.log(
+        `ℹ️ [Worker ${WORKER_ID}] Redis disabled in development mode`
+    );
     
     // =============================================
     // MIDDLEWARE
@@ -121,12 +125,11 @@ if (cluster.isMaster) {
         resave: false,
         saveUninitialized: false,
         cookie: {
-            secure: true,
+            secure: false,
             httpOnly: true,
             maxAge: 24 * 60 * 60 * 1000,
             sameSite: 'strict'
-        },
-        store: new RedisStore({ client: redisClient })
+        }
     }));
     
     // Request Logging
