@@ -4,6 +4,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
+const http = require('http');
+const { Server: SocketIOServer } = require('socket.io');
 
 require('dotenv').config();
 
@@ -39,6 +41,20 @@ const {
 } = require('./security/rbac/require-permission');
 
 const app = express();
+
+const neomRealtimeTelemetry = require('./neom-telemetry/NeomRealtimeTelemetry');
+const httpServer = http.createServer(app);
+const io = new SocketIOServer(httpServer, {
+    cors: {
+        origin: process.env.ALLOWED_ORIGINS
+            ? process.env.ALLOWED_ORIGINS.split(',').map(value => value.trim())
+            : '*'
+    },
+    pingTimeout: 60000,
+    pingInterval: 25000
+});
+
+neomRealtimeTelemetry.attachSocketServer(io);
 const PORT = process.env.PORT || 5000;
 
 let server = null;
@@ -343,6 +359,70 @@ app.post('/api/detect', (req, res, next) => {
     }
 });
 
+
+// ============================================
+// NEOM Real-Time Telemetry
+// ============================================
+
+app.post(
+    '/api/neom/telemetry',
+    authenticateToken,
+    requireOrganization,
+    requirePermission(
+        PERMISSIONS.NEOM_VIEW
+    ),
+    (req, res, next) => {
+        try {
+            const telemetry =
+                neomRealtimeTelemetry.ingest(
+                    req.body,
+                    req.auth
+                );
+
+            return res.status(201).json({
+                status: 'TELEMETRY_INGESTED',
+                telemetry
+            });
+        } catch (error) {
+            return next(error);
+        }
+    }
+);
+
+app.get(
+    '/api/neom/telemetry/status',
+    authenticateToken,
+    requireOrganization,
+    requirePermission(
+        PERMISSIONS.NEOM_VIEW
+    ),
+    (req, res) => {
+        res.json(
+            neomRealtimeTelemetry.status()
+        );
+    }
+);
+
+app.get(
+    '/api/neom/telemetry/history',
+    authenticateToken,
+    requireOrganization,
+    requirePermission(
+        PERMISSIONS.NEOM_VIEW
+    ),
+    (req, res) => {
+        res.json({
+            events:
+                neomRealtimeTelemetry.getHistory({
+                    zone: req.query.zone,
+                    domain: req.query.domain,
+                    assetId: req.query.assetId,
+                    limit: req.query.limit
+                })
+        });
+    }
+);
+
 // ============================================
 // 404
 // ============================================
@@ -381,7 +461,7 @@ function startServer() {
 
     supremeScale.start();
 
-    server = app.listen(PORT, () => {
+    server = httpServer.listen(PORT, () => {
 
         console.log('');
         console.log('========================================');
