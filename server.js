@@ -371,10 +371,10 @@ app.post(
     requirePermission(
         PERMISSIONS.NEOM_VIEW
     ),
-    (req, res, next) => {
+    async (req, res, next) => {
         try {
             const telemetry =
-                neomRealtimeTelemetry.ingest(
+                await neomRealtimeTelemetry.ingest(
                     req.body,
                     req.auth
                 );
@@ -460,6 +460,7 @@ function startServer() {
     orchestrator.start();
 
     supremeScale.start();
+neomRealtimeTelemetry.startAdapters();
 
     server = httpServer.listen(PORT, () => {
 

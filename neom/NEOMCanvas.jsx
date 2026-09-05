@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
 
 const defaultMetrics = [
     {
@@ -60,6 +61,55 @@ export default function NEOMCanvas() {
     const [error, setError] = useState(null);
     const [commandMode, setCommandMode] = useState(false);
     const [lastUpdated, setLastUpdated] = useState(null);
+    const [liveTelemetry, setLiveTelemetry] = useState(null);
+    const [telemetryConnection, setTelemetryConnection] = useState('DISCONNECTED');
+
+    useEffect(() => {
+        const token =
+            localStorage.getItem('supreme_access_token');
+
+        if (!token) {
+            setTelemetryConnection('AUTH_REQUIRED');
+            return undefined;
+        }
+
+        const socket = io({
+            auth: {
+                token
+            },
+            transports: ['websocket']
+        });
+
+        socket.on('connect', () => {
+            setTelemetryConnection('CONNECTED');
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error(
+                'NEOM telemetry socket error:',
+                err.message
+            );
+
+            setTelemetryConnection('ERROR');
+        });
+
+        socket.on('neom:telemetry:ready', (event) => {
+            setTelemetryConnection(
+                event.status === 'CONNECTED'
+                    ? 'CONNECTED'
+                    : 'UNKNOWN'
+            );
+        });
+
+        socket.on('neom:telemetry', (event) => {
+            setLiveTelemetry(event);
+            setLastUpdated(new Date());
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
 
     async function loadSystemData() {
         try {

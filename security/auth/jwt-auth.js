@@ -70,6 +70,19 @@ function authenticateToken(req, res, next) {
     }
 }
 
+function verifyToken(token) {
+
+    if (!token) {
+        throw new Error("TOKEN_REQUIRED");
+    }
+
+    return jwt.verify(
+        token,
+        JWT_SECRET
+    );
+
+}
+
 function createToken({
     userId,
     organization,
@@ -105,6 +118,8 @@ module.exports = {
 
     createToken,
 
-    extractToken
+    extractToken,
+    verifyToken
+
 
 };
