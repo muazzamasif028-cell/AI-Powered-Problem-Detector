@@ -424,6 +424,24 @@ app.get(
 );
 
 // ============================================
+// NEOM System Telemetry
+// ============================================
+
+app.get(
+    '/api/neom/telemetry/system',
+    authenticateToken,
+    requireOrganization,
+    requirePermission(
+        PERMISSIONS.NEOM_VIEW
+    ),
+    (req, res) => {
+        res.json(
+            neomRealtimeTelemetry.systemTelemetry()
+        );
+    }
+);
+
+// ============================================
 // 404
 // ============================================
 
