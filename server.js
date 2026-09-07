@@ -4,18 +4,36 @@
 // SUPREME Platform — Main Server
 // ============================================
 
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
+const { Server } = require('socket.io');
 
-require('dotenv').config();
+// ============================================
+// Application Modules
+// ============================================
 
 const registry = require('./integration/registry');
 const orchestrator = require('./integration/orchestrator');
-const { registerCoreModules } = require('./integration/register-core');
+
+const {
+    registerCoreModules
+} = require('./integration/register-core');
 
 const supremeScale = require('./supreme-scale');
+
+// ============================================
+// NEOM Telemetry
+// ============================================
+
+const neomRealtimeTelemetry =
+    require('./neom-telemetry/NeomRealtimeTelemetry');
+
+const telemetryMetrics =
+    require('./neom-telemetry/observability/TelemetryMetrics');
 
 // ============================================
 // Enterprise Security
@@ -36,6 +54,14 @@ const {
 const {
     requirePermission
 } = require('./security/rbac/require-permission');
+
+// IMPORTANT:
+// Agar tumhare project mein requireOrganization
+// kisi different file mein hai to is path ko adjust karna hoga.
+
+const {
+    requireOrganization
+} = require('./security/organization/require-organization');
 
 // ============================================
 // Optional Integration Health
@@ -64,9 +90,10 @@ try {
 const app = express();
 
 const PORT =
-    Number(process.env.PORT) || 5000;
+    Number(process.env.PORT) || 3000;
 
 let server = null;
+let io = null;
 let shuttingDown = false;
 
 // ============================================
@@ -83,20 +110,29 @@ app.use(express.json({
     limit: '10mb'
 }));
 
+app.use(express.urlencoded({
+    extended: true,
+    limit: '10mb'
+}));
+
 // ============================================
 // Core Integration Modules
 // ============================================
 
 registerCoreModules();
 
-// Register core server only if it does not already exist.
+// ============================================
+// Core Server Registration
+// ============================================
 
 if (!registry.get('core.server')) {
 
     registry.register(
+
         'core.server',
 
         {
+
             initialize() {
 
                 console.log(
@@ -112,12 +148,17 @@ if (!registry.get('core.server')) {
                 );
 
             }
+
         },
 
         {
+
             version: '14.0.0',
+
             category: 'core'
+
         }
+
     );
 
 }
@@ -139,14 +180,29 @@ function getIntegrationHealth() {
     }
 
     return {
+
         available: false
+
     };
 
 }
 
 function getScaleStatus() {
 
-    return supremeScale.status();
+    if (
+        supremeScale &&
+        typeof supremeScale.status === 'function'
+    ) {
+
+        return supremeScale.status();
+
+    }
+
+    return {
+
+        started: false
+
+    };
 
 }
 
@@ -156,15 +212,19 @@ function getScaleStatus() {
 
 app.get('/', (req, res) => {
 
-    res.json({
+    return res.json({
 
-        name: 'SUPREME Platform',
+        name:
+            'SUPREME Platform',
 
-        version: '14.0.0',
+        version:
+            '14.0.0',
 
-        status: 'RUNNING',
+        status:
+            'RUNNING',
 
-        uptime: process.uptime(),
+        uptime:
+            process.uptime(),
 
         timestamp:
             new Date().toISOString(),
@@ -185,9 +245,10 @@ app.get('/api/health', (req, res) => {
     const modules =
         registry.list();
 
-    res.json({
+    return res.json({
 
-        status: 'HEALTHY',
+        status:
+            'HEALTHY',
 
         timestamp:
             new Date().toISOString(),
@@ -219,7 +280,15 @@ app.get('/api/health', (req, res) => {
             orchestrator.status(),
 
         hyperscale:
-            getScaleStatus()
+            getScaleStatus(),
+
+        neom:
+            typeof neomRealtimeTelemetry.status ===
+            'function'
+                ? neomRealtimeTelemetry.status()
+                : {
+                    status: 'UNKNOWN'
+                }
 
     });
 
@@ -231,7 +300,7 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/dashboard', (req, res) => {
 
-    res.json({
+    return res.json({
 
         dashboard:
             'SUPREME PLATFORM',
@@ -243,15 +312,31 @@ app.get('/api/dashboard', (req, res) => {
             'OPERATIONAL',
 
         modules: [
+
             'Problem Detector',
+
             'AI Engine',
+
             'Payment Gateway',
+
             'Domain Engine',
+
             'Satellite Layer',
+
             'Fleet Management',
+
             'Security Engine',
+
             'SUPREME Scale Runtime',
-            'Backend HyperScale Runtime'
+
+            'Backend HyperScale Runtime',
+
+            'NEOM Real-Time Telemetry',
+
+            'Socket.IO Gateway',
+
+            'Prometheus Metrics'
+
         ],
 
         integration: {
@@ -287,6 +372,7 @@ app.get('/api/dashboard', (req, res) => {
 // ============================================
 
 app.post(
+
     '/api/auth/dev-token',
 
     (req, res) => {
@@ -297,16 +383,22 @@ app.post(
         ) {
 
             return res.status(404).json({
+
                 error:
                     'ENDPOINT_NOT_AVAILABLE'
+
             });
 
         }
 
         const {
+
             userId = 'development-user',
+
             organization,
+
             role = 'USER'
+
         } = req.body || {};
 
         if (!organization) {
@@ -327,7 +419,9 @@ app.post(
             createToken({
 
                 userId,
+
                 organization,
+
                 role
 
             });
@@ -352,6 +446,7 @@ app.post(
         });
 
     }
+
 );
 
 // ============================================
@@ -370,12 +465,14 @@ app.get('/api/integration', (req, res) => {
     } catch (error) {
 
         manifest = {
+
             available: false
+
         };
 
     }
 
-    res.json({
+    return res.json({
 
         status:
             'ACTIVE',
@@ -407,7 +504,7 @@ app.get('/api/scale', (req, res) => {
     const runtime =
         getScaleStatus();
 
-    res.json({
+    return res.json({
 
         status:
             runtime.started
@@ -428,6 +525,7 @@ app.get('/api/scale', (req, res) => {
 // ============================================
 
 app.post(
+
     '/api/detect',
 
     (req, res, next) => {
@@ -483,6 +581,7 @@ app.post(
         }
 
     }
+
 );
 
 // ============================================
@@ -506,7 +605,7 @@ app.get(
 
     (req, res) => {
 
-        res.json({
+        return res.json({
 
             organization:
                 'NEOM',
@@ -520,7 +619,7 @@ app.get(
             authorizedBy: {
 
                 userId:
-                    req.auth.userId,
+                    req.auth?.userId,
 
                 role:
                     req.role,
@@ -557,7 +656,6 @@ app.get(
 
 // ============================================
 // NEOM Control Operations
-// Requires NEOM_CONTROL Permission
 // ============================================
 
 app.post(
@@ -577,8 +675,11 @@ app.post(
     (req, res) => {
 
         const {
+
             system,
+
             action
+
         } = req.body || {};
 
         if (!system || !action) {
@@ -595,7 +696,7 @@ app.post(
 
         }
 
-        res.json({
+        return res.json({
 
             organization:
                 'NEOM',
@@ -614,7 +715,7 @@ app.post(
             authorizedBy: {
 
                 userId:
-                    req.auth.userId,
+                    req.auth?.userId,
 
                 role:
                     req.role,
@@ -654,7 +755,7 @@ app.get(
 
     (req, res) => {
 
-        res.json({
+        return res.json({
 
             organization:
                 'SpaceX',
@@ -668,7 +769,7 @@ app.get(
             authorizedBy: {
 
                 userId:
-                    req.auth.userId,
+                    req.auth?.userId,
 
                 role:
                     req.role,
@@ -702,12 +803,188 @@ app.get(
 );
 
 // ============================================
+// NEOM Real-Time Telemetry
+// ============================================
+
+app.post(
+
+    '/api/neom/telemetry',
+
+    authenticateToken,
+
+    requireOrganization,
+
+    requirePermission(
+        PERMISSIONS.NEOM_VIEW
+    ),
+
+    async (req, res, next) => {
+
+        try {
+
+            const telemetry =
+                await neomRealtimeTelemetry.ingest(
+
+                    req.body,
+
+                    req.auth
+
+                );
+
+            return res.status(201).json({
+
+                status:
+                    'TELEMETRY_INGESTED',
+
+                telemetry
+
+            });
+
+        } catch (error) {
+
+            return next(error);
+
+        }
+
+    }
+
+);
+
+// ============================================
+// NEOM Telemetry Status
+// ============================================
+
+app.get(
+
+    '/api/neom/telemetry/status',
+
+    authenticateToken,
+
+    requireOrganization,
+
+    requirePermission(
+        PERMISSIONS.NEOM_VIEW
+    ),
+
+    (req, res) => {
+
+        return res.json(
+            neomRealtimeTelemetry.status()
+        );
+
+    }
+
+);
+
+// ============================================
+// NEOM Telemetry History
+// ============================================
+
+app.get(
+
+    '/api/neom/telemetry/history',
+
+    authenticateToken,
+
+    requireOrganization,
+
+    requirePermission(
+        PERMISSIONS.NEOM_VIEW
+    ),
+
+    (req, res) => {
+
+        return res.json({
+
+            events:
+                neomRealtimeTelemetry.getHistory({
+
+                    zone:
+                        req.query.zone,
+
+                    domain:
+                        req.query.domain,
+
+                    assetId:
+                        req.query.assetId,
+
+                    limit:
+                        req.query.limit
+
+                })
+
+        });
+
+    }
+
+);
+
+// ============================================
+// NEOM System Telemetry
+// ============================================
+
+app.get(
+
+    '/api/neom/telemetry/system',
+
+    authenticateToken,
+
+    requireOrganization,
+
+    requirePermission(
+        PERMISSIONS.NEOM_VIEW
+    ),
+
+    (req, res) => {
+
+        return res.json(
+            neomRealtimeTelemetry.systemTelemetry()
+        );
+
+    }
+
+);
+
+// ============================================
+// Prometheus Metrics
+// ============================================
+
+app.get(
+
+    '/metrics',
+
+    async (req, res, next) => {
+
+        try {
+
+            const metrics =
+                await telemetryMetrics.metrics();
+
+            res.set(
+                'Content-Type',
+
+                telemetryMetrics.contentType
+            );
+
+            return res.end(metrics);
+
+        } catch (error) {
+
+            return next(error);
+
+        }
+
+    }
+
+);
+
+// ============================================
 // 404 Handler
 // ============================================
 
 app.use((req, res) => {
 
-    res.status(404).json({
+    return res.status(404).json({
 
         error:
             'ENDPOINT_NOT_FOUND',
@@ -726,14 +1003,24 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
 
     console.error(
+
         '[SUPREME Server Error]',
+
         err.message
+
     );
 
-    res.status(500).json({
+    const statusCode =
+        err.statusCode ||
+        err.status ||
+        500;
+
+    return res.status(statusCode).json({
 
         error:
-            'INTERNAL_SERVER_ERROR',
+            statusCode === 400
+                ? 'BAD_REQUEST'
+                : 'INTERNAL_SERVER_ERROR',
 
         message:
             process.env.NODE_ENV ===
@@ -751,8 +1038,6 @@ app.use((err, req, res, next) => {
 
 function startServer() {
 
-    // Prevent duplicate server startup.
-
     if (server) {
 
         console.log(
@@ -765,98 +1050,175 @@ function startServer() {
 
     try {
 
-        // Start integration runtime.
+        // ====================================
+        // Start Integration Runtime
+        // ====================================
 
         orchestrator.start();
 
-        // Start scale runtime.
+        // ====================================
+        // Start Scale Runtime
+        // ====================================
 
         supremeScale.start();
+
+        // ====================================
+        // Start HTTP Server
+        // ====================================
+
+        server =
+            app.listen(
+                PORT,
+                () => {
+
+                    console.log('');
+
+                    console.log(
+                        '========================================'
+                    );
+
+                    console.log(
+                        'SUPREME Platform v14.0.0 RUNNING'
+                    );
+
+                    console.log(
+                        '========================================'
+                    );
+
+                    console.log(
+                        'Port: http://localhost:' +
+                        PORT
+                    );
+
+                    console.log(
+                        'Health: http://localhost:' +
+                        PORT +
+                        '/api/health'
+                    );
+
+                    console.log(
+                        'Dashboard: http://localhost:' +
+                        PORT +
+                        '/api/dashboard'
+                    );
+
+                    console.log(
+                        'Integration: http://localhost:' +
+                        PORT +
+                        '/api/integration'
+                    );
+
+                    console.log(
+                        'Scale Runtime: http://localhost:' +
+                        PORT +
+                        '/api/scale'
+                    );
+
+                    console.log(
+                        'Metrics: http://localhost:' +
+                        PORT +
+                        '/metrics'
+                    );
+
+                    console.log(
+                        'NEOM Status: http://localhost:' +
+                        PORT +
+                        '/api/neom/telemetry/status'
+                    );
+
+                    console.log(
+                        'Detection API: POST http://localhost:' +
+                        PORT +
+                        '/api/detect'
+                    );
+
+                    console.log(
+                        'Dev Token: POST http://localhost:' +
+                        PORT +
+                        '/api/auth/dev-token'
+                    );
+
+                    console.log(
+                        '========================================'
+                    );
+
+                }
+            );
+
+        // ====================================
+        // Socket.IO
+        // ====================================
+
+        io =
+            new Server(
+                server,
+                {
+
+                    cors: {
+
+                        origin:
+                            process.env.CORS_ORIGIN ||
+                            '*',
+
+                        methods: [
+                            'GET',
+                            'POST'
+                        ]
+
+                    }
+
+                }
+            );
+
+        // ====================================
+        // Attach NEOM Socket Server
+        // ====================================
+
+        neomRealtimeTelemetry
+            .attachSocketServer(io);
+
+        // ====================================
+        // Start NEOM Adapters
+        // ====================================
+
+        neomRealtimeTelemetry
+            .startAdapters();
+
+        console.log(
+            '📡 NEOM Real-Time Telemetry initialized'
+        );
+
+        server.on(
+            'error',
+
+            error => {
+
+                console.error(
+
+                    '[SUPREME Server Error]',
+
+                    error.message
+
+                );
+
+            }
+        );
+
+        return server;
 
     } catch (error) {
 
         console.error(
+
             '[SUPREME Startup Error]',
+
             error.message
+
         );
 
         throw error;
 
     }
-
-    server =
-        app.listen(PORT, () => {
-
-            console.log('');
-
-            console.log(
-                '============================================'
-            );
-
-            console.log(
-                'SUPREME Platform v14.0.0 RUNNING'
-            );
-
-            console.log(
-                '============================================'
-            );
-
-            console.log(
-                'Port: ' + PORT
-            );
-
-            console.log(
-                'Health: http://localhost:' +
-                PORT +
-                '/api/health'
-            );
-
-            console.log(
-                'Dashboard: http://localhost:' +
-                PORT +
-                '/api/dashboard'
-            );
-
-            console.log(
-                'Integration: http://localhost:' +
-                PORT +
-                '/api/integration'
-            );
-
-            console.log(
-                'Scale Runtime: http://localhost:' +
-                PORT +
-                '/api/scale'
-            );
-
-            console.log(
-                'Detection API: POST http://localhost:' +
-                PORT +
-                '/api/detect'
-            );
-
-            console.log(
-                'Dev Token: POST http://localhost:' +
-                PORT +
-                '/api/auth/dev-token'
-            );
-
-            console.log(
-                '============================================'
-            );
-
-        });
-
-    server.on('error', error => {
-
-        console.error(
-            '[SUPREME Server Error]',
-            error.message
-        );
-
-    });
-
-    return server;
 
 }
 
@@ -867,7 +1229,9 @@ function startServer() {
 function shutdown(signal) {
 
     if (shuttingDown) {
+
         return;
+
     }
 
     shuttingDown = true;
@@ -875,9 +1239,11 @@ function shutdown(signal) {
     console.log('');
 
     console.log(
+
         '[SUPREME] Received ' +
         signal +
         '. Shutting down...'
+
     );
 
     try {
@@ -887,8 +1253,11 @@ function shutdown(signal) {
     } catch (error) {
 
         console.error(
+
             '[Integration Shutdown Error]',
+
             error.message
+
         );
 
     }
@@ -900,9 +1269,55 @@ function shutdown(signal) {
     } catch (error) {
 
         console.error(
+
             '[Scale Shutdown Error]',
+
             error.message
+
         );
+
+    }
+
+    try {
+
+        if (
+            typeof neomRealtimeTelemetry.stopAdapters ===
+            'function'
+        ) {
+
+            neomRealtimeTelemetry.stopAdapters();
+
+        }
+
+    } catch (error) {
+
+        console.error(
+
+            '[NEOM Shutdown Error]',
+
+            error.message
+
+        );
+
+    }
+
+    if (io) {
+
+        try {
+
+            io.close();
+
+        } catch (error) {
+
+            console.error(
+
+                '[Socket.IO Shutdown Error]',
+
+                error.message
+
+            );
+
+        }
 
     }
 
@@ -926,8 +1341,6 @@ function shutdown(signal) {
 
     });
 
-    // Force exit if connections do not close.
-
     setTimeout(() => {
 
         console.error(
@@ -945,13 +1358,19 @@ function shutdown(signal) {
 // ============================================
 
 process.on(
+
     'SIGINT',
+
     () => shutdown('SIGINT')
+
 );
 
 process.on(
+
     'SIGTERM',
+
     () => shutdown('SIGTERM')
+
 );
 
 // ============================================
@@ -974,6 +1393,10 @@ module.exports = {
 
     startServer,
 
-    shutdown
+    shutdown,
+
+    getServer: () => server,
+
+    getIO: () => io
 
 };
