@@ -497,66 +497,159 @@ class NeomRealtimeTelemetry {
             };
         }
 
+        // SAFETY SIMULATION ANOMALIES
+        //
+        // These thresholds are simulation-only values derived from
+        // SimulationTelemetryAdapter ranges. They are NOT real NEOM
+        // operational safety limits.
+
         if (
             event.domain === "SAFETY" &&
-            metrics.fireDetected === true
+            (
+                (
+                    Number.isFinite(metrics.fireDetectionProbability) &&
+                    metrics.fireDetectionProbability >= 0.08
+                ) ||
+                (
+                    Number.isFinite(metrics.smokeLevelPpm) &&
+                    metrics.smokeLevelPpm >= 60
+                )
+            )
         ) {
             return {
                 type: "FIRE_DETECTION",
                 severity: "CRITICAL",
-                threshold: true,
-                value: true
+                threshold: {
+                    fireDetectionProbability: 0.08,
+                    smokeLevelPpm: 60,
+                    simulation: true
+                },
+                value: {
+                    fireDetectionProbability:
+                        metrics.fireDetectionProbability,
+                    smokeLevelPpm:
+                        metrics.smokeLevelPpm
+                }
             };
         }
 
         if (
             event.domain === "SAFETY" &&
-            metrics.leak_detected === true
+            (
+                (
+                    Number.isFinite(metrics.hydrogenLeakProbability) &&
+                    metrics.hydrogenLeakProbability >= 0.07
+                ) ||
+                (
+                    Number.isFinite(metrics.hydrogenLeakRate) &&
+                    metrics.hydrogenLeakRate >= 3
+                )
+            )
         ) {
             return {
                 type: "HYDROGEN_PLANT_LEAK",
                 severity: "CRITICAL",
-                threshold: true,
-                value: true
+                threshold: {
+                    hydrogenLeakProbability: 0.07,
+                    hydrogenLeakRate: 3,
+                    simulation: true
+                },
+                value: {
+                    hydrogenLeakProbability:
+                        metrics.hydrogenLeakProbability,
+                    hydrogenLeakRate:
+                        metrics.hydrogenLeakRate
+                }
             };
         }
 
         if (
             event.domain === "SAFETY" &&
-            Number.isFinite(metrics.breach_attempts) &&
-            metrics.breach_attempts >= 1
+            (
+                (
+                    Number.isFinite(metrics.securityBreachProbability) &&
+                    metrics.securityBreachProbability >= 0.05
+                ) ||
+                (
+                    Number.isFinite(metrics.unauthorizedAccessCount) &&
+                    metrics.unauthorizedAccessCount >= 1
+                )
+            )
         ) {
             return {
                 type: "SECURITY_BREACH",
                 severity: "CRITICAL",
-                threshold: 1,
-                value: metrics.breach_attempts
+                threshold: {
+                    securityBreachProbability: 0.05,
+                    unauthorizedAccessCount: 1,
+                    simulation: true
+                },
+                value: {
+                    securityBreachProbability:
+                        metrics.securityBreachProbability,
+                    unauthorizedAccessCount:
+                        metrics.unauthorizedAccessCount
+                }
             };
         }
 
         if (
             event.domain === "SAFETY" &&
-            Number.isFinite(metrics.drones_lost) &&
-            metrics.drones_lost >= 3
+            (
+                (
+                    Number.isFinite(metrics.droneFleetLostProbability) &&
+                    metrics.droneFleetLostProbability >= 0.04
+                ) ||
+                (
+                    Number.isFinite(metrics.dronesLost) &&
+                    metrics.dronesLost >= 2
+                )
+            )
         ) {
             return {
                 type: "DRONE_FLEET_LOST",
                 severity: "HIGH",
-                threshold: 3,
-                value: metrics.drones_lost
+                threshold: {
+                    droneFleetLostProbability: 0.04,
+                    dronesLost: 2,
+                    simulation: true
+                },
+                value: {
+                    droneFleetLostProbability:
+                        metrics.droneFleetLostProbability,
+                    dronesLost:
+                        metrics.dronesLost
+                }
             };
         }
 
         if (
             event.domain === "SAFETY" &&
-            Number.isFinite(metrics.crane_count) &&
-            metrics.crane_count >= 3
+            (
+                (
+                    Number.isFinite(metrics.craneFailureProbability) &&
+                    metrics.craneFailureProbability >= 0.05
+                ) ||
+                (
+                    Number.isFinite(metrics.craneLoadPercent) &&
+                    metrics.craneLoadPercent >= 90
+                )
+            )
         ) {
             return {
                 type: "OXAGON_CRANE_FAILURE",
                 severity: "CRITICAL",
-                threshold: 3,
-                value: metrics.crane_count
+                threshold: {
+                    craneFailureProbability: 0.05,
+                    craneLoadPercent: 90,
+                    simulation: true
+                },
+                value: {
+                    craneFailureProbability:
+                        metrics.craneFailureProbability,
+                    craneLoadPercent:
+                        metrics.craneLoadPercent
+                }
             };
         }
 
