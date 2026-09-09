@@ -237,6 +237,266 @@ class NeomRealtimeTelemetry {
             };
         }
 
+        if (
+            Number.isFinite(metrics.batterySocPercent) &&
+            metrics.batterySocPercent < 20
+        ) {
+            return {
+                type: 'LOW_BATTERY_SOC',
+                severity: 'HIGH',
+                threshold: 20,
+                value: metrics.batterySocPercent
+            };
+        }
+
+        if (
+            Number.isFinite(metrics.solarEfficiencyPercent) &&
+            metrics.solarEfficiencyPercent < 80
+        ) {
+            return {
+                type: 'LOW_SOLAR_EFFICIENCY',
+                severity: 'MEDIUM',
+                threshold: 80,
+                value: metrics.solarEfficiencyPercent
+            };
+        }
+
+        if (
+            Number.isFinite(metrics.windSpeedMps) &&
+            metrics.windSpeedMps >= 20
+        ) {
+            return {
+                type: 'HIGH_WIND_SPEED',
+                severity: 'HIGH',
+                threshold: 20,
+                value: metrics.windSpeedMps
+            };
+        }
+
+        if (
+            Number.isFinite(metrics.powerKw) &&
+            metrics.powerKw < 300
+        ) {
+            return {
+                type: 'LOW_POWER_OUTPUT',
+                severity: 'HIGH',
+                threshold: 300,
+                value: metrics.powerKw
+            };
+        }
+
+        if (
+            Number.isFinite(metrics.renewablePowerKw) &&
+            Number.isFinite(metrics.powerKw) &&
+            metrics.powerKw > 0 &&
+            (metrics.renewablePowerKw / metrics.powerKw) * 100 < 30
+        ) {
+            return {
+                type: 'LOW_RENEWABLE_SHARE',
+                severity: 'MEDIUM',
+                threshold: 30,
+                value: Number(
+                    ((metrics.renewablePowerKw / metrics.powerKw) * 100).toFixed(2)
+                )
+            };
+        }
+
+        if (
+            event.domain === "HYDROGEN" &&
+            Number.isFinite(metrics.pressureBar) &&
+            metrics.pressureBar > 40
+        ) {
+            return {
+                type: "HIGH_HYDROGEN_PRESSURE",
+                severity: "CRITICAL",
+                threshold: 40,
+                value: metrics.pressureBar
+            };
+        }
+
+        if (
+            event.domain === "HYDROGEN" &&
+            Number.isFinite(metrics.hydrogenProductionKgH) &&
+            metrics.hydrogenProductionKgH < 120
+        ) {
+            return {
+                type: "LOW_HYDROGEN_PRODUCTION",
+                severity: "HIGH",
+                threshold: 120,
+                value: metrics.hydrogenProductionKgH
+            };
+        }
+
+        if (
+            event.domain === "HYDROGEN" &&
+            Number.isFinite(metrics.equipmentHealthPercent) &&
+            metrics.equipmentHealthPercent < 70
+        ) {
+            return {
+                type: "LOW_HYDROGEN_EQUIPMENT_HEALTH",
+                severity: "HIGH",
+                threshold: 70,
+                value: metrics.equipmentHealthPercent
+            };
+        }
+
+        if (
+            Number.isFinite(metrics.batterySocPercent) &&
+            metrics.batterySocPercent > 95
+        ) {
+            return {
+                type: "HIGH_BATTERY_SOC",
+                severity: "HIGH",
+                threshold: 95,
+                value: metrics.batterySocPercent
+            };
+        }
+
+        if (
+            event.domain === "INFRASTRUCTURE" &&
+            Number.isFinite(metrics.structuralHealthPercent) &&
+            metrics.structuralHealthPercent < 70
+        ) {
+            return {
+                type: "LOW_STRUCTURAL_HEALTH",
+                severity: "CRITICAL",
+                threshold: 70,
+                value: metrics.structuralHealthPercent
+            };
+        }
+
+        if (
+            event.domain === "INFRASTRUCTURE" &&
+            Number.isFinite(metrics.waterLeakProbability) &&
+            metrics.waterLeakProbability >= 0.5
+        ) {
+            return {
+                type: "HIGH_WATER_LEAK_PROBABILITY",
+                severity: "CRITICAL",
+                threshold: 0.5,
+                value: metrics.waterLeakProbability
+            };
+        }
+
+        if (
+            event.domain === "INFRASTRUCTURE" &&
+            Number.isFinite(metrics.sensorHealthPercent) &&
+            metrics.sensorHealthPercent < 70
+        ) {
+            return {
+                type: "LOW_SENSOR_HEALTH",
+                severity: "HIGH",
+                threshold: 70,
+                value: metrics.sensorHealthPercent
+            };
+        }
+
+        if (
+            event.domain === "INFRASTRUCTURE" &&
+            Number.isFinite(metrics.buildingOccupancyPercent) &&
+            metrics.buildingOccupancyPercent >= 95
+        ) {
+            return {
+                type: "HIGH_BUILDING_OCCUPANCY",
+                severity: "HIGH",
+                threshold: 95,
+                value: metrics.buildingOccupancyPercent
+            };
+        }
+
+        if (
+            event.domain === "INFRASTRUCTURE" &&
+            Number.isFinite(metrics.constructionProgressPercent) &&
+            metrics.constructionProgressPercent < 10
+        ) {
+            return {
+                type: "LOW_CONSTRUCTION_PROGRESS",
+                severity: "MEDIUM",
+                threshold: 10,
+                value: metrics.constructionProgressPercent
+            };
+        }
+
+        // MOBILITY ANOMALIES
+
+        if (
+            event.domain === "MOBILITY" &&
+            Number.isFinite(metrics.vehicleSpeedKph) &&
+            metrics.vehicleSpeedKph > 140
+        ) {
+            return {
+                type: "HIGH_VEHICLE_SPEED",
+                severity: "HIGH",
+                threshold: 140,
+                value: metrics.vehicleSpeedKph
+            };
+        }
+
+        if (
+            event.domain === "MOBILITY" &&
+            Number.isFinite(metrics.vehicleBatteryPercent) &&
+            metrics.vehicleBatteryPercent < 20
+        ) {
+            return {
+                type: "LOW_VEHICLE_BATTERY",
+                severity: "HIGH",
+                threshold: 20,
+                value: metrics.vehicleBatteryPercent
+            };
+        }
+
+        if (
+            event.domain === "MOBILITY" &&
+            Number.isFinite(metrics.vehicleHealthPercent) &&
+            metrics.vehicleHealthPercent < 70
+        ) {
+            return {
+                type: "LOW_VEHICLE_HEALTH",
+                severity: "HIGH",
+                threshold: 70,
+                value: metrics.vehicleHealthPercent
+            };
+        }
+
+        if (
+            event.domain === "MOBILITY" &&
+            Number.isFinite(metrics.collisionRiskProbability) &&
+            metrics.collisionRiskProbability >= 0.7
+        ) {
+            return {
+                type: "HIGH_COLLISION_RISK",
+                severity: "CRITICAL",
+                threshold: 0.7,
+                value: metrics.collisionRiskProbability
+            };
+        }
+
+        if (
+            event.domain === "MOBILITY" &&
+            Number.isFinite(metrics.trafficDensityPercent) &&
+            metrics.trafficDensityPercent >= 90
+        ) {
+            return {
+                type: "HIGH_TRAFFIC_DENSITY",
+                severity: "MEDIUM",
+                threshold: 90,
+                value: metrics.trafficDensityPercent
+            };
+        }
+
+        if (
+            event.domain === "MOBILITY" &&
+            Number.isFinite(metrics.gpsAccuracyMeters) &&
+            metrics.gpsAccuracyMeters > 10
+        ) {
+            return {
+                type: "POOR_GPS_ACCURACY",
+                severity: "HIGH",
+                threshold: 10,
+                value: metrics.gpsAccuracyMeters
+            };
+        }
+
         return null;
     }
 
