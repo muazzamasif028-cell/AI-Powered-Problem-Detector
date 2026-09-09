@@ -497,6 +497,69 @@ class NeomRealtimeTelemetry {
             };
         }
 
+        if (
+            event.domain === "SAFETY" &&
+            metrics.fireDetected === true
+        ) {
+            return {
+                type: "FIRE_DETECTION",
+                severity: "CRITICAL",
+                threshold: true,
+                value: true
+            };
+        }
+
+        if (
+            event.domain === "SAFETY" &&
+            metrics.leak_detected === true
+        ) {
+            return {
+                type: "HYDROGEN_PLANT_LEAK",
+                severity: "CRITICAL",
+                threshold: true,
+                value: true
+            };
+        }
+
+        if (
+            event.domain === "SAFETY" &&
+            Number.isFinite(metrics.breach_attempts) &&
+            metrics.breach_attempts >= 1
+        ) {
+            return {
+                type: "SECURITY_BREACH",
+                severity: "CRITICAL",
+                threshold: 1,
+                value: metrics.breach_attempts
+            };
+        }
+
+        if (
+            event.domain === "SAFETY" &&
+            Number.isFinite(metrics.drones_lost) &&
+            metrics.drones_lost >= 3
+        ) {
+            return {
+                type: "DRONE_FLEET_LOST",
+                severity: "HIGH",
+                threshold: 3,
+                value: metrics.drones_lost
+            };
+        }
+
+        if (
+            event.domain === "SAFETY" &&
+            Number.isFinite(metrics.crane_count) &&
+            metrics.crane_count >= 3
+        ) {
+            return {
+                type: "OXAGON_CRANE_FAILURE",
+                severity: "CRITICAL",
+                threshold: 3,
+                value: metrics.crane_count
+            };
+        }
+
         return null;
     }
 
