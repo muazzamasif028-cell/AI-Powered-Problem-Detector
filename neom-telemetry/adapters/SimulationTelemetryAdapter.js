@@ -73,6 +73,40 @@ class SimulationTelemetryAdapter {
             const sensorHealthPercent =
                 Number((85 + Math.random() * 14).toFixed(2));
 
+            // SAFETY METRICS
+            const fireDetectionProbability =
+                Number((Math.random() * 0.12).toFixed(3));
+
+            const smokeLevelPpm =
+                Number((Math.random() * 80).toFixed(2));
+
+            const hydrogenLeakProbability =
+                Number((Math.random() * 0.10).toFixed(3));
+
+            const hydrogenLeakRate =
+                Number((Math.random() * 5).toFixed(3));
+
+            const securityBreachProbability =
+                Number((Math.random() * 0.08).toFixed(3));
+
+            const unauthorizedAccessCount =
+                Math.floor(Math.random() * 4);
+
+            const droneFleetLostProbability =
+                Number((Math.random() * 0.06).toFixed(3));
+
+            const dronesOnline =
+                Math.floor(8 + Math.random() * 5);
+
+            const dronesLost =
+                Math.floor(Math.random() * 3);
+
+            const craneFailureProbability =
+                Number((Math.random() * 0.08).toFixed(3));
+
+            const craneLoadPercent =
+                Number((20 + Math.random() * 75).toFixed(2));
+
             // MOBILITY METRICS
             const vehicleSpeedKph =
                 Number((20 + Math.random() * 140).toFixed(2));
@@ -93,7 +127,13 @@ class SimulationTelemetryAdapter {
                 Number((1 + Math.random() * 15).toFixed(2));
 
             onTelemetry({
-                domain: ['ENERGY', 'HYDROGEN', 'INFRASTRUCTURE', 'MOBILITY'][Math.floor(Math.random() * 4)],
+                domain: [
+                    'ENERGY',
+                    'HYDROGEN',
+                    'INFRASTRUCTURE',
+                    'MOBILITY',
+                    'SAFETY'
+                ][Math.floor(Math.random() * 5)],
                 zone: ['THE LINE', 'OXAGON', 'TROJENA', 'SINDALAH'][
                     Math.floor(Math.random() * 4)
                 ],
@@ -125,7 +165,18 @@ class SimulationTelemetryAdapter {
                     vehicleHealthPercent,
                     trafficDensityPercent,
                     collisionRiskProbability,
-                    gpsAccuracyMeters
+                    gpsAccuracyMeters,
+                    fireDetectionProbability,
+                    smokeLevelPpm,
+                    hydrogenLeakProbability,
+                    hydrogenLeakRate,
+                    securityBreachProbability,
+                    unauthorizedAccessCount,
+                    droneFleetLostProbability,
+                    dronesOnline,
+                    dronesLost,
+                    craneFailureProbability,
+                    craneLoadPercent
                 },
                 metadata: {
                     simulation: true
