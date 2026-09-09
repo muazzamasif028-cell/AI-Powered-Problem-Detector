@@ -20,8 +20,80 @@ class SimulationTelemetryAdapter {
             const failureProbability =
                 Number((Math.random() * 0.15).toFixed(3));
 
+            const solarPowerKw =
+                Number((200 + Math.random() * 800).toFixed(2));
+
+            const solarEfficiencyPercent =
+                Number((85 + Math.random() * 12).toFixed(2));
+
+            const windPowerKw =
+                Number((150 + Math.random() * 650).toFixed(2));
+
+            const windSpeedMps =
+                Number((4 + Math.random() * 16).toFixed(2));
+
+            const renewablePowerKw =
+                Number((solarPowerKw + windPowerKw).toFixed(2));
+
+            const renewableSharePercent =
+                Number(
+                    Math.min(
+                        100,
+                        (renewablePowerKw / Math.max(powerKw, 1)) * 100
+                    ).toFixed(2)
+                );
+
+            const batterySocPercent =
+                Number((55 + Math.random() * 40).toFixed(2));
+
+            const batteryPowerKw =
+                Number((-300 + Math.random() * 600).toFixed(2));
+
+            const hydrogenProductionKgH =
+                Number((120 + Math.random() * 80).toFixed(2));
+
+            const pressureBar =
+                Number((25 + Math.random() * 20).toFixed(2));
+
+            const equipmentHealthPercent =
+                Number((85 + Math.random() * 14).toFixed(2));
+
+            const buildingOccupancyPercent =
+                Number((20 + Math.random() * 70).toFixed(2));
+
+            const structuralHealthPercent =
+                Number((85 + Math.random() * 14).toFixed(2));
+
+            const constructionProgressPercent =
+                Number((10 + Math.random() * 85).toFixed(2));
+
+            const waterLeakProbability =
+                Number((Math.random() * 0.2).toFixed(3));
+
+            const sensorHealthPercent =
+                Number((85 + Math.random() * 14).toFixed(2));
+
+            // MOBILITY METRICS
+            const vehicleSpeedKph =
+                Number((20 + Math.random() * 140).toFixed(2));
+
+            const vehicleBatteryPercent =
+                Number((15 + Math.random() * 80).toFixed(2));
+
+            const vehicleHealthPercent =
+                Number((80 + Math.random() * 19).toFixed(2));
+
+            const trafficDensityPercent =
+                Number((10 + Math.random() * 85).toFixed(2));
+
+            const collisionRiskProbability =
+                Number((Math.random() * 0.3).toFixed(3));
+
+            const gpsAccuracyMeters =
+                Number((1 + Math.random() * 15).toFixed(2));
+
             onTelemetry({
-                domain: 'ENERGY',
+                domain: ['ENERGY', 'HYDROGEN', 'INFRASTRUCTURE', 'MOBILITY'][Math.floor(Math.random() * 4)],
                 zone: ['THE LINE', 'OXAGON', 'TROJENA', 'SINDALAH'][
                     Math.floor(Math.random() * 4)
                 ],
@@ -31,7 +103,29 @@ class SimulationTelemetryAdapter {
                 metrics: {
                     temperatureC,
                     powerKw,
-                    failureProbability
+                    failureProbability,
+                    solarPowerKw,
+                    solarEfficiencyPercent,
+                    windPowerKw,
+                    windSpeedMps,
+                    renewablePowerKw,
+                    renewableSharePercent,
+                    batterySocPercent,
+                    batteryPowerKw,
+                    hydrogenProductionKgH,
+                    pressureBar,
+                    equipmentHealthPercent,
+                    buildingOccupancyPercent,
+                    structuralHealthPercent,
+                    constructionProgressPercent,
+                    waterLeakProbability,
+                    sensorHealthPercent,
+                    vehicleSpeedKph,
+                    vehicleBatteryPercent,
+                    vehicleHealthPercent,
+                    trafficDensityPercent,
+                    collisionRiskProbability,
+                    gpsAccuracyMeters
                 },
                 metadata: {
                     simulation: true
